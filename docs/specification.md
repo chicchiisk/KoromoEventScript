@@ -1,45 +1,47 @@
-# KoromoEventScript (KSE) Specification
+# KoromoEventScript (KSE) 仕様書
 
-KoromoEventScript (KSE) is a scenario DSL for RPG and visual novel style games. It is designed to let scenario writers write large amounts of dialogue and direction smoothly while keeping the grammar explicit, parseable, localizable, and friendly to Git review.
+KoromoEventScript (KSE) は、RPG・ADV・ノベルゲーム向けのシナリオDSLです。
 
-## Goals
+大量のシナリオを、シナリオライターが自然な流れで執筆できることを目的としています。
 
-- One event per `.kse` script file.
-- Low typing burden for scenario writers.
-- Avoid symbol-heavy syntax.
-- Avoid relying on blank lines or indentation for semantics.
-- Keep blocks explicit with `{}`.
-- Separate scene metadata from runtime commands.
-- Support localization from the language design level.
-- Make resource preloading possible per scene.
-- Provide a safe and readable parallel execution model.
+また、以下を重視しています。
 
-## File Model
+- IME切り替え負担の低減
+- 記号過多な文法の回避
+- Git diff の読みやすさ
+- ローカライズしやすい構造
+- LSP / Tree-sitter / Parser 実装容易性
+- シーン単位のリソース先読み
+- 明示的な並列実行モデル
 
-One event corresponds to one `.kse` file.
+---
 
-The script file name is the event name.
+# ファイル構造
+
+- 1 event = 1 `.kse` ファイル
+- ファイル名が event 名となる
+
+例:
 
 ```txt
 prologue_001.kse
 ```
 
-The file above defines the event `prologue_001`.
+---
 
-## Top-Level Structure
+# トップレベル構造
 
-A `.kse` file may contain:
+`.kse` ファイルには以下を記述できる。
 
-- `use` declarations
-- `actor` definitions
-- `macro` definitions
-- `scene` definitions
+- `use`
+- `actor`
+- `macro`
+- `scene`
 
-Example:
+例:
 
 ```kse
 use common
-use battle_common
 
 actor A : Alice {
     nameKey char.alice
@@ -85,18 +87,22 @@ scene arrival {
 }
 ```
 
-## Imports
+---
+
+# use
 
 ```kse
 use common
 use battle_common
 ```
 
-`use` imports shared macro libraries, actor definitions, and other reusable declarations.
+共通マクロ、actor定義、ライブラリ等を読み込む。
 
-## Actor Definitions
+---
 
-Actors define local script IDs that refer to game-side master character IDs.
+# actor
+
+actor はシナリオ内で利用するローカルIDを定義する。
 
 ```kse
 actor A : Alice {
@@ -105,14 +111,14 @@ actor A : Alice {
 }
 ```
 
-| Element | Meaning |
+| 要素 | 意味 |
 |---|---|
-| `A` | Local actor ID used in this script |
-| `Alice` | Game-side master actor ID |
-| `nameKey` | Localization key for display name |
-| `sprite` | Default sprite set |
+| `A` | シナリオ内ローカルID |
+| `Alice` | ゲーム側マスターID |
 
-### Full Actor Example
+---
+
+## actor 詳細例
 
 ```kse
 actor A : Alice {
@@ -154,25 +160,13 @@ actor A : Alice {
 }
 ```
 
-### Actor Reuse
+---
 
-Multiple local actors may refer to the same master actor if they represent different costumes or runtime states.
+# scene
 
-```kse
-actor A : Alice {
-    sprite alice_normal
-}
+scene は、単一背景上で展開するシナリオ単位である。
 
-actor AB : Alice {
-    sprite alice_battle
-}
-```
-
-## Scene Structure
-
-A scene is a scenario unit that takes place in one background/location.
-
-Each scene must contain exactly one `setup` block at the beginning.
+各 scene は必ず先頭に `setup` ブロックを持つ。
 
 ```kse
 scene arrival {
@@ -180,15 +174,17 @@ scene arrival {
         ...
     }
 
-    ...scene body...
+    ...
 }
 ```
 
-The `setup` block uses header-specific syntax. Runtime commands such as `say`, `nar`, `show`, and `together` are not allowed inside `setup`, except where explicitly allowed in `init` as initial state declarations.
+`setup` は scene ヘッダ専用構文であり、通常命令とは分離される。
 
-## Setup Block
+---
 
-The `setup` block describes scene metadata and initial state.
+# setup
+
+`setup` は scene のメタ情報と初期状態を定義する。
 
 ```kse
 setup {
@@ -209,9 +205,11 @@ setup {
 }
 ```
 
-### Cast
+---
 
-`cast` declares actors used in the scene.
+## cast
+
+scene に登場する actor 一覧。
 
 ```kse
 cast {
@@ -220,32 +218,34 @@ cast {
 }
 ```
 
-This is used for:
+用途:
 
-- Sprite preloading
-- Voice preloading
-- Live2D / Spine preparation
-- Scene analysis
-- Build tooling
-- Character appearance statistics
+- 立ち絵先読み
+- ボイス先読み
+- Live2D / Spine 準備
+- scene解析
+- 出演統計
+- ビルドツール連携
 
-`cast` should list actor IDs already defined by `actor` declarations.
+---
 
-The compiler may also infer cast usage from the scene body, but explicit `cast` is useful as a resource loading hint.
+## bg
 
-### Background
-
-Each scene must define exactly one background.
+scene ごとに背景を1つだけ持つ。
 
 ```kse
 bg: royal_gate_evening
 ```
 
-Changing background inside a scene body is forbidden. If the background changes, create a new scene.
+scene 本文中で背景変更は禁止。
 
-### Scene Transition
+背景が変わる場合は scene を分割する。
 
-`transition` defines how this scene is entered.
+---
+
+## transition
+
+scene 入場時トランジション。
 
 ```kse
 transition: fade 1.0
@@ -254,48 +254,35 @@ transition: wipe left 0.5
 transition: none
 ```
 
-The transition belongs to the destination scene, not the `goto` command.
+遷移は遷移先 scene が定義する。
 
 ```kse
 goto enter_city
 ```
 
-The `enter_city` scene decides how it appears.
+---
 
-### Init Block
+## init
 
-`init` describes the static initial screen state.
+scene 開始時の静的状態を定義する。
 
 ```kse
 init {
     A: left normal hidden
     G: right serious hidden
+
     camera: wide
     bgm: capital_evening
 }
 ```
 
-`init` is not for animated direction. It is for immediate state setup before the scene body begins.
+`init` はアニメーション用途ではなく、即時状態設定用途である。
 
-Example actor initial state:
+---
 
-```kse
-A: left normal hidden
-B: center smile visible
-```
+# say
 
-Example non-actor initial state:
-
-```kse
-camera: wide
-bgm: capital_evening
-```
-
-## Dialogue
-
-### Say
-
-`say` is used for actor dialogue.
+キャラクター台詞。
 
 ```kse
 say A #arrival_001 {
@@ -303,15 +290,17 @@ say A #arrival_001 {
 }
 ```
 
-Syntax:
+構文:
 
 ```txt
-say <actorId> <textId> { <body> }
+say <actorId> <textId> { <本文> }
 ```
 
-### Narration
+---
 
-`nar` is used for narration.
+# nar
+
+ナレーション。
 
 ```kse
 nar #arrival_002 {
@@ -319,32 +308,35 @@ nar #arrival_002 {
 }
 ```
 
-`text` is not used for narration. The DSL uses `nar` explicitly.
+ナレーションは `text` ではなく `nar` を使用する。
 
-## Localization
+---
 
-Text-bearing commands should have stable text IDs.
+# ローカライズ
+
+テキストを持つ命令には安定した textId を付与する。
 
 ```kse
 say A #arrival_001 {
     ここが王都……。
 }
+```
 
+```kse
 nar #arrival_002 {
     王都の門には、夕陽が長い影を落としていた。
 }
 ```
 
-Localization tools should extract text by IDs such as:
+翻訳ツールは以下のようなキーを利用する。
 
 ```txt
 prologue_001.arrival.arrival_001
-prologue_001.arrival.arrival_002
 ```
 
-### Placeholders
+---
 
-Use named placeholders for runtime values.
+## プレースホルダ
 
 ```kse
 say A #arrival_003 {
@@ -352,15 +344,13 @@ say A #arrival_003 {
 }
 ```
 
-Translation can change word order:
+翻訳側で語順変更できることを前提とする。
 
-```txt
-Are you ready, {playerName}?
-```
+---
 
-### Plurals and Conditions
+## 複数形
 
-For pluralization and conditional grammar, KSE should follow ICU MessageFormat style where possible.
+ICU MessageFormat 互換を推奨。
 
 ```kse
 nar #item_count {
@@ -371,11 +361,13 @@ nar #item_count {
 }
 ```
 
-## Parallel Execution
+---
 
-KSE does not use `cut` blocks.
+# together
 
-Parallel execution is expressed explicitly with `together`.
+KSE は `cut` を持たない。
+
+並列実行は `together` で明示する。
 
 ```kse
 together {
@@ -385,15 +377,15 @@ together {
 }
 ```
 
-All commands inside `together` start at the same time.
+`together` 内の命令は同時開始される。
 
-The script continues after all commands in the block complete.
+全命令完了後、次の命令へ進む。
 
-This avoids the forgotten-`do` problem of delayed execution queues.
+---
 
-## Runtime Commands
+# 実行命令
 
-### Character Commands
+## キャラクター命令
 
 ```kse
 show A
@@ -403,7 +395,9 @@ face A angry
 move A center 0.5
 ```
 
-### Camera Commands
+---
+
+## カメラ命令
 
 ```kse
 pan A 0.5
@@ -413,7 +407,9 @@ fade in 1.0
 fade out 1.0
 ```
 
-### Audio Commands
+---
+
+## 音声命令
 
 ```kse
 bgm capital_evening
@@ -423,9 +419,11 @@ se armor
 voice A alice_001
 ```
 
-## Control Flow
+---
 
-### If
+# 制御構文
+
+## if
 
 ```kse
 if has_pass {
@@ -439,28 +437,36 @@ if has_pass {
 }
 ```
 
-### Scene Jump
+---
+
+## scene 遷移
 
 ```kse
 goto enter_city
 ```
 
-### Event Call
+---
+
+## event 呼び出し
 
 ```kse
 call sub_event_001
 return
 ```
 
-### End
+---
+
+## end
 
 ```kse
 end
 ```
 
-## Macros
+---
 
-Macros are reusable command blocks.
+# macro
+
+再利用可能な命令列。
 
 ```kse
 macro angry(actor) {
@@ -469,15 +475,15 @@ macro angry(actor) {
 }
 ```
 
-Usage:
+使用:
 
 ```kse
 angry A
 ```
 
-Macros execute immediately when called.
+macro は呼び出し時に即時実行される。
 
-For parallel execution, call macros inside `together`.
+並列実行したい場合は `together` 内で呼ぶ。
 
 ```kse
 together {
@@ -486,126 +492,9 @@ together {
 }
 ```
 
-## Example
+---
 
-```kse
-use common
-
-actor A : Alice {
-    nameKey char.alice
-    sprite alice
-}
-
-actor G : Guard {
-    nameKey char.guard
-    sprite guard
-}
-
-macro enter(actor, pos, face) {
-    show actor pos face
-    se cloth
-}
-
-macro look(actor) {
-    pan actor 0.5
-    zoom 1.08 0.5
-}
-
-scene arrival {
-    setup {
-        cast {
-            A
-            G
-        }
-
-        bg: royal_gate_evening
-        transition: fade 1.0
-
-        init {
-            A: left normal hidden
-            G: right serious hidden
-            camera: wide
-            bgm: capital_evening
-        }
-    }
-
-    together {
-        enter A left normal
-        look A
-    }
-
-    nar #arrival_001 {
-        王都の門には、夕陽が長い影を落としていた。
-    }
-
-    say A #arrival_002 {
-        ここが王都……。
-    }
-
-    together {
-        enter G right serious
-    }
-
-    say G #arrival_003 {
-        止まれ。身分証を見せろ。
-    }
-
-    if has_pass {
-        say A #arrival_004 {
-            これでいい？
-        }
-
-        together {
-            face G normal
-        }
-
-        say G #arrival_005 {
-            確認した。通ってよし。
-        }
-
-        goto enter_city
-    } else {
-        together {
-            face G angry
-        }
-
-        say A #arrival_006 {
-            身分証……？
-        }
-
-        say G #arrival_007 {
-            持っていないなら通すわけにはいかん。
-        }
-
-        goto rejected
-    }
-}
-
-scene enter_city {
-    setup {
-        cast {
-            A
-        }
-
-        bg: capital_street_evening
-        transition: dissolve 0.8
-
-        init {
-            A: center normal visible
-            camera: wide
-            bgm: capital_theme
-        }
-    }
-
-    nar #enter_city_001 {
-        アリスは王都へ足を踏み入れた。
-    }
-
-    end
-}
-```
-
-## Grammar Sketch
+# 文法概要
 
 ```ebnf
 file        ::= use_decl* actor_def* macro_def* scene_def*
@@ -630,20 +519,26 @@ scene_body  ::= say_stmt
               | end_stmt
               | command
               | macro_call
-
-together_block ::= "together" "{" command* "}"
-say_stmt       ::= "say" IDENT TEXT_ID "{" raw_text "}"
-nar_stmt       ::= "nar" TEXT_ID "{" raw_text "}"
 ```
 
-## Design Notes
+---
 
-KSE deliberately separates:
+# 設計思想
 
-- `setup`: scene metadata
-- `init`: static initial state
-- `say` / `nar`: localizable text
-- runtime commands: actual direction
-- `together`: explicit parallel execution
+KSE は以下を明確に分離する。
 
-This keeps the language readable for writers while remaining straightforward to parse and tool around.
+- `setup`: scene メタ情報
+- `init`: 初期状態
+- `say` / `nar`: ローカライズ対象テキスト
+- 実行命令: 演出
+- `together`: 並列実行
+
+これにより、
+
+- シナリオライターが読みやすい
+- Parser 実装が容易
+- LSP 実装しやすい
+- Git diff が読みやすい
+- ローカライズしやすい
+
+という特性を持つ。
