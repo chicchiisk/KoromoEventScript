@@ -72,6 +72,7 @@ z:0     -2  -1  ●   ●   ●
 - ブロック構文
 - 字句・記法
 - コメント
+- エラー分類
 - import
 - 変数定義
 - 式と四則演算
@@ -85,6 +86,7 @@ z:0     -2  -1  ●   ●   ●
 - actor構文
 - cast と actor
 - テキスト構文 (`say`)
+- 選択肢構文
 - `if` 構文
 - ループ構文
 - `using` 構文
@@ -102,7 +104,7 @@ KES のソースファイルは、上から順に評価される命令列で構�
 命令には以下の2種類がある。
 
 - 通常の関数呼び出しとして解釈される命令
-- `say`、`using`、`if`、`switch` のような組み込み構文
+- `say`、`using`、`if`、`while`、`for` のような組み込み構文
 
 通常命令は原則として1行で完結するが、LESS により複数行の糖衣構文へ展開できる。
 一方、組み込み構文はそれぞれ固有の展開規則と実行規則を持つ。
@@ -115,7 +117,7 @@ KES のソースファイルは、上から順に評価される命令列で構�
 いったん `var`、初期化命令、ロード命令、シナリオ命令などの非 `import` 文が現れた後は、それ以降に `import` 文を書くことはできない。
 
 一方で、`import` 以外の記述順には言語仕様上の制約はない。
-`var`、`fn`、`class`、`enum`、初期化命令、ロード命令、シナリオ命令は任意の順序で記述できる。
+`var`、`fn`、`class`、`enum`、`actor`、初期化命令、ロード命令、シナリオ命令は任意の順序で記述できる。
 実行時に処理を行う文は、ファイルに記述された順で処理される。
 `fn`、`class`、`enum`、`actor` の宣言は実行時命令ではなく、コンパイル時に名前と型を登録する。
 
@@ -239,6 +241,20 @@ change_scene:
 - `bg-jitaku` : `_` 以外の記号を含む
 - `say!` : `_` 以外の記号を含む
 
+### 予約語
+
+次の語は予約語であり、識別子として使用できない。
+
+```txt
+import var fn class enum actor public private
+if else while for in break continue using as return new
+select case label jump
+true false null
+```
+
+予約語は構文上の曖昧さを避けるため、大文字小文字を区別したうえで予約する。
+たとえば `if` は予約語だが、`If` は通常の識別子として扱える。
+
 ### 文字列
 
 文字列リテラルはダブルクオートで囲む。
@@ -264,6 +280,12 @@ face exp="eye_open" no_wait=true:
 ```
 
 位置引数と名前付き引数は同一命令内で併用できる。
+引数に演算式や関数呼び出し結果を渡したい場合は、式中の関数呼び出しと同じく値全体を丸括弧で囲む。
+
+```kes
+show Noa (basePosition + 1)
+face actor=(get_current_actor()) exp="normal"
+```
 
 ## コメント
 
@@ -278,6 +300,25 @@ face exp="eye_open" no_wait=true:
 ```
 
 コメントは構文解析上無視される。
+
+## エラー分類
+
+KES のエラーは、構文エラー、コンパイルエラー、実行時エラー、警告に分類する。
+
+構文エラーは、字句解析または構文解析の段階で検出できる誤りである。
+インデント不一致、閉じていない文字列、予約語の不正使用、ブロック開始行の `:` 欠落などが該当する。
+構文エラーがあるファイルはコンパイルを継続しない。
+
+コンパイルエラーは、構文としては読めるが、名前解決、型検査、スコープ規則、制御フロー検査に違反する誤りである。
+未定義名の参照、型不一致、異なる型同士の演算、戻り値不足、ループ外の `break` / `continue`、関数外の `return` などが該当する。
+コンパイルエラーがあるファイルは実行できない。
+
+実行時エラーは、コンパイル時には確定できず、実行中に検出される誤りである。
+配列の範囲外アクセス、初期化前トップレベル変数の参照、存在しないリソースへのアクセスなどが該当する。
+
+警告は、実行を継続できるが確認が必要な状態である。
+ボイスIDや画像IDに対応するリソースが見つからない場合などが該当する。
+警告をエラーとして扱うかどうかは、CLI やプロジェクト設定で切り替えられるものとする。
 
 ## import
 
@@ -351,6 +392,8 @@ print strB //fugafuga
 ```
 
 特殊値として `null` を持つ。
+`null` は参照が存在しないことを表す値であり、`string`、`Actor`、ユーザー定義クラス、配列などの参照型に代入できる。
+`number`、`bool`、`enum` などの値型には代入できない。
 
 `Actor` はアクター型として特別扱いされる。
 それ以外のユーザー定義型(クラス)は参照型として扱う。
@@ -448,6 +491,11 @@ var message = format_score value=(score + bonus) unit="pt"
 
 式中の関数呼び出しは、引数を1つ以上持つ場合に関数呼び出しとして解釈する。
 識別子だけを単独で書いた場合は変数参照として扱う。
+引数を持たない関数を式中で呼び出す場合は、変数参照と区別するため `name()` と書く。
+
+```kes
+var nowText = current_time()
+```
 
 ### 代入式
 
@@ -474,7 +522,30 @@ score = score + 10
 
 比較演算の結果は `bool` である。
 `==` と `!=` は左右が同一型の場合のみ使用できる。
-異なる型同士の比較はコンパイルエラーとする。
+ただし、参照型の値は `null` と `==` / `!=` で比較できる。
+異なる型同士の比較は、参照型と `null` の比較を除きコンパイルエラーとする。
+
+### 論理演算子
+
+`bool` 型に対して、次の論理演算子をサポートする。
+
+| 演算子 | 意味 | 例 |
+|---|---|---|
+| `&&` | 論理積 | `enabled && score >= 70` |
+| `||` | 論理和 | `hasTicket || isDebug` |
+| `!` | 否定 | `!enabled` |
+
+`!` は単項演算子であり、`&&` は `||` より優先順位が高い。
+`&&` と `||` は短絡評価を行う。
+左辺だけで結果が確定する場合、右辺は評価されない。
+
+```kes
+if actor != null && actor.isVisible:
+    show actor 0
+```
+
+論理演算子の対象は `bool` のみである。
+`number`、`string`、参照型などを暗黙に真偽値へ変換することはせず、`bool` 以外に論理演算子を適用した場合はコンパイルエラーとする。
 
 ## 配列
 
@@ -666,7 +737,7 @@ class Counter:
 ```
 
 メソッド本体では、同じクラスのメンバー変数とメソッドを名前で参照できる。
-ローカル変数と名前が衝突する場合はローカル変数を優先する。
+ローカル変数や引数がメンバー名と衝突する場合はコンパイルエラーとする。
 
 ### コンストラクタ、dispose、デストラクタ
 
@@ -853,7 +924,7 @@ face exp="eye_open" no_wait=true Kaguya
 ### 適用範囲
 
 LESS はあくまで関数呼び出しの糖衣構文である。
-`if`、`switch`、`using` など、専用の意味論を持つ構文は LESS ではない。
+`if`、`while`、`for`、`using` など、専用の意味論を持つ構文は LESS ではない。
 
 また、`say`および`nar` は組み込み構文であり、LESS そのものではない。
 ただし、複数行の本文を順に処理する点では、見た目上 LESS と似た展開を行う。
@@ -904,7 +975,10 @@ nar:
     LIMEでメッセージを送ると、すぐに既読が付いた
 ```
 
-`say <Actor>:` に続くブロックは、シナリオテキストとして解釈される。
+`say <actor_identifier>:` に続くブロックは、シナリオテキストとして解釈される。
+`say` の直後には `Actor` 型の識別子のみを指定できる。
+式、関数呼び出し、メンバーアクセス、配列要素アクセスなどは指定できない。
+指定した識別子が `Actor` 型でない場合はコンパイルエラーとする。
 ブロック内の通常行は、表示対象の本文行となる。
 
 `nar:` は `say` からアクター指定を除いた構文であり、それ以外の仕様は `say` と同一である。
@@ -996,6 +1070,58 @@ nar:
 
 複数式を記述した場合、本文上に表示される値は最後に評価された式の結果とする。
 `void` 関数や代入文のように値を返さない式は表示されない。
+
+## 選択肢構文
+
+`select` はノベルゲームの選択肢を表示し、選ばれた項目に対応するタグへ制御を移すための組み込み構文である。
+`select:` に続くブロックには `case` 行のみを書ける。
+
+```kes
+select:
+    case "かぐやに意見を聞く" #choice1
+    case "オリエに意見を聞く" #choice2
+    case "乃愛に意見を聞く" #choice3
+```
+
+`case` は1行の構文であり、必ず `case <文字列リテラル> <タグ>` の順に書く。
+文字列リテラルは画面上に表示される選択肢テキストである。
+タグは、その選択肢が選ばれたときのジャンプ先を表す。
+
+`select` は実行時にすべての `case` を画面に表示し、プレイヤーの選択を待つ。
+プレイヤーが選択したら、対応するタグへジャンプする。
+`select` ブロックが `case` を1つも持たない場合はコンパイルエラーとする。
+`case` を `select` ブロックの外に書いた場合もコンパイルエラーとする。
+
+### ラベルとジャンプ
+
+`label` はジャンプ先を定義する構文である。
+`jump` は指定したタグへ無条件でジャンプする構文である。
+
+```kes
+label #choice1
+
+say Riku:
+    かぐやはどう思う？
+
+jump #end_choice
+```
+
+`label` と `jump` はどちらも `#id` 形式のタグを1つ取る。
+同じファイル内で同一タグを複数のジャンプ先として定義した場合はコンパイルエラーとする。
+未定義タグを `case` または `jump` から参照した場合もコンパイルエラーとする。
+
+ジャンプ先として使えるタグは、`label` に付けたタグ、またはタグ付きの `say` / `nar` に付けたタグである。
+タグ付き `say` / `nar` に直接ジャンプした場合、その `say` / `nar` から実行を開始する。
+
+```kes
+say Riku #choice3:
+    乃愛はどう思う？
+```
+
+`jump` は構造化制御構文ではなく、シナリオ進行位置を移すための命令である。
+関数/メソッドの外側にあるラベルへ、関数/メソッドの内側からジャンプしてはならない。
+関数/メソッドの内側にあるラベルへ、外側からジャンプしてはならない。
+このようなスコープ境界をまたぐジャンプはコンパイルエラーとする。
 
 ## `if` 構文
 
@@ -1178,7 +1304,7 @@ import Common
     この構文をList Expansion Syntax Sugar (LESS) と呼ぶ
     関数はすべてLESS構文で呼び出せる。
 
-    if,switch,usingなどほかにもインデントを伴う構文があるが、これらは組み込みの構文であり、LESSではない。
+    if,while,for,usingなどほかにもインデントを伴う構文があるが、これらは組み込みの構文であり、LESSではない。
     LESSはあくまで関数呼び出しの糖衣構文である。
 
     また、cast関数はアクターを読み込む関数だが、アクターはclassとも違う特殊オブジェクトとなっている。
@@ -1422,12 +1548,54 @@ face Kurumi "think"
 say Kurumi:
     そっちも別に
 
+/*
+    select - caseで選択肢を表す
+    caseは一行の構文で、必ず case 文字列 タグの順に並ぶ
+    文字列が画面上に表示される選択肢テキストで、タグはジャンプ先のタグとなる。
+*/
+select:
+    case "かぐやに意見を聞く" #choice1
+    case "オリエに意見を聞く" #choice2
+    case "乃愛に意見を聞く" #choice3
+
+// ラベル構文は、タグを持ち、ジャンプ先に使われる
+label #choice1
+
+say Riku:
+    かぐやはどう思う？
+
+face Kaguya "think"
+say Kaguya:
+    そうね…、心当たりはないわ
+
+// jumpはラベル構文と対になる、ジャンプ先を示す構文である。
+// jumpは無条件で指定したラベルにジャンプする
+jump #end_choice
+
+label #choice2
+say Orie:
+    私に聞かれましても困ります
+jump #end_choice
+
+// 直接sayやnar構文にジャンプすることも可能
+say Riku #choice3:
+    乃愛はどう思う？
+
+face Noa "bikkuri"
+say Noa:
+    ボク！？　えっと、そういわれてもなあ
+
+label #end_choice
+
+say Riku:
+    そうか…
+
 ```
 
 ## 現状文法BNF
 
 このBNFは、本仕様書で説明している現状の構文をまとめたものである。
-字句解析、インデント解釈、コメント除去は構文解析の前段で行われるものとする。
+字句解析、インデント解釈、コメント除去、空行除去は構文解析の前段で行われるものとする。
 
 ```bnf
 <script> ::= <import_section>? <top_level_item>*
@@ -1441,10 +1609,9 @@ say Kurumi:
     | <fn_decl>
     | <actor_decl>
     | <stmt>
-    | <blank_line>
 
 <block> ::= <indent> <block_item>+ <dedent>
-<block_item> ::= <stmt> | <blank_line>
+<block_item> ::= <stmt>
 
 <stmt> ::=
       <var_decl> <newline>
@@ -1452,6 +1619,9 @@ say Kurumi:
     | <return_stmt> <newline>
     | <say_stmt>
     | <nar_stmt>
+    | <select_stmt>
+    | <label_stmt> <newline>
+    | <jump_stmt> <newline>
     | <if_stmt>
     | <while_stmt>
     | <for_stmt>
@@ -1462,32 +1632,41 @@ say Kurumi:
 
 <var_decl> ::= "var" <identifier> <type_annotation>? ("=" <expr>)?
 <type_annotation> ::= ":" <type>
-<type> ::= <identifier> | <primitive_type> | <array_type>
-<primitive_type> ::= "number" | "bool"
-<array_type> ::= <type> "[]"
+<type> ::= <base_type> "[]"*
+<base_type> ::= <identifier> | <primitive_type>
+<return_type> ::= <type> | "void"
+<primitive_type> ::= "number" | "bool" | "string" | "Actor"
 
 <assignment> ::= <assignable> "=" <expr>
 <assignable> ::= <identifier> | <member_access> | <index_access>
 <return_stmt> ::= "return" <expr>?
 
 <command_line> ::= <command_stmt> (";" <command_stmt>)*
-<command_stmt> ::= <identifier> <command_arg>*
-<command_arg> ::= <expr> | <named_arg>
-<named_arg> ::= <identifier> "=" <expr>
+<command_stmt> ::= <call_target> <command_arg>*
+<command_arg> ::= <simple_arg_expr> | <named_arg>
+<named_arg> ::= <identifier> "=" <simple_arg_expr>
 
 <less_stmt> ::= <identifier> <command_arg>* ":" <newline> <less_block>
 <less_block> ::= <indent> <less_item>+ <dedent>
-<less_item> ::= <command_arg>+ <newline> | <command_stmt> <newline>
+<less_item> ::= <command_arg>+ <newline> | <command_stmt> <newline> | <less_stmt>
 
-<say_stmt> ::= "say" <expr> <tag>? ":" <newline> <text_block>
+<say_stmt> ::= "say" <actor_identifier> <tag>? ":" <newline> <text_block>
+<actor_identifier> ::= <identifier>
 <nar_stmt> ::= "nar" <tag>? ":" <newline> <text_block>
 <tag> ::= "#" <identifier>
 <text_block> ::= <indent> <text_item>+ <dedent>
 <text_item> ::= <text_line> <newline> | <text_expr_line> <newline>
+<text_line> ::= raw scenario text, with <expr_list> expression interpolation allowed
 <text_expr_line> ::= "@" <inline_stmt_list>
-<expr_list> ::= <inline_stmt_list>
+<expr_list> ::= "{" <inline_stmt_list> "}"
 <inline_stmt_list> ::= <inline_stmt> (";" <inline_stmt>)*
 <inline_stmt> ::= <expr> | <var_decl> | <assignment> | <command_stmt>
+
+<select_stmt> ::= "select" ":" <newline> <select_block>
+<select_block> ::= <indent> <case_stmt>+ <dedent>
+<case_stmt> ::= "case" <string_literal> <tag> <newline>
+<label_stmt> ::= "label" <tag>
+<jump_stmt> ::= "jump" <tag>
 
 <if_stmt> ::= "if" <expr> ":" <newline> <block> <else_if_clause>* <else_clause>?
 <else_if_clause> ::= "else" "if" <expr> ":" <newline> <block>
@@ -1499,7 +1678,8 @@ say Kurumi:
 
 <using_stmt> ::= "using" <identifier> <command_arg>* ("as" <identifier>)? ":" <newline> <block>
 
-<fn_decl> ::= "fn" <identifier> "(" <param_list>? ")" <type_annotation>? ":" <newline> <block>
+<fn_decl> ::= "fn" <identifier> "(" <param_list>? ")" <return_type_annotation>? ":" <newline> <block>
+<return_type_annotation> ::= ":" <return_type>
 
 <enum_decl> ::= "enum" <identifier> ":" <newline> <enum_block>
 <enum_block> ::= <indent> <enum_member>+ <dedent>
@@ -1510,18 +1690,21 @@ say Kurumi:
 <class_member> ::= <field_decl> <newline> | <method_decl>
 <field_decl> ::= <access_modifier>? <var_decl>
 <access_modifier> ::= "public" | "private"
-<method_decl> ::= "fn" <identifier> "(" <param_list>? ")" <type_annotation>? ":" <newline> <block>
+<method_decl> ::= "fn" <identifier> "(" <param_list>? ")" <return_type_annotation>? ":" <newline> <block>
 <param_list> ::= <param> ("," <param>)*
 <param> ::= <identifier> ":" <type>
 
 <actor_decl> ::= "actor" <identifier> ":" <newline> <block>
 
 <expr> ::= <assignment_expr>
-<assignment_expr> ::= <comparison_expr>
-<comparison_expr> ::= <additive_expr> (("==" | "!=" | "<" | "<=" | ">" | ">=") <additive_expr>)?
+<assignment_expr> ::= <logical_or_expr>
+<logical_or_expr> ::= <logical_and_expr> ("||" <logical_and_expr>)*
+<logical_and_expr> ::= <equality_expr> ("&&" <equality_expr>)*
+<equality_expr> ::= <relational_expr> (("==" | "!=") <relational_expr>)?
+<relational_expr> ::= <additive_expr> (("<" | "<=" | ">" | ">=") <additive_expr>)?
 <additive_expr> ::= <multiplicative_expr> (("+" | "-") <multiplicative_expr>)*
 <multiplicative_expr> ::= <unary_expr> (("*" | "/") <unary_expr>)*
-<unary_expr> ::= ("+" | "-") <unary_expr> | <postfix_expr>
+<unary_expr> ::= ("+" | "-" | "!") <unary_expr> | <postfix_expr>
 <postfix_expr> ::= <primary_expr> <postfix_op>*
 <postfix_op> ::= "." <identifier> | "[" <expr> "]"
 <primary_expr> ::=
@@ -1532,31 +1715,31 @@ say Kurumi:
     | <new_expr>
     | "(" <expr> ")"
 
-<call_expr> ::= <call_target> <space_call_arg>+
+<call_expr> ::= <call_target> <space_call_arg>+ | <call_target> "(" ")"
 <call_target> ::= <identifier> ("." <identifier>)*
 <space_call_arg> ::= <simple_arg_expr> | <named_space_arg>
 <named_space_arg> ::= <identifier> "=" <simple_arg_expr>
 <simple_arg_expr> ::=
       <literal>
+    | <signed_number_literal>
     | <identifier>
     | <array_literal>
-    | <new_expr>
+    | <new_expr_no_args>
     | <member_access>
     | <index_access>
     | "(" <expr> ")"
-<new_expr> ::= "new" <identifier> <space_call_arg>*
 <array_literal> ::= "[" (<expr> ("," <expr>)*)? "]"
+<new_expr> ::= "new" <identifier> <space_call_arg>*
+<new_expr_no_args> ::= "new" <identifier>
 <member_access> ::= <postfix_expr> "." <identifier>
 <index_access> ::= <postfix_expr> "[" <expr> "]"
 
+<identifier> ::= Unicode identifier starting with a non-digit character; "_" is allowed; reserved words are excluded
 <literal> ::= <number_literal> | <string_literal> | <bool_literal> | "null"
 <bool_literal> ::= "true" | "false"
-
-<identifier> ::= Unicode identifier starting with a non-digit character; "_" is allowed
-<number_literal> ::= implementation-defined numeric literal
+<number_literal> ::= implementation-defined unsigned numeric literal
+<signed_number_literal> ::= ("+" | "-") <number_literal>
 <string_literal> ::= double quoted string literal
-<text_line> ::= raw scenario text, with "{ <expr_list> }" expression interpolation allowed
-<blank_line> ::= <newline>
 <newline> ::= line break
 <indent> ::= increased indentation
 <dedent> ::= decreased indentation
