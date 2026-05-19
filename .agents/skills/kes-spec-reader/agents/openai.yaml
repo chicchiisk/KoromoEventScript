@@ -1,0 +1,4 @@
+interface:
+  display_name: "KES Spec Reader"
+  short_description: "Find and apply relevant KES specs."
+  default_prompt: "Read the relevant KoromoEventScript specs and summarize the implementation requirements."

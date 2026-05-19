@@ -1,0 +1,87 @@
+name: Feature task
+description: AI 実装に渡す開発タスク
+title: "[Task]: "
+labels:
+  - task
+body:
+  - type: textarea
+    id: purpose
+    attributes:
+      label: 目的
+      description: この Issue で達成したい状態を書く。
+      placeholder: 例：.ke の label / jump を解析し、未定義タグを診断できるようにする。
+    validations:
+      required: true
+  - type: textarea
+    id: references
+    attributes:
+      label: 参照仕様
+      description: 実装時に必ず読む仕様書、関連 Issue、関連 PR を列挙する。
+      placeholder: |
+        - docs/spec/kes-language-spec.md
+        - docs/spec/cli-tool-spec.md
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: 実装範囲
+      description: 変更してよい機能、モジュール、ファイル範囲を書く。
+      placeholder: |
+        - Lexer
+        - Parser
+        - Diagnostic model
+    validations:
+      required: true
+  - type: textarea
+    id: out_of_scope
+    attributes:
+      label: 対象外
+      description: この Issue では扱わないことを書く。
+      placeholder: |
+        - VS Code 拡張連携
+        - Windows Runtime の描画処理
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 受け入れ条件
+      description: PR レビュー時に確認する具体的な条件を書く。
+      placeholder: |
+        - jump #missing が KES2xxx を出す
+        - 正常なタグ参照ではエラーにならない
+        - 診断に file / line / column / code / message が含まれる
+    validations:
+      required: true
+  - type: textarea
+    id: tests
+    attributes:
+      label: 必須テスト
+      description: 追加または更新すべきテストを書く。不要な場合は理由を書く。
+      placeholder: |
+        - Parser unit test
+        - Diagnostic snapshot test
+        - CLI integration test
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: 依存 Issue
+      description: 先に完了している必要がある Issue を書く。
+      placeholder: |
+        - Depends on #1
+    validations:
+      required: false
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: AI 作業チェック
+      options:
+        - label: 1 Issue = 1 Branch = 1 PR で作業する
+          required: true
+        - label: 実装範囲を超える変更が必要な場合は PR 本文で明示する
+          required: true
+        - label: 受け入れ条件とテスト結果を PR 本文に記載する
+          required: true

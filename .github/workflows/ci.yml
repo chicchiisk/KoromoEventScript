@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  markdown:
+    name: Markdown lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Lint markdown
+        uses: DavidAnson/markdownlint-cli2-action@v17
+        with:
+          globs: |
+            **/*.md
+            !LICENSE
+
+  dotnet:
+    name: .NET tests
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        shell: pwsh
+        run: |
+          $solutions = Get-ChildItem -Recurse -Filter *.sln
+          $projects = Get-ChildItem -Recurse -Filter *.csproj
+          if ($solutions.Count -eq 0 -and $projects.Count -eq 0) {
+              Write-Host "No .NET solution or project found. Skipping restore."
+              exit 0
+          }
+          if ($solutions.Count -gt 0) {
+              dotnet restore $solutions[0].FullName
+          } else {
+              dotnet restore $projects[0].FullName
+          }
+
+      - name: Build
+        shell: pwsh
+        run: |
+          $solutions = Get-ChildItem -Recurse -Filter *.sln
+          $projects = Get-ChildItem -Recurse -Filter *.csproj
+          if ($solutions.Count -eq 0 -and $projects.Count -eq 0) {
+              Write-Host "No .NET solution or project found. Skipping build."
+              exit 0
+          }
+          if ($solutions.Count -gt 0) {
+              dotnet build $solutions[0].FullName --configuration Release --no-restore
+          } else {
+              dotnet build $projects[0].FullName --configuration Release --no-restore
+          }
+
+      - name: Test
+        shell: pwsh
+        run: |
+          $testProjects = Get-ChildItem -Recurse -Filter *.csproj | Where-Object {
+              $_.FullName -match 'Tests|Test'
+          }
+          if ($testProjects.Count -eq 0) {
+              Write-Host "No .NET test project found. Skipping tests."
+              exit 0
+          }
+          foreach ($project in $testProjects) {
+              dotnet test $project.FullName --configuration Release --no-build
+          }
+
+  node:
+    name: Node tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          elif [ -f package.json ]; then
+            npm install
+          else
+            echo "No package.json found. Skipping install."
+          fi
+
+      - name: Test
+        run: |
+          if [ -f package.json ]; then
+            npm test --if-present
+          else
+            echo "No package.json found. Skipping tests."
+          fi

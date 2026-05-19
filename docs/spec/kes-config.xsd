@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema
+    xmlns:xs="http://www.w3.org/2001/XMLSchema"
+    elementFormDefault="qualified"
+    attributeFormDefault="unqualified">
+
+    <xs:element name="KoromoEventScript">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="Project" type="ProjectType" />
+                <xs:element name="Paths" type="PathsType" />
+                <xs:element name="Build" type="BuildType" minOccurs="0" />
+                <xs:element name="Runtime" type="RuntimeType" minOccurs="0" />
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:complexType name="ProjectType">
+        <xs:attribute name="Name" type="xs:string" use="required" />
+        <xs:attribute name="Version" type="VersionType" use="required" />
+        <xs:attribute name="Entry" type="PathType" use="required" />
+    </xs:complexType>
+
+    <xs:complexType name="PathsType">
+        <xs:attribute name="Events" type="PathType" use="required" />
+        <xs:attribute name="Assets" type="PathType" use="required" />
+        <xs:attribute name="Locale" type="PathType" use="required" />
+        <xs:attribute name="Build" type="PathType" use="required" />
+        <xs:attribute name="Dist" type="PathType" use="required" />
+    </xs:complexType>
+
+    <xs:complexType name="BuildType">
+        <xs:attribute name="Target" type="BuildTargetType" default="windows" />
+        <xs:attribute name="WarningsAsErrors" type="xs:boolean" default="false" />
+    </xs:complexType>
+
+    <xs:complexType name="RuntimeType">
+        <xs:attribute name="WindowWidth" type="PositiveIntegerType" default="1280" />
+        <xs:attribute name="WindowHeight" type="PositiveIntegerType" default="720" />
+    </xs:complexType>
+
+    <xs:simpleType name="BuildTargetType">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="windows" />
+            <xs:enumeration value="unity" />
+            <xs:enumeration value="unreal" />
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:simpleType name="PositiveIntegerType">
+        <xs:restriction base="xs:positiveInteger" />
+    </xs:simpleType>
+
+    <xs:simpleType name="VersionType">
+        <xs:restriction base="xs:string">
+            <xs:pattern value="[0-9]+(\.[0-9]+){0,3}([\-+][A-Za-z0-9][A-Za-z0-9\.\-]*)?" />
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:simpleType name="PathType">
+        <xs:restriction base="xs:string">
+            <xs:minLength value="1" />
+        </xs:restriction>
+    </xs:simpleType>
+</xs:schema>

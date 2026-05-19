@@ -35,15 +35,19 @@ KoromoEventScriptは、中核をなすKoromoEventScript言語と、
 1. シナリオの作成 : .keファイルを作成し、シナリオ本文を記述する
 2. 演出の作成 : .keファイルのシナリオに、演出命令を追記する
 3. イベントマスタファイルの作成 : .kelファイルを作成し、イベント同士をつなぎ合わせる
-4. リンティング&自動処理 : .keファイルを kes lint コマンドで文法チェックし、一部IDなどの自動採番を行って.keファイルに書き戻す。またローカライズ辞書(.csv)を書き出す
+4. ビルド＆自動処理 : .keファイルを kes build コマンドで中間表現である .kファイルにビルドする。一部IDなどの自動採番を行って.keファイルに書き戻す。またローカライズ辞書(.csv)を書き出す
 5. 実行
     - 単体実行 : kes run XXX.kel でイベントマスタファイルを起点にゲームを起動する
-    - Unity組み込み : 作成した.kes,.kelファイルをAsset/以下にインポートし、シーンにKoromoEventScriptManagerを配置し、.kelファイルを指定して実行する
-    - UnrealEngine組み込み : 作成した.kes,.kelファイルをプロジェクトのContent/以下にインポートし、シーンにKoromoEventScriptManagerを配置し、.kelファイルを指定して実行する
+    - Unity組み込み :
+      - `kes publish --target unity` で生成した `.k` / `.kel` フォルダを Assets 以下にインポート
+      - シーンに KoromoEventScriptManager を配置して `.kel` ファイルを指定して実行する
+    - UnrealEngine組み込み :
+      - `kes publish --target unreal` で生成した `.k` / `.kel` フォルダを Content 以下にインポート
+      - シーンに KoromoEventScriptManager を配置して `.kel` ファイルを指定して実行する
 
 ## 詳細仕様書
 
-イベントスクリプトとイベントマスタファイルの仕様書 : [[kes-language-spec.md]]
+イベントスクリプトとイベントマスタファイルの仕様書 : [[kes-language-spec]]
 CLIツールの仕様書 : [[cli-tool-spec]]
 VSCode言語サポート拡張の仕様書 : [[vscode-ext-spec]]
 単体実行基盤の仕様書 : [[windows-runtime-spec]]

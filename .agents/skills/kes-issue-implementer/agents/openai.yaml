@@ -1,0 +1,4 @@
+interface:
+  display_name: "KES Issue Implementer"
+  short_description: "Implement one Issue as one branch and PR."
+  default_prompt: "Implement the assigned KoromoEventScript Issue using the repository workflow."

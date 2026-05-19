@@ -1,0 +1,4 @@
+interface:
+  display_name: "KES Test Writer"
+  short_description: "Add NUnit and KES test coverage."
+  default_prompt: "Add or update tests for the current KoromoEventScript task."

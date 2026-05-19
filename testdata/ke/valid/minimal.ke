@@ -1,0 +1,8 @@
+label #start
+
+say Riku:
+    こんにちは
+
+jump #end
+
+label #end

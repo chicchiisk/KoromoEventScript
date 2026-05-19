@@ -1,0 +1,16 @@
+label #start
+
+say Riku:
+    こんにちは
+
+select:
+    case "続ける" #continue
+    case "終わる" #end
+
+label #continue
+nar:
+    物語は続いていく。
+
+jump #end
+
+label #end
