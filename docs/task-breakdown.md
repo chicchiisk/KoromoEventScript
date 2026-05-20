@@ -216,10 +216,22 @@ Parser、Diagnostic、CLI 統合テストで使う入力ファイルの置き場
 - 重複定義診断を実装する。
 - 未定義参照診断を実装する。
 - 型検査の最小実装を追加する。
+- 標準ライブラリの組み込み定義を名前解決と型検査の対象に追加する。
+- 予約内部名 `__systemcall__` のユーザーコードからの直接使用を診断する。
 - 警告と warnings-as-errors を実装する。
 
 ## Phase 3: コンパイルと VM
 
+- 標準ライブラリを実装する。
+  - `docs/spec/kes-language-stl-spec.md` に定義された core / scene / actor / text / audio / flow / state / system モジュールを組み込み定義として登録する。
+  - STL は runtime 機能を直接持たず、`__systemcall__` の薄いラップ、または他の STL 関数の組み合わせとして実装する。
+  - `__systemcall__` は内部命令として実装し、syscall ID、引数型、戻り値型、`void` 戻り値の使用可否をシグネチャ表で検証する。
+  - runtime 向けの scene / actor / text / audio / state / system syscall を VM イベントへ変換する。
+- 標準ライブラリのテストを追加する。
+  - `print`、`array_len`、`str_len`、`range`、`number_to_string`、`bool_to_string`、`assert` の型検査と実行テストを追加する。
+  - `p`、`r`、`l`、`cm`、`vo`、`vf`、`wait_click` が text/audio syscall として発行されることを確認する。
+  - `bgm`、`se`、`save`、`load`、`set_config` など runtime 連携命令の syscall 発行 golden test を追加する。
+  - ユーザーコードからの `__systemcall__` 直接使用、未知の syscall ID、引数数/型不一致を診断するテストを追加する。
 - 中間表現 `.k` の仕様書を追加する。
 - `.ke` から `.k` への変換を実装する。
 - IR golden test を追加する。
@@ -312,6 +324,7 @@ manifest に定義された画像、音声、ローカライズ辞書を ID か�
 受け入れ条件:
 
 - VM から発行される `bg`、`show`、`face`、`trans`、`say`、`nar`、`select`、`jump` を受け取れる。
+- STL の `__systemcall__` 由来の scene / actor / text / audio / state / system イベントを受け取れる。
 - ランタイム側の画面状態に変換できる。
 - VM と WinUI 3 の依存方向が分離されている。
 - VM 連携アダプタは NUnit でテストできる。
@@ -401,10 +414,12 @@ manifest に定義された画像、音声、ローカライズ辞書を ID か�
 - スキップ
 - オート
 - システムメニュー
+- 本文中の改ページ `p`、改行 `r`、行内クリック待ち `l`、メッセージウィンドウ非表示 `cm`
 
 受け入れ条件:
 
 - `say` / `nar` の本文をクリック待ちで進行できる。
+- `p`、`r`、`l`、`cm` の text syscall をメッセージ表示へ反映できる。
 - `select` の選択肢を表示し、選択結果を VM に返せる。
 - バックログで表示済みテキストを確認できる。
 - スキップとオートの状態を切り替えられる。
@@ -419,6 +434,7 @@ BGM、SE、Voice の再生、停止、音量制御を実装する。
 - BGM は原則1系統で再生できる。
 - SE は複数同時再生できる。
 - Voice は原則1系統で再生できる。
+- `bgm`、`bgm_stop`、`se`、`se_stop`、`voice_stop`、`vo_auto` の audio syscall を処理できる。
 - クリック進行で Voice を停止できる。
 - Voice 素材がない場合は警告として実行継続できる。
 

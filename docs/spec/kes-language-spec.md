@@ -255,6 +255,14 @@ true false null
 予約語は構文上の曖昧さを避けるため、大文字小文字を区別したうえで予約する。
 たとえば `if` は予約語だが、`If` は通常の識別子として扱える。
 
+### 予約内部名
+
+`__systemcall__` は標準ライブラリ実装から VM/runtime 側の機能を呼び出すための予約内部名である。
+通常のシナリオ `.ke` から直接呼び出すことはできない。
+また、ユーザー定義関数、変数、class、enum、actor 名として使用できない。
+
+`__systemcall__` の詳細は `kes-language-stl-spec.md` で定義する。
+
 ### 文字列
 
 文字列リテラルはダブルクオートで囲む。
@@ -584,10 +592,10 @@ say Noa:
 names[1] = "Kurumi"
 ```
 
-配列の長さは標準関数 `len array` で取得する。
+配列の長さは標準関数 `array_len array` で取得する。
 
 ```kes
-var count = len names
+var count = array_len names
 ```
 
 ## enum定義
@@ -1042,6 +1050,14 @@ I have {plural value one="an" other=value} apple{plural value other="s"}
 ```
 
 波括弧内は式として評価され、その結果を文字列へ埋め込む。
+標準ライブラリの `p` 命令は改ページを表す。
+`{p}` と書くことで、同一 `say` / `nar` 文脈内にページ区切りを挿入できる。
+標準ライブラリの `r` 命令は改行を表す。
+`{r}` と書くことで、同一ページ内に行区切りを挿入できる。
+標準ライブラリの `l` 命令は行内クリック待ちを表す。
+`{l}` と書くことで、同一ページ内の途中で入力待ちを挿入できる。
+標準ライブラリの `cm` 命令はメッセージウィンドウの非表示を表す。
+`{cm}` または `@cm` と書くことで、現在のメッセージウィンドウを非表示にできる。
 
 ### `@` から始まる式行
 
@@ -1206,7 +1222,7 @@ for actor in actors:
 
 ```kes
 for i in range 0 3:
-    print i
+    print (number_to_string i)
 ```
 
 ### `break` と `continue`
@@ -1529,7 +1545,7 @@ face Kurumi "think"
 say Kurumi:
     海では楽しく過ごしたし、
     @vf "kyoton"
-    家に帰ってからもごくごく普通。{cn}
+    家に帰ってからもごくごく普通。{p}
     @vf "niya"
     いつもより、
     @vf "eye_close"
@@ -1734,7 +1750,7 @@ say Riku:
 <member_access> ::= <postfix_expr> "." <identifier>
 <index_access> ::= <postfix_expr> "[" <expr> "]"
 
-<identifier> ::= Unicode identifier starting with a non-digit character; "_" is allowed; reserved words are excluded
+<identifier> ::= Unicode identifier starting with a non-digit character; "_" is allowed; reserved words and reserved internal names are excluded
 <literal> ::= <number_literal> | <string_literal> | <bool_literal> | "null"
 <bool_literal> ::= "true" | "false"
 <number_literal> ::= implementation-defined unsigned numeric literal
