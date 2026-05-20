@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/source/" />
+  <Folder Name="/source/cli/">
+    <Project Path="source/cli/KoromoEventScript.Cli/KoromoEventScript.Cli.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/KoromoEventScript.Cli.Tests/KoromoEventScript.Cli.Tests.csproj" />
+  </Folder>
+</Solution>
