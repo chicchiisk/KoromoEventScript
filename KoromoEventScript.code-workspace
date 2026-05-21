@@ -6,7 +6,10 @@
     ],
     "settings": {
         "chat.tools.terminal.autoApprove": {
-            "dotnet": true
+            "dotnet": true,
+            "git fetch": true,
+            "git ls-remote": true,
+            "gh": true
         }
     }
 }
