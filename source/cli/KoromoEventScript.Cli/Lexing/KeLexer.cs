@@ -136,11 +136,11 @@ public sealed class KeLexer
 
     private void ConsumeIndentation()
     {
+        var indent = 0;
+        var indentColumn = _column;
+
         while (true)
         {
-            var indent = 0;
-            var indentColumn = _column;
-
             while (!IsAtEnd())
             {
                 var current = Peek();
@@ -188,9 +188,13 @@ public sealed class KeLexer
 
             if (Peek() == '/' && PeekNext() == '*')
             {
+                var commentStartLine = _line;
                 SkipBlockComment();
-                if (_atLineStart)
+
+                if (_line != commentStartLine)
                 {
+                    indent = 0;
+                    indentColumn = _column;
                     continue;
                 }
             }
@@ -273,9 +277,6 @@ public sealed class KeLexer
             if (Peek() == '\n')
             {
                 Advance();
-                _line++;
-                _column = 1;
-                _atLineStart = true;
                 continue;
             }
 

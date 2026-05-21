@@ -167,6 +167,54 @@ label #start
     }
 
     [Test]
+    public void Lex_PreservesIndentationAcrossInlineBlockComment()
+    {
+        const string source = """
+if true:
+    /* comment */ hp = 1
+""";
+
+        AssertTokenSequence(
+            source,
+            [
+                new(TokenKind.Keyword, "if"),
+                new(TokenKind.Keyword, "true"),
+                new(TokenKind.Colon, ":"),
+                new(TokenKind.Newline, "\n"),
+                new(TokenKind.Indent, string.Empty),
+                new(TokenKind.Identifier, "hp"),
+                new(TokenKind.Equals, "="),
+                new(TokenKind.NumberLiteral, "1"),
+                new(TokenKind.Newline, "\n"),
+                new(TokenKind.Dedent, string.Empty),
+                new(TokenKind.EndOfFile, string.Empty),
+            ]);
+    }
+
+    [Test]
+    public void Lex_PreservesLocationAfterMultilineBlockComment()
+    {
+        const string source = """
+/* comment
+still comment */
+label #start
+""";
+
+        var result = KeLexer.Lex(source);
+        var keywordToken = result.Tokens.First(static token => token.Kind == TokenKind.Keyword);
+        var tagToken = result.Tokens.First(static token => token.Kind == TokenKind.Tag);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(keywordToken.Lexeme, Is.EqualTo("label"));
+            Assert.That(keywordToken.Line, Is.EqualTo(3));
+            Assert.That(keywordToken.Column, Is.EqualTo(1));
+            Assert.That(tagToken.Line, Is.EqualTo(3));
+            Assert.That(tagToken.Column, Is.EqualTo(7));
+        });
+    }
+
+    [Test]
     public void Lex_ReportsTabIndentation()
     {
         var source = "say Riku:\n\t\"hello\"\n";
