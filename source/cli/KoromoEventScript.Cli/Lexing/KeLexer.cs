@@ -16,11 +16,15 @@ public sealed class KeLexer
     private readonly string _source;
     private readonly List<Token> _tokens = [];
     private readonly Stack<int> _indentStack = new();
+    private readonly Stack<int> _textBlockIndentStack = new();
 
     private int _position;
     private int _line = 1;
     private int _column = 1;
     private bool _atLineStart = true;
+    private int _significantTokensOnLine;
+    private bool _currentLineStartsTextStatement;
+    private bool _pendingTextBlock;
 
     public KeLexer(string source)
     {
@@ -43,6 +47,12 @@ public sealed class KeLexer
                 if (IsAtEnd())
                 {
                     break;
+                }
+
+                if (!_atLineStart && IsInsideTextBlock())
+                {
+                    LexTextLine();
+                    continue;
                 }
             }
 
@@ -111,16 +121,16 @@ public sealed class KeLexer
 
         if (_tokens.Count > 0 && _tokens[^1].Kind != TokenKind.Newline)
         {
-            _tokens.Add(new Token(TokenKind.Newline, "\n", _line, _column));
+            AddToken(TokenKind.Newline, "\n", _line, _column);
         }
 
         while (_indentStack.Count > 1)
         {
             _indentStack.Pop();
-            _tokens.Add(new Token(TokenKind.Dedent, string.Empty, _line, 1));
+            AddToken(TokenKind.Dedent, string.Empty, _line, 1);
         }
 
-        _tokens.Add(new Token(TokenKind.EndOfFile, string.Empty, _line, _column));
+        AddToken(TokenKind.EndOfFile, string.Empty, _line, _column);
         return new LexerResult(_tokens);
     }
 
@@ -193,29 +203,43 @@ public sealed class KeLexer
 
     private void EmitIndentation(int indent, int column)
     {
+        while (_textBlockIndentStack.Count > 0 && indent < _textBlockIndentStack.Peek())
+        {
+            _textBlockIndentStack.Pop();
+        }
+
         var currentIndent = _indentStack.Peek();
         if (indent == currentIndent)
         {
+            _pendingTextBlock = false;
             return;
         }
 
         if (indent > currentIndent)
         {
             _indentStack.Push(indent);
-            _tokens.Add(new Token(TokenKind.Indent, string.Empty, _line, column));
+            AddToken(TokenKind.Indent, string.Empty, _line, column);
+            if (_pendingTextBlock)
+            {
+                _textBlockIndentStack.Push(indent);
+            }
+
+            _pendingTextBlock = false;
             return;
         }
 
         while (_indentStack.Count > 1 && indent < _indentStack.Peek())
         {
             _indentStack.Pop();
-            _tokens.Add(new Token(TokenKind.Dedent, string.Empty, _line, column));
+            AddToken(TokenKind.Dedent, string.Empty, _line, column);
         }
 
         if (_indentStack.Peek() != indent)
         {
             ThrowSyntax("KES1005", "Indentation does not match any outer block.", _line, column);
         }
+
+        _pendingTextBlock = false;
     }
 
     private void SkipLineComment()
@@ -275,7 +299,7 @@ public sealed class KeLexer
             if (current == '"')
             {
                 Advance();
-                _tokens.Add(new Token(TokenKind.StringLiteral, builder.ToString(), startLine, startColumn));
+                AddToken(TokenKind.StringLiteral, builder.ToString(), startLine, startColumn);
                 return;
             }
 
@@ -312,6 +336,21 @@ public sealed class KeLexer
         ThrowSyntax("KES1001", "String literal is not terminated.", startLine, startColumn);
     }
 
+    private void LexTextLine()
+    {
+        var startLine = _line;
+        var startColumn = _column;
+        var builder = new StringBuilder();
+
+        while (!IsAtEnd() && Peek() != '\n')
+        {
+            builder.Append(Peek());
+            Advance();
+        }
+
+        AddToken(TokenKind.StringLiteral, builder.ToString(), startLine, startColumn);
+    }
+
     private void LexTag()
     {
         var startLine = _line;
@@ -320,7 +359,7 @@ public sealed class KeLexer
 
         var builder = new StringBuilder("#");
         builder.Append(ReadIdentifier());
-        _tokens.Add(new Token(TokenKind.Tag, builder.ToString(), startLine, startColumn));
+        AddToken(TokenKind.Tag, builder.ToString(), startLine, startColumn);
     }
 
     private void LexNumber()
@@ -347,7 +386,7 @@ public sealed class KeLexer
             }
         }
 
-        _tokens.Add(new Token(TokenKind.NumberLiteral, builder.ToString(), startLine, startColumn));
+        AddToken(TokenKind.NumberLiteral, builder.ToString(), startLine, startColumn);
     }
 
     private void LexIdentifierOrKeyword()
@@ -356,7 +395,7 @@ public sealed class KeLexer
         var startColumn = _column;
         var text = ReadIdentifier();
         var kind = Keywords.Contains(text) ? TokenKind.Keyword : TokenKind.Identifier;
-        _tokens.Add(new Token(kind, text, startLine, startColumn));
+        AddToken(kind, text, startLine, startColumn);
     }
 
     private string ReadIdentifier()
@@ -478,7 +517,50 @@ public sealed class KeLexer
 
     private void AddToken(TokenKind kind, string lexeme)
     {
-        _tokens.Add(new Token(kind, lexeme, _line, _column));
+        AddToken(kind, lexeme, _line, _column);
+    }
+
+    private void AddToken(TokenKind kind, string lexeme, int line, int column)
+    {
+        _tokens.Add(new Token(kind, lexeme, line, column));
+        RecordToken(kind, lexeme);
+    }
+
+    private void RecordToken(TokenKind kind, string lexeme)
+    {
+        if (kind == TokenKind.Newline)
+        {
+            ResetLineState();
+            return;
+        }
+
+        if (kind is TokenKind.Indent or TokenKind.Dedent or TokenKind.EndOfFile)
+        {
+            return;
+        }
+
+        if (_significantTokensOnLine == 0)
+        {
+            _currentLineStartsTextStatement = kind == TokenKind.Keyword && (lexeme == "say" || lexeme == "nar");
+        }
+
+        _significantTokensOnLine++;
+
+        if (kind == TokenKind.Colon && _currentLineStartsTextStatement)
+        {
+            _pendingTextBlock = true;
+        }
+    }
+
+    private void ResetLineState()
+    {
+        _significantTokensOnLine = 0;
+        _currentLineStartsTextStatement = false;
+    }
+
+    private bool IsInsideTextBlock()
+    {
+        return _textBlockIndentStack.Count > 0 && _indentStack.Peek() >= _textBlockIndentStack.Peek();
     }
 
     private void ThrowSyntax(string code, string message, int line, int column)
