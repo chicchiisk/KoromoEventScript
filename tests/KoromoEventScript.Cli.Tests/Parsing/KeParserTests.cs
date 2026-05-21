@@ -1,0 +1,203 @@
+using KoromoEventScript.Cli.Lexing;
+using KoromoEventScript.Cli.Parsing;
+
+namespace KoromoEventScript.Cli.Tests.Parsing;
+
+public class KeParserTests
+{
+    [Test]
+    public void Parse_BuildsSyntaxTreeForMinimalSupportedStatements()
+    {
+        const string source = """
+import Common
+
+var hp: number = 10
+show Noa 0 face="normal"
+cast exp="eye_open":
+    Riku
+    Amane
+say Riku #line_1:
+    こんにちは
+    @vf Riku "smile"
+nar #nar_1:
+    地の文です
+select:
+    case "はい" #yes
+    case "いいえ" #no
+label #yes
+jump #end
+""";
+
+        var syntax = KeParser.Parse(source);
+
+        Assert.That(syntax.Statements, Has.Count.EqualTo(9));
+        Assert.Multiple(() =>
+        {
+            Assert.That(syntax.Statements[0], Is.TypeOf<ImportStatementSyntax>());
+
+            var varStatement = (VarStatementSyntax)syntax.Statements[1];
+            Assert.That(varStatement.Name, Is.EqualTo("hp"));
+            Assert.That(varStatement.TypeTokens.Select(static token => token.Lexeme), Is.EqualTo(["number"]));
+            Assert.That(varStatement.ValueTokens.Select(static token => token.Lexeme), Is.EqualTo(["10"]));
+
+            var commandStatement = (CommandStatementSyntax)syntax.Statements[2];
+            Assert.That(commandStatement.Name, Is.EqualTo("show"));
+            Assert.That(commandStatement.Arguments.Select(static token => token.Lexeme), Is.EqualTo(["Noa", "0", "face", "=", "normal"]));
+
+            var lessStatement = (LessStatementSyntax)syntax.Statements[3];
+            Assert.That(lessStatement.Name, Is.EqualTo("cast"));
+            Assert.That(lessStatement.SharedArguments.Select(static token => token.Lexeme), Is.EqualTo(["exp", "=", "eye_open"]));
+            Assert.That(lessStatement.Items.Cast<LessCommandItemSyntax>().Select(static item => string.Join(' ', item.Arguments.Select(static token => token.Lexeme))),
+                Is.EqualTo(["Riku", "Amane"]));
+
+            var sayStatement = (SayStatementSyntax)syntax.Statements[4];
+            Assert.That(sayStatement.Speaker, Is.EqualTo("Riku"));
+            Assert.That(sayStatement.Tag, Is.EqualTo("#line_1"));
+            Assert.That(sayStatement.Lines.Select(static line => (line.Text, line.IsExpressionLine)),
+                Is.EqualTo(new[] { ("こんにちは", false), ("@vf Riku \"smile\"", true) }));
+
+            var narStatement = (NarStatementSyntax)syntax.Statements[5];
+            Assert.That(narStatement.Tag, Is.EqualTo("#nar_1"));
+            Assert.That(narStatement.Lines.Select(static line => line.Text), Is.EqualTo(["地の文です"]));
+
+            var selectStatement = (SelectStatementSyntax)syntax.Statements[6];
+            Assert.That(selectStatement.Cases.Select(static item => (item.Text, item.Tag)),
+                Is.EqualTo(new[] { ("はい", "#yes"), ("いいえ", "#no") }));
+
+            Assert.That(syntax.Statements[7], Is.TypeOf<LabelStatementSyntax>());
+            Assert.That(syntax.Statements[8], Is.TypeOf<JumpStatementSyntax>());
+        });
+    }
+
+    [Test]
+    public void Parse_ParsesJumpAfterLabel()
+    {
+        const string source = """
+label #start
+jump #end
+""";
+
+        var syntax = KeParser.Parse(source);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(syntax.Statements[0], Is.EqualTo(new LabelStatementSyntax("#start")));
+            Assert.That(syntax.Statements[1], Is.EqualTo(new JumpStatementSyntax("#end")));
+        });
+    }
+
+    [Test]
+    public void Parse_ReportsMissingColonOnSayStatement()
+    {
+        const string source = """
+say Riku
+    こんにちは
+""";
+
+        var exception = Assert.Throws<ParserException>(() => KeParser.Parse(source));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(exception!.Diagnostic.Code, Is.EqualTo("KES2002"));
+            Assert.That(exception.Diagnostic.Line, Is.EqualTo(1));
+        });
+    }
+
+    [Test]
+    public void Parse_ReportsEmptySayBlock()
+    {
+        const string source = """
+say Riku:
+
+jump #end
+""";
+
+        var exception = Assert.Throws<ParserException>(() => KeParser.Parse(source));
+
+        Assert.That(exception!.Diagnostic.Code, Is.EqualTo("KES2003"));
+    }
+
+    [Test]
+    public void Parse_ReportsEmptyNarBlock()
+    {
+        const string source = """
+nar:
+
+jump #end
+""";
+
+        var exception = Assert.Throws<ParserException>(() => KeParser.Parse(source));
+
+        Assert.That(exception!.Diagnostic.Code, Is.EqualTo("KES2003"));
+    }
+
+    [Test]
+    public void Parse_ReportsIndentationMismatchFromLexer()
+    {
+        const string source = """
+select:
+    case "はい" #yes
+  case "いいえ" #no
+""";
+
+        var exception = Assert.Throws<LexerException>(() => KeParser.Parse(source));
+
+        Assert.That(exception!.Diagnostic.Code, Is.EqualTo("KES1005"));
+    }
+
+    [Test]
+    public void Parse_ReportsCaseOutsideSelectBlock()
+    {
+        const string source = """
+case "はい" #yes
+""";
+
+        var exception = Assert.Throws<ParserException>(() => KeParser.Parse(source));
+
+        Assert.That(exception!.Diagnostic.Code, Is.EqualTo("KES2006"));
+    }
+
+    [Test]
+    public void Parse_ReportsImportAfterOtherStatements()
+    {
+        const string source = """
+show Noa 0
+import Common
+""";
+
+        var exception = Assert.Throws<ParserException>(() => KeParser.Parse(source));
+
+        Assert.That(exception!.Diagnostic.Code, Is.EqualTo("KES2005"));
+    }
+
+    [Test]
+    public void Parse_SupportsNestedLessBlocks()
+    {
+        const string source = """
+change_scene:
+    bg living_room
+    show:
+        Kurumi 0 "normal"
+        Noa 1 "smile"
+""";
+
+        var syntax = KeParser.Parse(source);
+        var lessStatement = (LessStatementSyntax)syntax.Statements.Single();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(lessStatement.Name, Is.EqualTo("change_scene"));
+            Assert.That(lessStatement.Items, Has.Count.EqualTo(2));
+
+            var backgroundItem = (LessCommandItemSyntax)lessStatement.Items[0];
+            Assert.That(backgroundItem.Arguments.Select(static token => token.Lexeme), Is.EqualTo(["bg", "living_room"]));
+
+            var nestedItem = (LessNestedStatementSyntax)lessStatement.Items[1];
+            Assert.That(nestedItem.Statement.Name, Is.EqualTo("show"));
+            Assert.That(nestedItem.Statement.SharedArguments, Is.Empty);
+            Assert.That(nestedItem.Statement.Items.Cast<LessCommandItemSyntax>()
+                .Select(static item => string.Join(' ', item.Arguments.Select(static token => token.Lexeme))),
+                Is.EqualTo(["Kurumi 0 normal", "Noa 1 smile"]));
+        });
+    }
+}
