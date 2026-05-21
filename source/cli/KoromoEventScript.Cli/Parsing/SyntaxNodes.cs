@@ -21,12 +21,16 @@ public sealed record CommandStatementSyntax(
     string Name,
     IReadOnlyList<Token> Arguments) : StatementSyntax;
 
+public abstract record LessBlockItemSyntax;
+
 public sealed record LessStatementSyntax(
     string Name,
     IReadOnlyList<Token> SharedArguments,
-    IReadOnlyList<LessItemSyntax> Items) : StatementSyntax;
+    IReadOnlyList<LessBlockItemSyntax> Items) : StatementSyntax;
 
-public sealed record LessItemSyntax(IReadOnlyList<Token> Arguments);
+public sealed record LessCommandItemSyntax(IReadOnlyList<Token> Arguments) : LessBlockItemSyntax;
+
+public sealed record LessNestedStatementSyntax(LessStatementSyntax Statement) : LessBlockItemSyntax;
 
 public sealed record SayStatementSyntax(
     string Speaker,
@@ -39,6 +43,6 @@ public sealed record NarStatementSyntax(
 
 public sealed record TextLineSyntax(string Text, bool IsExpressionLine);
 
-public sealed record SelectStatementSyntax(IReadOnlyList<CaseStatementSyntax> Cases) : StatementSyntax;
+public sealed record SelectStatementSyntax(IReadOnlyList<CaseClauseSyntax> Cases) : StatementSyntax;
 
-public sealed record CaseStatementSyntax(string Text, string Tag);
+public sealed record CaseClauseSyntax(string Text, string Tag);

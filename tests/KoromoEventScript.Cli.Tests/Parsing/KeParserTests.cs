@@ -47,7 +47,7 @@ jump #end
             var lessStatement = (LessStatementSyntax)syntax.Statements[3];
             Assert.That(lessStatement.Name, Is.EqualTo("cast"));
             Assert.That(lessStatement.SharedArguments.Select(static token => token.Lexeme), Is.EqualTo(["exp", "=", "eye_open"]));
-            Assert.That(lessStatement.Items.Select(static item => string.Join(' ', item.Arguments.Select(static token => token.Lexeme))),
+            Assert.That(lessStatement.Items.Cast<LessCommandItemSyntax>().Select(static item => string.Join(' ', item.Arguments.Select(static token => token.Lexeme))),
                 Is.EqualTo(["Riku", "Amane"]));
 
             var sayStatement = (SayStatementSyntax)syntax.Statements[4];
@@ -168,5 +168,36 @@ import Common
         var exception = Assert.Throws<ParserException>(() => KeParser.Parse(source));
 
         Assert.That(exception!.Diagnostic.Code, Is.EqualTo("KES2005"));
+    }
+
+    [Test]
+    public void Parse_SupportsNestedLessBlocks()
+    {
+        const string source = """
+change_scene:
+    bg living_room
+    show:
+        Kurumi 0 "normal"
+        Noa 1 "smile"
+""";
+
+        var syntax = KeParser.Parse(source);
+        var lessStatement = (LessStatementSyntax)syntax.Statements.Single();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(lessStatement.Name, Is.EqualTo("change_scene"));
+            Assert.That(lessStatement.Items, Has.Count.EqualTo(2));
+
+            var backgroundItem = (LessCommandItemSyntax)lessStatement.Items[0];
+            Assert.That(backgroundItem.Arguments.Select(static token => token.Lexeme), Is.EqualTo(["bg", "living_room"]));
+
+            var nestedItem = (LessNestedStatementSyntax)lessStatement.Items[1];
+            Assert.That(nestedItem.Statement.Name, Is.EqualTo("show"));
+            Assert.That(nestedItem.Statement.SharedArguments, Is.Empty);
+            Assert.That(nestedItem.Statement.Items.Cast<LessCommandItemSyntax>()
+                .Select(static item => string.Join(' ', item.Arguments.Select(static token => token.Lexeme))),
+                Is.EqualTo(["Kurumi 0 normal", "Noa 1 smile"]));
+        });
     }
 }

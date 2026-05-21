@@ -192,7 +192,7 @@ public sealed class KeParser
 
         ExpectIndentedBlock("KES2004", "Select statements must have an indented block.");
 
-        var cases = new List<CaseStatementSyntax>();
+        var cases = new List<CaseClauseSyntax>();
         while (!IsAtEnd() && !Check(TokenKind.Dedent))
         {
             if (Match(TokenKind.Newline))
@@ -204,7 +204,7 @@ public sealed class KeParser
             var textToken = Consume(TokenKind.StringLiteral, "KES2001", "Case statements require a string literal.");
             var tagToken = Consume(TokenKind.Tag, "KES2001", "Case statements require a jump target tag.");
             EnsureLineEndsNow("KES2001", "Case statements only support a string literal and a tag.");
-            cases.Add(new CaseStatementSyntax(textToken.Lexeme, tagToken.Lexeme));
+            cases.Add(new CaseClauseSyntax(textToken.Lexeme, tagToken.Lexeme));
         }
 
         Consume(TokenKind.Dedent, "KES2004", "Select statements must end their block with a dedent.");
@@ -239,7 +239,7 @@ public sealed class KeParser
         return new CommandStatementSyntax(nameToken.Lexeme, arguments);
     }
 
-    private IReadOnlyList<LessItemSyntax> ParseLessBlock()
+    private IReadOnlyList<LessBlockItemSyntax> ParseLessBlock()
     {
         SkipNewlines();
         if (!Match(TokenKind.Indent))
@@ -247,17 +247,12 @@ public sealed class KeParser
             ThrowCurrent("KES2004", "LESS statements must have an indented block.");
         }
 
-        var items = new List<LessItemSyntax>();
+        var items = new List<LessBlockItemSyntax>();
         while (!IsAtEnd() && !Check(TokenKind.Dedent))
         {
             if (Match(TokenKind.Newline))
             {
                 continue;
-            }
-
-            if (Check(TokenKind.Indent))
-            {
-                ThrowCurrent("KES2004", "Nested blocks are not supported inside LESS.");
             }
 
             var itemTokens = ReadUntil(TokenKind.Newline);
@@ -268,7 +263,21 @@ public sealed class KeParser
                 continue;
             }
 
-            items.Add(new LessItemSyntax(itemTokens));
+            if (itemTokens[^1].Kind == TokenKind.Colon)
+            {
+                var nameToken = itemTokens[0];
+                if (nameToken.Kind != TokenKind.Identifier)
+                {
+                    ThrowPrevious("KES2004", "Nested LESS statements must start with a command name.");
+                }
+
+                var sharedArguments = itemTokens.Skip(1).Take(itemTokens.Count - 2).ToArray();
+                var nestedItems = ParseLessBlock();
+                items.Add(new LessNestedStatementSyntax(new LessStatementSyntax(nameToken.Lexeme, sharedArguments, nestedItems)));
+                continue;
+            }
+
+            items.Add(new LessCommandItemSyntax(itemTokens));
         }
 
         Consume(TokenKind.Dedent, "KES2004", "LESS statements must end their block with a dedent.");
