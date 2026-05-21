@@ -28,10 +28,11 @@
 - 1つの Issue に対して1つのブランチと1つの Pull Request を作成する。
 - Issue に書かれた実装範囲を超える変更をしない。
 - 仕様変更が必要な場合は、実装前に Issue または Pull Request で提案する。
+- 長期的に参照する設計判断は、必要に応じて `docs/adr/` に ADR として記録する。
 - すべての実装 Pull Request には、原則として対応するテストを追加する。
 - テスト追加が不要な場合は、Pull Request 本文に理由を書く。
 - 既存の公開仕様と矛盾する実装をしてはならない。
 - Pull Request 本文に、参照した仕様書、満たした受け入れ条件、実行したテストを書く。
 - レビュー指摘への対応では、指摘範囲を優先し、関係のないリファクタリングを混ぜない。
 
-詳細は `docs/development-workflow.md` と `docs/testing-strategy.md` を参照する。
+詳細は `docs/development-workflow.md`、`docs/testing-strategy.md`、`docs/adr/README.md` を参照する。

@@ -4,5 +4,12 @@
 			"path": "."
 		}
     ],
-    "settings": {}
+    "settings": {
+        "chat.tools.terminal.autoApprove": {
+            "dotnet": true,
+            "git fetch": true,
+            "git ls-remote": true,
+            "gh": true
+        }
+    }
 }
