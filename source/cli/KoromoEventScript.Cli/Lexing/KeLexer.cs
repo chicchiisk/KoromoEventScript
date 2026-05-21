@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Text;
 
 namespace KoromoEventScript.Cli.Lexing;
@@ -169,6 +168,8 @@ public sealed class KeLexer
                 AddToken(TokenKind.Newline, "\n");
                 Advance();
                 _atLineStart = true;
+                indent = 0;
+                indentColumn = _column;
                 continue;
             }
 
@@ -180,6 +181,8 @@ public sealed class KeLexer
                     AddToken(TokenKind.Newline, "\n");
                     Advance();
                     _atLineStart = true;
+                    indent = 0;
+                    indentColumn = _column;
                     continue;
                 }
 
@@ -608,7 +611,7 @@ public sealed class KeLexer
             return false;
         }
 
-        return IsLetterCategory(CharUnicodeInfo.GetUnicodeCategory(value));
+        return char.IsLetter(value);
     }
 
     private static bool IsIdentifierPart(char value)
@@ -623,19 +626,6 @@ public sealed class KeLexer
             return true;
         }
 
-        return IsLetterCategory(CharUnicodeInfo.GetUnicodeCategory(value));
-    }
-
-    private static bool IsLetterCategory(UnicodeCategory category)
-    {
-        return category is UnicodeCategory.UppercaseLetter
-            or UnicodeCategory.LowercaseLetter
-            or UnicodeCategory.TitlecaseLetter
-            or UnicodeCategory.ModifierLetter
-            or UnicodeCategory.OtherLetter
-            or UnicodeCategory.LetterNumber
-            or UnicodeCategory.NonSpacingMark
-            or UnicodeCategory.SpacingCombiningMark
-            or UnicodeCategory.ConnectorPunctuation;
+        return char.IsLetter(value);
     }
 }

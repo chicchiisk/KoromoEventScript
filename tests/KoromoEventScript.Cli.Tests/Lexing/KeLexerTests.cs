@@ -260,6 +260,47 @@ if true:
         });
     }
 
+    [Test]
+    public void Lex_DoesNotAccumulateIndentationAcrossBlankLines()
+    {
+        const string source = "if true:\n    hp = 1\n    \n    hp = 2\n";
+
+        AssertTokenSequence(
+            source,
+            [
+                new(TokenKind.Keyword, "if"),
+                new(TokenKind.Keyword, "true"),
+                new(TokenKind.Colon, ":"),
+                new(TokenKind.Newline, "\n"),
+                new(TokenKind.Indent, string.Empty),
+                new(TokenKind.Identifier, "hp"),
+                new(TokenKind.Equals, "="),
+                new(TokenKind.NumberLiteral, "1"),
+                new(TokenKind.Newline, "\n"),
+                new(TokenKind.Newline, "\n"),
+                new(TokenKind.Identifier, "hp"),
+                new(TokenKind.Equals, "="),
+                new(TokenKind.NumberLiteral, "2"),
+                new(TokenKind.Newline, "\n"),
+                new(TokenKind.Dedent, string.Empty),
+                new(TokenKind.EndOfFile, string.Empty),
+            ]);
+    }
+
+    [Test]
+    public void Lex_RejectsConnectorPunctuationInIdentifiers()
+    {
+        const string source = "var ‿name = 1\n";
+
+        var exception = Assert.Throws<LexerException>(() => KeLexer.Lex(source));
+        Assert.Multiple(() =>
+        {
+            Assert.That(exception!.Diagnostic.Code, Is.EqualTo("KES1004"));
+            Assert.That(exception.Diagnostic.Line, Is.EqualTo(1));
+            Assert.That(exception.Diagnostic.Column, Is.EqualTo(5));
+        });
+    }
+
     private static IEnumerable<TestCaseData> GetStatementCases()
     {
         yield return new TestCaseData(
