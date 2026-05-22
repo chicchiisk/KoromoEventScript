@@ -1,2 +1,2 @@
 entry "chapter001"
-event "chapter001" "events/missing.ke" #start
+event "chapter001" "events/missing.kc" #start

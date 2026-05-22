@@ -8,7 +8,7 @@ KoromoEventScript (KES) は、RPG・ADV・ノベルゲーム向けのシナリ�
 
 ## 目指すもの
 
-- `.ke` ファイルでイベント本文、演出命令、分岐、変数、マクロなどを記述する
+- `.kc` ファイルでイベント本文、演出命令、分岐、変数、マクロなどを記述する
 - `.kel` ファイルでイベント一覧、遷移、エントリポイントを管理する
 - `kes` CLI で検証、ビルド、実行、配布物生成を行う
 - VS Code 拡張で編集支援、診断、補完、フォーマットを提供する
@@ -16,9 +16,9 @@ KoromoEventScript (KES) は、RPG・ADV・ノベルゲーム向けのシナリ�
 
 ## 想定ワークフロー
 
-1. `.ke` にシナリオ本文と演出命令を書く
+1. `.kc` にシナリオ本文と演出命令を書く
 2. `.kel` にイベントの流れとエントリポイントを定義する
-3. `kes build` で構文・参照・設定を検証し、実行用の中間表現を生成する
+3. `kes build` で構文・参照・設定を検証し、実行用の `.klib` を生成する
 4. `kes run` で Windows 単体ランタイムから動作確認する
 5. `kes publish --target unity` または `kes publish --target unreal` でゲームエンジン向け成果物を生成する
 
@@ -31,7 +31,7 @@ docs/
     testing-strategy.md
     task-breakdown.md
 testdata/
-    ke/                    .ke テスト入力
+    ke/                    .kc テスト入力
     kel/                   .kel テスト入力
     projects/              CLI 統合テスト用プロジェクト
     snapshots/             golden test / 診断期待値
