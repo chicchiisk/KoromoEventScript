@@ -9,7 +9,14 @@
             "dotnet": true,
             "git fetch": true,
             "git ls-remote": true,
+<<<<<<< Updated upstream
             "gh": true
+=======
+            "gh": true,
+            "ConvertFrom-Json": true,
+            "tee": true,
+            "git rev-parse": true
+>>>>>>> Stashed changes
         }
     }
 }
