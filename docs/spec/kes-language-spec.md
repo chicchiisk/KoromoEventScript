@@ -258,7 +258,7 @@ true false null
 ### 予約内部名
 
 `__systemcall__` は標準ライブラリ実装から VM/runtime 側の機能を呼び出すための予約内部名である。
-通常のシナリオ `.ke` から直接呼び出すことはできない。
+通常のシナリオ `.kc` から直接呼び出すことはできない。
 また、ユーザー定義関数、変数、class、enum、actor 名として使用できない。
 
 `__systemcall__` の詳細は `kes-language-stl-spec.md` で定義する。

@@ -9,7 +9,9 @@
             "dotnet": true,
             "git fetch": true,
             "git ls-remote": true,
-            "gh": true
+            "gh": true,
+            "ConvertFrom-Json": true,
+            "tee": true
         }
     }
 }
