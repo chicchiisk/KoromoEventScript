@@ -30,12 +30,12 @@ xUnit や MSTest は、既存資産の移行など明確な理由がある場合
 
 | 分類 | 対象 | 目的 |
 |---|---|---|
-| Lexer test | `.ke` / `.kel` の字句 | トークン化の退行を防ぐ |
+| Lexer test | `.kc` / `.kel` の字句 | トークン化の退行を防ぐ |
 | Parser test | AST / 構文木 | 文法の解釈を固定する |
 | Diagnostic test | エラー、警告 | 診断コード、位置、メッセージを検証する |
 | Semantic test | 名前解決、型検査 | コンパイルエラーを仕様通り検出する |
-| Golden test | `.ke` から `.k` への変換 | 中間表現の生成結果を固定する |
-| VM test | `.k` の実行 | 分岐、変数、選択肢、テキスト進行を検証する |
+| Golden test | `.kc` から `.klib` への変換 | 中間表現の生成結果を固定する |
+| VM test | `.klib` の実行 | 分岐、変数、選択肢、テキスト進行を検証する |
 | CLI integration test | `kes` コマンド | 終了コード、標準出力、成果物を検証する |
 | Manifest test | `manifest.json` | ランタイム入力契約を固定する |
 | LSP test | VS Code 診断、補完、定義ジャンプ | 編集支援の退行を防ぐ |
@@ -79,13 +79,13 @@ testdata/
 
 | パス | 内容 |
 |---|---|
-| `testdata/ke/valid/` | 正常な `.ke` 入力 |
-| `testdata/ke/invalid/` | 構文エラーまたはコンパイルエラーを含む `.ke` 入力 |
+| `testdata/ke/valid/` | 正常な `.kc` 入力 |
+| `testdata/ke/invalid/` | 構文エラーまたはコンパイルエラーを含む `.kc` 入力 |
 | `testdata/kel/valid/` | 正常な `.kel` 入力 |
 | `testdata/kel/invalid/` | 不正な `.kel` 入力 |
 | `testdata/projects/minimal/` | CLI 統合テスト用の最小プロジェクト |
 | `testdata/snapshots/diagnostics/` | 診断出力の期待値 |
-| `testdata/snapshots/ir/` | `.k` または IR の期待値 |
+| `testdata/snapshots/ir/` | `.klib` または IR の期待値 |
 | `testdata/snapshots/manifest/` | manifest の期待値 |
 
 ## 診断テスト

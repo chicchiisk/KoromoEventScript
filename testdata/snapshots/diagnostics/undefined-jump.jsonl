@@ -1,1 +1,1 @@
-{"level":"error","code":"KES2xxx","file":"testdata/ke/invalid/undefined-jump.ke","line":4,"column":6,"message":"未定義のタグ '#missing' です。"}
+{"level":"error","code":"KES2xxx","file":"testdata/ke/invalid/undefined-jump.kc","line":4,"column":6,"message":"未定義のタグ '#missing' です。"}

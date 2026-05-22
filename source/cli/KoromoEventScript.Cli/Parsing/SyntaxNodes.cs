@@ -4,6 +4,15 @@ namespace KoromoEventScript.Cli.Parsing;
 
 public sealed record ScriptSyntax(IReadOnlyList<StatementSyntax> Statements);
 
+public sealed record EventListSyntax(
+    string EntryEventId,
+    IReadOnlyList<EventDeclarationSyntax> Events);
+
+public sealed record EventDeclarationSyntax(
+    string EventId,
+    string ScriptPath,
+    string EntryTag);
+
 public abstract record StatementSyntax;
 
 public sealed record ImportStatementSyntax(string ModuleName) : StatementSyntax;
