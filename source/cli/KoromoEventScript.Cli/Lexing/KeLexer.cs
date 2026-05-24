@@ -569,7 +569,7 @@ public sealed class KeLexer
 
     private void ThrowSyntax(string code, string message, int line, int column)
     {
-        throw new LexerException(new LexerDiagnostic(code, message, line, column));
+        throw new LexerException(new Diagnostics.Diagnostic(Diagnostics.DiagnosticLevel.Error, code, string.Empty, line, column, message));
     }
 
     private bool IsAtEnd() => _position >= _source.Length;

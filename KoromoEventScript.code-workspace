@@ -12,7 +12,9 @@
             "gh": true,
             "ConvertFrom-Json": true,
             "tee": true,
-            "git rev-parse": true
+            "git rev-parse": true,
+            "Out-File": true,
+            "git remote": true
         }
     }
 }
