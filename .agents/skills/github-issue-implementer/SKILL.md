@@ -88,12 +88,13 @@ Read targeted specs only when needed:
    - If validation fails, repair the same slice before widening scope.
 
 10. Prepare PR-ready notes.
-   - Include `Closes #N`.
-   - Summarize the implemented behavior.
-   - List the specs and docs read.
-   - Map acceptance criteria to code or tests.
-   - Record test commands and results.
-   - Note any intentionally deferred work.
+
+- Include `Closes #N`.
+- Summarize the implemented behavior.
+- List the specs and docs read.
+- Map acceptance criteria to code or tests.
+- Record test commands and results.
+- Note any intentionally deferred work.
 
 ## Decision Points
 
