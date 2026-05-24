@@ -75,11 +75,13 @@ label #end
     [Test]
     public void Lex_TokenizesOperatorsAndPunctuation()
     {
-        const string source = "( ) [ ] , . : ; @ + - * / = == ! != < <= > >= && ||\n";
+        const string source = "{ } ( ) [ ] , . : ; @ + - * / = == ! != < <= > >= && ||\n";
 
         AssertTokenSequence(
             source,
             [
+                new(TokenKind.OpenBrace, "{"),
+                new(TokenKind.CloseBrace, "}"),
                 new(TokenKind.OpenParen, "("),
                 new(TokenKind.CloseParen, ")"),
                 new(TokenKind.OpenBracket, "["),

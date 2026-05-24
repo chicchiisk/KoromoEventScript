@@ -10,6 +10,8 @@ public enum TokenKind
     Colon,
     Comma,
     Dot,
+    OpenBrace,
+    CloseBrace,
     OpenParen,
     CloseParen,
     OpenBracket,

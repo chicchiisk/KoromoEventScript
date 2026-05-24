@@ -424,6 +424,8 @@ public sealed class KeLexer
             ':' => TokenKind.Colon,
             ',' => TokenKind.Comma,
             '.' => TokenKind.Dot,
+            '{' => TokenKind.OpenBrace,
+            '}' => TokenKind.CloseBrace,
             '(' => TokenKind.OpenParen,
             ')' => TokenKind.CloseParen,
             '[' => TokenKind.OpenBracket,

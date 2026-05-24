@@ -1,2 +1,6 @@
-entry "chapter001"
-event "chapter001" "events/chapter001.kc" #start
+entry = chapter001_intro
+
+chapter001_intro = {
+    type = story
+    chapter = "events/chapter001.kc"
+}

@@ -4,14 +4,25 @@ namespace KoromoEventScript.Cli.Parsing;
 
 public sealed record ScriptSyntax(IReadOnlyList<StatementSyntax> Statements);
 
-public sealed record EventListSyntax(
-    string EntryEventId,
-    IReadOnlyList<EventDeclarationSyntax> Events);
+public sealed record KelDocumentSyntax(KelObjectSyntax Root);
 
-public sealed record EventDeclarationSyntax(
-    string EventId,
-    string ScriptPath,
-    string EntryTag);
+public sealed record KelObjectSyntax(IReadOnlyList<KelPropertySyntax> Properties);
+
+public sealed record KelPropertySyntax(
+    string Key,
+    IReadOnlyList<KelValueSyntax> Values);
+
+public abstract record KelValueSyntax;
+
+public sealed record KelObjectValueSyntax(KelObjectSyntax Object) : KelValueSyntax;
+
+public sealed record KelStringValueSyntax(string Value) : KelValueSyntax;
+
+public sealed record KelIdentifierValueSyntax(string Value) : KelValueSyntax;
+
+public sealed record KelNumberValueSyntax(string Value) : KelValueSyntax;
+
+public sealed record KelBooleanValueSyntax(bool Value) : KelValueSyntax;
 
 public abstract record StatementSyntax;
 

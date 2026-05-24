@@ -1,2 +1,14 @@
-entry "chapter001"
-event "chapter001" "events/chapter001.kc" #start
+entry = chapter001_intro
+
+chapter001_intro = {
+    type = story
+    title = chapter001_intro.title
+    desc = chapter001_intro.desc
+    chapter = "events/chapter001.kc"
+    trigger = {
+        flag.123 = true
+    }
+    priority = 100
+    weight = 0.75
+    ui_style = modal
+}

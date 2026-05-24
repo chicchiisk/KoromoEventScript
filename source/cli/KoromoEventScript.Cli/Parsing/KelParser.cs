@@ -5,6 +5,19 @@ namespace KoromoEventScript.Cli.Parsing;
 
 public sealed class KelParser
 {
+    private sealed class PropertyBuilder
+    {
+        public PropertyBuilder(string key, KelValueSyntax value)
+        {
+            Key = key;
+            Values = [value];
+        }
+
+        public string Key { get; }
+
+        public List<KelValueSyntax> Values { get; }
+    }
+
     private readonly IReadOnlyList<Token> _tokens;
     private int _position;
 
@@ -13,64 +26,125 @@ public sealed class KelParser
         _tokens = tokens;
     }
 
-    public static EventListSyntax Parse(string source)
+    public static KelDocumentSyntax Parse(string source)
     {
         return Parse(KeLexer.Lex(source));
     }
 
-    public static EventListSyntax Parse(LexerResult lexerResult)
+    public static KelDocumentSyntax Parse(LexerResult lexerResult)
     {
         return new KelParser(lexerResult.Tokens).Parse();
     }
 
-    public EventListSyntax Parse()
+    public KelDocumentSyntax Parse()
     {
-        SkipNewlines();
-
-        var entryEventId = ParseEntryStatement();
-        SkipNewlines();
-
-        var events = new List<EventDeclarationSyntax>();
-        while (!IsAtEnd())
-        {
-            events.Add(ParseEventStatement());
-            SkipNewlines();
-        }
-
-        if (events.Count == 0)
-        {
-            ThrowCurrent("KES2001", "Expected at least one event after entry.");
-        }
-
-        return new EventListSyntax(entryEventId, events);
+        return new KelDocumentSyntax(ParseObjectBody(TokenKind.EndOfFile));
     }
 
-    private string ParseEntryStatement()
+    private KelObjectSyntax ParseObjectBody(TokenKind terminator)
     {
-        ConsumeWord("entry", "Expected an entry statement at the top of the file.");
-        var entryToken = Consume(TokenKind.StringLiteral, "KES2001", "Expected an event ID string after entry.");
-        EnsureLineEndsNow("KES2001", "Entry statements only support a single event ID string.");
-        return entryToken.Lexeme;
-    }
+        SkipTrivia();
 
-    private EventDeclarationSyntax ParseEventStatement()
-    {
-        ConsumeWord("event", "Expected an event statement after entry.");
-        var eventIdToken = Consume(TokenKind.StringLiteral, "KES2001", "Expected an event ID string after event.");
-        var scriptPathToken = Consume(TokenKind.StringLiteral, "KES2001", "Expected a .ke file path after the event ID.");
-        var entryTagToken = Consume(TokenKind.Tag, "KES2001", "Expected an entry tag after the .ke file path.");
-        EnsureLineEndsNow("KES2001", "Event statements only support an ID, a .ke file path, and an entry tag.");
-        return new EventDeclarationSyntax(eventIdToken.Lexeme, scriptPathToken.Lexeme, entryTagToken.Lexeme);
-    }
+        var properties = new List<PropertyBuilder>();
+        var propertyIndexByKey = new Dictionary<string, int>(StringComparer.Ordinal);
 
-    private void ConsumeWord(string expectedLexeme, string message)
-    {
-        if (!IsWord(expectedLexeme))
+        while (!Check(terminator) && !IsAtEnd())
         {
-            ThrowCurrent("KES2001", message);
+            var key = ParseKey();
+            Consume(TokenKind.Equals, "KES2001", "Expected '=' after key.");
+            var value = ParseValue();
+            EnsurePairEndsNow("KES2001", "Expected the pair to end after its value.");
+
+            if (propertyIndexByKey.TryGetValue(key, out var existingIndex))
+            {
+                properties[existingIndex].Values.Add(value);
+            }
+            else
+            {
+                propertyIndexByKey[key] = properties.Count;
+                properties.Add(new PropertyBuilder(key, value));
+            }
+
+            SkipTrivia();
         }
 
-        Advance();
+        return new KelObjectSyntax(properties
+            .Select(static property => new KelPropertySyntax(property.Key, property.Values.ToArray()))
+            .ToArray());
+    }
+
+    private KelValueSyntax ParseValue()
+    {
+        if (Match(TokenKind.OpenBrace))
+        {
+            SkipTrivia();
+            var nestedObject = ParseObjectBody(TokenKind.CloseBrace);
+            Consume(TokenKind.CloseBrace, "KES2001", "Expected '}' to close the object.");
+            return new KelObjectValueSyntax(nestedObject);
+        }
+
+        if (Check(TokenKind.StringLiteral))
+        {
+            return new KelStringValueSyntax(Advance().Lexeme);
+        }
+
+        if (Check(TokenKind.NumberLiteral))
+        {
+            return new KelNumberValueSyntax(Advance().Lexeme);
+        }
+
+        if (IsNameSegment())
+        {
+            var name = ParseIdentifier();
+            return name switch
+            {
+                "true" => new KelBooleanValueSyntax(true),
+                "false" => new KelBooleanValueSyntax(false),
+                _ => new KelIdentifierValueSyntax(name),
+            };
+        }
+
+        ThrowCurrent("KES2001", "Expected an object, string, identifier, number, or boolean value.");
+        return new KelStringValueSyntax(string.Empty);
+    }
+
+    private string ParseKey()
+    {
+        return ParseName(allowLeadingNumber: true, terminalDescription: "key");
+    }
+
+    private string ParseIdentifier()
+    {
+        return ParseName(allowLeadingNumber: false, terminalDescription: "identifier");
+    }
+
+    private string ParseName(bool allowLeadingNumber, string terminalDescription)
+    {
+        if (!IsNameSegment(allowLeadingNumber))
+        {
+            ThrowCurrent("KES2001", $"Expected a {terminalDescription}.");
+        }
+
+        var builder = new List<string> { Advance().Lexeme };
+
+        while (Match(TokenKind.Dot))
+        {
+            if (!IsNameSegment(allowLeadingNumber: true))
+            {
+                ThrowCurrent("KES2001", $"Expected a {terminalDescription} segment after '.'.");
+            }
+
+            builder.Add(Advance().Lexeme);
+        }
+
+        return string.Join('.', builder);
+    }
+
+    private bool IsNameSegment(bool allowLeadingNumber = false)
+    {
+        return Check(TokenKind.Identifier)
+            || Check(TokenKind.Keyword)
+            || (allowLeadingNumber && Check(TokenKind.NumberLiteral));
     }
 
     private Token Consume(TokenKind kind, string code, string message)
@@ -84,35 +158,19 @@ public sealed class KelParser
         return Current;
     }
 
-    private void EnsureLineEndsNow(string code, string message)
+    private void EnsurePairEndsNow(string code, string message)
     {
-        if (!Check(TokenKind.Newline) && !IsAtEnd())
-        {
-            ThrowCurrent(code, message);
-        }
-
-        if (Match(TokenKind.Newline))
-        {
-            return;
-        }
-
-        if (!IsAtEnd())
+        if (!Check(TokenKind.Newline) && !Check(TokenKind.CloseBrace) && !IsAtEnd())
         {
             ThrowCurrent(code, message);
         }
     }
 
-    private void SkipNewlines()
+    private void SkipTrivia()
     {
-        while (Match(TokenKind.Newline))
+        while (Match(TokenKind.Newline) || Match(TokenKind.Indent) || Match(TokenKind.Dedent))
         {
         }
-    }
-
-    private bool IsWord(string lexeme)
-    {
-        return (Check(TokenKind.Identifier) || Check(TokenKind.Keyword))
-            && string.Equals(Current.Lexeme, lexeme, StringComparison.Ordinal);
     }
 
     private bool Match(TokenKind kind)
