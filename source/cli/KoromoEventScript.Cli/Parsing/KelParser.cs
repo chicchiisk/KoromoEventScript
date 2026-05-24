@@ -1,3 +1,4 @@
+using KoromoEventScript.Cli.Diagnostics;
 using KoromoEventScript.Cli.Lexing;
 
 namespace KoromoEventScript.Cli.Parsing;
@@ -156,6 +157,6 @@ public sealed class KelParser
 
     private void ThrowCurrent(string code, string message)
     {
-        throw new ParserException(new ParserDiagnostic(code, message, Current.Line, Current.Column));
+        throw new ParserException(new Diagnostic(DiagnosticLevel.Error, code, string.Empty, Current.Line, Current.Column, message));
     }
 }
