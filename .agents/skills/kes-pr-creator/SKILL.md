@@ -1,7 +1,7 @@
 ---
 name: kes-pr-creator
 description: Create a GitHub Pull Request for KoromoEventScript from the current branch against origin/main. Use when asked to open a PR, prepare a Draft PR, summarize branch diff vs origin/main, write a PR body, push the current branch, or hand off work for human review.
-argument-hint: Optional: issue number, PR title hint, or whether to create draft/ready-for-review
+argument-hint: "Optional: issue number, PR title hint, or whether to create draft/ready-for-review"
 ---
 
 # KES PR Creator
