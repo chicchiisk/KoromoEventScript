@@ -45,6 +45,71 @@ public class SemanticModelTests
     }
 
     [Test]
+    public void ImportGraph_ReturnsTransitiveImportsInStableFirstSeenOrder()
+    {
+        var main = new ScriptDocument("events/main.ke", "Main", new ScriptSyntax([]));
+        var feature = new ScriptDocument("events/feature.ke", "Feature", new ScriptSyntax([]));
+        var shared = new ScriptDocument("events/shared.ke", "Shared", new ScriptSyntax([]));
+        var leaf = new ScriptDocument("events/leaf.ke", "Leaf", new ScriptSyntax([]));
+
+        var graph = new ImportGraph(
+            [main, feature, shared, leaf],
+            new Dictionary<string, IReadOnlyList<string>>
+            {
+                ["Main"] = ["Feature", "Shared"],
+                ["Feature"] = ["Shared", "Leaf"],
+                ["Shared"] = ["Leaf"],
+                ["Leaf"] = [],
+            });
+
+        Assert.That(graph.GetReachableImports("Main"), Is.EqualTo(["Feature", "Shared", "Leaf"]));
+    }
+
+    [Test]
+    public void ImportGraph_TreatsDuplicatePathsAsOneDependency()
+    {
+        var main = new ScriptDocument("events/main.ke", "Main", new ScriptSyntax([]));
+        var left = new ScriptDocument("events/left.ke", "Left", new ScriptSyntax([]));
+        var right = new ScriptDocument("events/right.ke", "Right", new ScriptSyntax([]));
+        var shared = new ScriptDocument("events/shared.ke", "Shared", new ScriptSyntax([]));
+
+        var graph = new ImportGraph(
+            [main, left, right, shared],
+            new Dictionary<string, IReadOnlyList<string>>
+            {
+                ["Main"] = ["Left", "Right"],
+                ["Left"] = ["Shared"],
+                ["Right"] = ["Shared"],
+                ["Shared"] = [],
+            });
+
+        Assert.That(graph.GetReachableImports("Main"), Is.EqualTo(["Left", "Shared", "Right"]));
+    }
+
+    [Test]
+    public void ImportGraph_RetainsCyclePathForDiagnostics()
+    {
+        var main = new ScriptDocument("events/main.ke", "Main", new ScriptSyntax([]));
+        var common = new ScriptDocument("events/common.ke", "Common", new ScriptSyntax([]));
+        var shared = new ScriptDocument("events/shared.ke", "Shared", new ScriptSyntax([]));
+
+        var graph = new ImportGraph(
+            [main, common, shared],
+            new Dictionary<string, IReadOnlyList<string>>
+            {
+                ["Main"] = ["Common"],
+                ["Common"] = ["Shared"],
+                ["Shared"] = ["Main"],
+            });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(graph.Cycles, Has.Count.EqualTo(1));
+            Assert.That(graph.Cycles[0].Modules, Is.EqualTo(["Main", "Common", "Shared", "Main"]));
+        });
+    }
+
+    [Test]
     public void SymbolResult_StoresDocumentSymbolsAndDiagnostics()
     {
         var document = new ScriptDocument("events/common.ke", "Common", new ScriptSyntax([]));

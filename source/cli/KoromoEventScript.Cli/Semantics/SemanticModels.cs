@@ -36,11 +36,24 @@ public sealed record ImportGraph
 
         OrderedDocuments = orderedDocuments.ToArray();
         DirectImports = CopyDirectImports(directImports);
+        Cycles = DetectCycles(OrderedDocuments, DirectImports);
     }
 
     public IReadOnlyList<ScriptDocument> OrderedDocuments { get; }
 
     public IReadOnlyDictionary<string, IReadOnlyList<string>> DirectImports { get; }
+
+    public IReadOnlyList<ImportCyclePath> Cycles { get; }
+
+    public IReadOnlyList<string> GetReachableImports(string moduleName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(moduleName);
+
+        var reachable = new List<string>();
+        var visited = new HashSet<string>(StringComparer.Ordinal);
+        CollectReachableImports(moduleName, visited, reachable);
+        return reachable;
+    }
 
     private static IReadOnlyDictionary<string, IReadOnlyList<string>> CopyDirectImports(
         IReadOnlyDictionary<string, IReadOnlyList<string>> directImports)
@@ -50,11 +63,107 @@ public sealed record ImportGraph
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(moduleName);
             ArgumentNullException.ThrowIfNull(imports);
-            copy[moduleName] = imports.ToArray();
+            copy[moduleName] = imports
+                .Where(static import => !string.IsNullOrWhiteSpace(import))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
         }
 
         return new ReadOnlyDictionary<string, IReadOnlyList<string>>(copy);
     }
+
+    private void CollectReachableImports(
+        string moduleName,
+        HashSet<string> visited,
+        List<string> reachable)
+    {
+        if (!DirectImports.TryGetValue(moduleName, out var imports))
+        {
+            return;
+        }
+
+        foreach (var importedModule in imports)
+        {
+            if (!visited.Add(importedModule))
+            {
+                continue;
+            }
+
+            reachable.Add(importedModule);
+            CollectReachableImports(importedModule, visited, reachable);
+        }
+    }
+
+    private static IReadOnlyList<ImportCyclePath> DetectCycles(
+        IReadOnlyList<ScriptDocument> orderedDocuments,
+        IReadOnlyDictionary<string, IReadOnlyList<string>> directImports)
+    {
+        var cycles = new List<ImportCyclePath>();
+        var seenCycles = new HashSet<string>(StringComparer.Ordinal);
+        var visited = new HashSet<string>(StringComparer.Ordinal);
+        var activeIndexes = new Dictionary<string, int>(StringComparer.Ordinal);
+        var activePath = new List<string>();
+
+        foreach (var document in orderedDocuments)
+        {
+            Visit(document.ModuleName);
+        }
+
+        return cycles;
+
+        void Visit(string moduleName)
+        {
+            if (activeIndexes.TryGetValue(moduleName, out var cycleStart))
+            {
+                var modules = activePath
+                    .Skip(cycleStart)
+                    .Concat([moduleName])
+                    .ToArray();
+                var key = string.Join('\u001f', modules);
+                if (seenCycles.Add(key))
+                {
+                    cycles.Add(new ImportCyclePath(modules));
+                }
+
+                return;
+            }
+
+            if (!visited.Add(moduleName))
+            {
+                return;
+            }
+
+            activeIndexes[moduleName] = activePath.Count;
+            activePath.Add(moduleName);
+
+            if (directImports.TryGetValue(moduleName, out var imports))
+            {
+                foreach (var importedModule in imports)
+                {
+                    Visit(importedModule);
+                }
+            }
+
+            activeIndexes.Remove(moduleName);
+            activePath.RemoveAt(activePath.Count - 1);
+        }
+    }
+}
+
+public sealed record ImportCyclePath
+{
+    public ImportCyclePath(IReadOnlyList<string> modules)
+    {
+        ArgumentNullException.ThrowIfNull(modules);
+        if (modules.Count < 2)
+        {
+            throw new ArgumentException("Cycle paths must contain at least one edge.", nameof(modules));
+        }
+
+        Modules = modules.ToArray();
+    }
+
+    public IReadOnlyList<string> Modules { get; }
 }
 
 public sealed record ImportResolutionResult
