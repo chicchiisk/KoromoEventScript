@@ -4,6 +4,8 @@ namespace KoromoEventScript.Cli.Parsing;
 
 public sealed record ScriptSyntax(IReadOnlyList<StatementSyntax> Statements);
 
+public readonly record struct SourceLocation(int Line, int Column);
+
 public sealed record KelDocumentSyntax(KelObjectSyntax Root);
 
 public sealed record KelObjectSyntax(IReadOnlyList<KelPropertySyntax> Properties);
@@ -31,9 +33,12 @@ public sealed record ImportStatementSyntax(string ModuleName) : StatementSyntax;
 public sealed record VarStatementSyntax(
     string Name,
     IReadOnlyList<Token> TypeTokens,
-    IReadOnlyList<Token> ValueTokens) : StatementSyntax;
+    IReadOnlyList<Token> ValueTokens,
+    SourceLocation NameLocation = default) : StatementSyntax;
 
-public sealed record LabelStatementSyntax(string Tag) : StatementSyntax;
+public sealed record LabelStatementSyntax(
+    string Tag,
+    SourceLocation TagLocation = default) : StatementSyntax;
 
 public sealed record JumpStatementSyntax(string Tag) : StatementSyntax;
 
@@ -55,11 +60,13 @@ public sealed record LessNestedStatementSyntax(LessStatementSyntax Statement) : 
 public sealed record SayStatementSyntax(
     string Speaker,
     string? Tag,
-    IReadOnlyList<TextLineSyntax> Lines) : StatementSyntax;
+    IReadOnlyList<TextLineSyntax> Lines,
+    SourceLocation? TagLocation = null) : StatementSyntax;
 
 public sealed record NarStatementSyntax(
     string? Tag,
-    IReadOnlyList<TextLineSyntax> Lines) : StatementSyntax;
+    IReadOnlyList<TextLineSyntax> Lines,
+    SourceLocation? TagLocation = null) : StatementSyntax;
 
 public sealed record TextLineSyntax(string Text, bool IsExpressionLine);
 

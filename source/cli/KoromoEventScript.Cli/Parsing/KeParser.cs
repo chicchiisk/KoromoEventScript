@@ -135,7 +135,7 @@ public sealed class KeParser
         }
 
         ExpectLineTerminator();
-        return new VarStatementSyntax(nameToken.Lexeme, typeTokens, valueTokens);
+        return new VarStatementSyntax(nameToken.Lexeme, typeTokens, valueTokens, ToLocation(nameToken));
     }
 
     private LabelStatementSyntax ParseLabelStatement()
@@ -143,7 +143,7 @@ public sealed class KeParser
         ConsumeKeyword("label");
         var tagToken = Consume(TokenKind.Tag, "KES2001", "Expected a tag after label.");
         EnsureLineEndsNow("KES2001", "Label statements only support a single tag.");
-        return new LabelStatementSyntax(tagToken.Lexeme);
+        return new LabelStatementSyntax(tagToken.Lexeme, ToLocation(tagToken));
     }
 
     private JumpStatementSyntax ParseJumpStatement()
@@ -158,7 +158,8 @@ public sealed class KeParser
     {
         ConsumeKeyword("say");
         var speakerToken = Consume(TokenKind.Identifier, "KES2001", "Expected an actor identifier after say.");
-        var tag = Match(TokenKind.Tag) ? Previous.Lexeme : null;
+        var tagToken = Match(TokenKind.Tag) ? Previous : null;
+        var tag = tagToken?.Lexeme;
 
         if (!Match(TokenKind.Colon))
         {
@@ -166,13 +167,14 @@ public sealed class KeParser
         }
 
         var lines = ParseTextBlock("KES2003", "Say blocks must contain at least one text line.");
-        return new SayStatementSyntax(speakerToken.Lexeme, tag, lines);
+        return new SayStatementSyntax(speakerToken.Lexeme, tag, lines, tagToken is null ? null : ToLocation(tagToken));
     }
 
     private NarStatementSyntax ParseNarStatement()
     {
         ConsumeKeyword("nar");
-        var tag = Match(TokenKind.Tag) ? Previous.Lexeme : null;
+        var tagToken = Match(TokenKind.Tag) ? Previous : null;
+        var tag = tagToken?.Lexeme;
 
         if (!Match(TokenKind.Colon))
         {
@@ -180,7 +182,7 @@ public sealed class KeParser
         }
 
         var lines = ParseTextBlock("KES2003", "Nar blocks must contain at least one text line.");
-        return new NarStatementSyntax(tag, lines);
+        return new NarStatementSyntax(tag, lines, tagToken is null ? null : ToLocation(tagToken));
     }
 
     private SelectStatementSyntax ParseSelectStatement()
@@ -372,6 +374,11 @@ public sealed class KeParser
         }
 
         return Advance();
+    }
+
+    private static SourceLocation ToLocation(Token token)
+    {
+        return new SourceLocation(token.Line, token.Column);
     }
 
     private void SkipNewlines()

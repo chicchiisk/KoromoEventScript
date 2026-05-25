@@ -37,6 +37,7 @@ jump #end
 
             var varStatement = (VarStatementSyntax)syntax.Statements[1];
             Assert.That(varStatement.Name, Is.EqualTo("hp"));
+            Assert.That(varStatement.NameLocation, Is.EqualTo(new SourceLocation(3, 5)));
             Assert.That(varStatement.TypeTokens.Select(static token => token.Lexeme), Is.EqualTo(["number"]));
             Assert.That(varStatement.ValueTokens.Select(static token => token.Lexeme), Is.EqualTo(["10"]));
 
@@ -53,18 +54,22 @@ jump #end
             var sayStatement = (SayStatementSyntax)syntax.Statements[4];
             Assert.That(sayStatement.Speaker, Is.EqualTo("Riku"));
             Assert.That(sayStatement.Tag, Is.EqualTo("#line_1"));
+            Assert.That(sayStatement.TagLocation, Is.EqualTo(new SourceLocation(8, 10)));
             Assert.That(sayStatement.Lines.Select(static line => (line.Text, line.IsExpressionLine)),
                 Is.EqualTo(new[] { ("こんにちは", false), ("@vf Riku \"smile\"", true) }));
 
             var narStatement = (NarStatementSyntax)syntax.Statements[5];
             Assert.That(narStatement.Tag, Is.EqualTo("#nar_1"));
+            Assert.That(narStatement.TagLocation, Is.EqualTo(new SourceLocation(11, 5)));
             Assert.That(narStatement.Lines.Select(static line => line.Text), Is.EqualTo(["地の文です"]));
 
             var selectStatement = (SelectStatementSyntax)syntax.Statements[6];
             Assert.That(selectStatement.Cases.Select(static item => (item.Text, item.Tag)),
                 Is.EqualTo(new[] { ("はい", "#yes"), ("いいえ", "#no") }));
 
-            Assert.That(syntax.Statements[7], Is.TypeOf<LabelStatementSyntax>());
+            var labelStatement = (LabelStatementSyntax)syntax.Statements[7];
+            Assert.That(labelStatement.Tag, Is.EqualTo("#yes"));
+            Assert.That(labelStatement.TagLocation, Is.EqualTo(new SourceLocation(16, 7)));
             Assert.That(syntax.Statements[8], Is.TypeOf<JumpStatementSyntax>());
         });
     }
@@ -81,7 +86,9 @@ jump #end
 
         Assert.Multiple(() =>
         {
-            Assert.That(syntax.Statements[0], Is.EqualTo(new LabelStatementSyntax("#start")));
+            var labelStatement = (LabelStatementSyntax)syntax.Statements[0];
+            Assert.That(labelStatement.Tag, Is.EqualTo("#start"));
+            Assert.That(labelStatement.TagLocation, Is.EqualTo(new SourceLocation(1, 7)));
             Assert.That(syntax.Statements[1], Is.EqualTo(new JumpStatementSyntax("#end")));
         });
     }
