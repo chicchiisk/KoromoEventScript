@@ -28,7 +28,7 @@
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 3.3_
   - _Boundary: ImportGraph_
 
-- [ ] 2.3 import 文をたどって未解析ファイルを読み込み、import グラフまたは import 診断を返す
+- [x] 2.3 import 文をたどって未解析ファイルを読み込み、import グラフまたは import 診断を返す
   - 構文解析済み root から import 文を走査し、未解析の import 先だけを読み込む
   - 未存在、あいまい、読み取り不可、import 先構文エラー、循環を既存診断形式へ分類する
   - 完了時には、複数の import 診断が検査順序に従って返り、`.k`、manifest、runtime 成果物がなくても解析が完了する
