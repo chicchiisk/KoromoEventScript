@@ -1,0 +1,6 @@
+var hiddenOnly: number = 99
+
+label #hidden
+jump #hidden_end
+
+label #hidden_end

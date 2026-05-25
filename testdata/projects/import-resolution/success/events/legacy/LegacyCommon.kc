@@ -1,0 +1,6 @@
+var legacyValue: number = 2
+
+label #legacy
+jump #legacy_end
+
+label #legacy_end

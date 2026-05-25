@@ -1,0 +1,6 @@
+entry = import_success
+
+import_success = {
+    type = story
+    chapter = "events/main.ke"
+}

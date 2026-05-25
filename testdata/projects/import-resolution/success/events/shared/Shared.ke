@@ -1,0 +1,6 @@
+var sharedValue: number = 3
+
+label #shared
+jump #shared_end
+
+label #shared_end

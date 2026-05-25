@@ -1,0 +1,6 @@
+import DoesNotExist
+
+label #start
+jump #end
+
+label #end

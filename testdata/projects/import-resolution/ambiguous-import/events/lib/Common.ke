@@ -1,0 +1,6 @@
+var commonFromLib: number = 1
+
+label #common_lib
+jump #common_lib_end
+
+label #common_lib_end

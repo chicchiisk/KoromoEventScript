@@ -1,0 +1,9 @@
+import Common
+import Other
+
+use visibleOnly hiddenOnly sharedName
+
+label #start
+jump #end
+
+label #end

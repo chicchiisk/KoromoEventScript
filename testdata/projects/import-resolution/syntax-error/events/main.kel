@@ -1,0 +1,6 @@
+entry = imported_syntax_error
+
+imported_syntax_error = {
+    type = story
+    chapter = "events/main.ke"
+}

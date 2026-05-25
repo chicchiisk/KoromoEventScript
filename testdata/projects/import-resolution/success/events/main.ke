@@ -1,0 +1,10 @@
+import Common
+import LegacyCommon
+import Shared
+
+use commonValue legacyValue sharedValue
+
+label #start
+jump #end
+
+label #end

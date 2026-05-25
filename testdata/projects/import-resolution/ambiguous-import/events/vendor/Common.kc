@@ -1,0 +1,6 @@
+var commonFromVendor: number = 2
+
+label #common_vendor
+jump #common_vendor_end
+
+label #common_vendor_end

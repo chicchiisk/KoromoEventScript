@@ -1,0 +1,6 @@
+entry = ambiguous_import
+
+ambiguous_import = {
+    type = story
+    chapter = "events/main.ke"
+}

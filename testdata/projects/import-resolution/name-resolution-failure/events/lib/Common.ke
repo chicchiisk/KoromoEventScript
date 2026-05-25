@@ -1,0 +1,7 @@
+var visibleOnly: number = 1
+var sharedName: number = 10
+
+label #common
+jump #common_end
+
+label #common_end

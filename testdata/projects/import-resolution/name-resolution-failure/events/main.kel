@@ -1,0 +1,6 @@
+entry = name_resolution_failure
+
+name_resolution_failure = {
+    type = story
+    chapter = "events/main.ke"
+}

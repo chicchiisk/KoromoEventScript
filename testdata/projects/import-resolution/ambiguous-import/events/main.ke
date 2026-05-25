@@ -1,0 +1,6 @@
+import Common
+
+label #start
+jump #end
+
+label #end

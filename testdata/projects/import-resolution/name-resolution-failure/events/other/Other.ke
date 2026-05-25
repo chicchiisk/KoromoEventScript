@@ -1,0 +1,6 @@
+var sharedName: number = 20
+
+label #other
+jump #other_end
+
+label #other_end

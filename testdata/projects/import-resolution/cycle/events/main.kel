@@ -1,0 +1,6 @@
+entry = cycle_import
+
+cycle_import = {
+    type = story
+    chapter = "events/main.ke"
+}

@@ -1,0 +1,6 @@
+import A
+
+label #start
+jump #end
+
+label #end

@@ -1,0 +1,8 @@
+import Shared
+
+var commonValue: number = 1
+
+label #common
+jump #common_end
+
+label #common_end

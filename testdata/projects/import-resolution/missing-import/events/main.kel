@@ -1,0 +1,6 @@
+entry = missing_import
+
+missing_import = {
+    type = story
+    chapter = "events/main.ke"
+}

@@ -1,0 +1,6 @@
+import Broken
+
+label #start
+jump #end
+
+label #end

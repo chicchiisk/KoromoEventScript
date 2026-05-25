@@ -1,0 +1,8 @@
+import B
+
+var aValue: number = 1
+
+label #a
+jump #a_end
+
+label #a_end
