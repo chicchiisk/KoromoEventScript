@@ -1,9 +1,9 @@
 {
   "feature_name": "kes-import-resolution",
   "created_at": "2026-05-25T01:39:40.5629980+09:00",
-  "updated_at": "2026-05-25T23:16:15.3860261+09:00",
+  "updated_at": "2026-05-25T23:41:38.9681341+09:00",
   "language": "ja",
-  "phase": "design-generated",
+  "phase": "tasks-generated",
   "approvals": {
     "requirements": {
       "generated": true,
@@ -11,12 +11,12 @@
     },
     "design": {
       "generated": true,
-      "approved": false
+      "approved": true
     },
     "tasks": {
-      "generated": false,
-      "approved": false
+      "generated": true,
+      "approved": true
     }
   },
-  "ready_for_implementation": false
+  "ready_for_implementation": true
 }
