@@ -43,7 +43,7 @@
   - _Requirements: 4.1, 4.4, 4.5_
   - _Boundary: DefinitionCollector_
 
-- [ ] 3.2 import グラフに基づき、local 定義と import 済み定義で名前参照を解決する
+- [x] 3.2 import グラフに基づき、local 定義と import 済み定義で名前参照を解決する
   - import 元から到達可能な定義だけを参照可能にし、未 import ファイルの定義は不可視にする
   - local/import 衝突と複数 import 先の同名定義を区別して診断する
   - 完了時には、import 済み定義への参照は未定義診断にならず、未 import 定義、衝突、あいまい参照は source location 付きで診断される
