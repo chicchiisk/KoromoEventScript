@@ -2,5 +2,5 @@ entry = import_success
 
 import_success = {
     type = story
-    chapter = "events/main.ke"
+    chapter = "events/main.kc"
 }
