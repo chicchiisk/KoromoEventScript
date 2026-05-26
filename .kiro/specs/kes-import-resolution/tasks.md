@@ -93,7 +93,7 @@
   - _Requirements: 1.1, 1.4, 1.5, 2.1, 2.2, 2.3, 2.4, 2.5, 3.1, 3.2, 3.3, 3.4, 3.5, 4.1, 4.2, 4.3, 4.4, 4.5, 5.1, 5.2, 5.3, 5.4, 5.5_
   - _Depends: 4.1, 4.2, 4.3_
 
-- [ ] 5.3 全体回帰と差分品質チェックを実行する
+- [x] 5.3 全体回帰と差分品質チェックを実行する
   - 既存 lexer/parser/diagnostic/build tests が意味解析追加後も通ることを確認する
   - `dotnet test`、必要な build check、`git diff --check` を実行し、失敗があれば原因を修正する
   - 完了時には、変更済み source、test、testdata、spec files に空白差分問題がなく、全関連テスト結果を implementation evidence として提示できる
