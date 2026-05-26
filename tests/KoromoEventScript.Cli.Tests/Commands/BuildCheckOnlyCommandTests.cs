@@ -122,6 +122,70 @@ jump #start
     }
 
     [Test]
+    public void Run_OutputsImportAndNameDiagnosticsAsOrderedJsonLines()
+    {
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+        var projectRoot = GetTestDataPath("projects", "import-resolution", "name-resolution-failure");
+
+        var exitCode = new CliApplication().Run(
+            ["build", projectRoot, "--check-only", "--log-format", "json"],
+            output,
+            error,
+            TestContext.CurrentContext.WorkDirectory);
+
+        var lines = error.ToString().Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+        using var first = JsonDocument.Parse(lines[0]);
+        using var second = JsonDocument.Parse(lines[1]);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(exitCode, Is.EqualTo((int)CliExitCode.CompileError));
+            Assert.That(output.ToString(), Is.Empty);
+            Assert.That(lines, Has.Length.EqualTo(2));
+            AssertJsonDiagnostic(first.RootElement, "KES2010", "events/main.ke", 4, 17);
+            AssertJsonDiagnostic(second.RootElement, "KES2012", "events/main.ke", 4, 28);
+        });
+    }
+
+    [Test]
+    public void Execute_ReportsMissingImportAtImporterLocation()
+    {
+        var projectRoot = GetTestDataPath("projects", "import-resolution", "missing-import");
+
+        var result = new BuildCheckOnlyCommand().Execute(
+            new BuildCommandOptions(projectRoot, DiagnosticOutputFormat.Text),
+            TestContext.CurrentContext.WorkDirectory);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.ExitCode, Is.EqualTo(CliExitCode.FileOrDirectoryError));
+            Assert.That(result.Diagnostics, Has.Count.EqualTo(1));
+            Assert.That(result.Diagnostics[0].Code, Is.EqualTo("KES9005"));
+            Assert.That(result.Diagnostics[0].File, Is.EqualTo("events/main.ke"));
+            Assert.That(result.Diagnostics[0].Line, Is.EqualTo(1));
+            Assert.That(result.Diagnostics[0].Column, Is.EqualTo(1));
+        });
+    }
+
+    [Test]
+    public void Execute_ReportsCyclePathInImportDiagnosticMessage()
+    {
+        var projectRoot = GetTestDataPath("projects", "import-resolution", "cycle");
+
+        var result = new BuildCheckOnlyCommand().Execute(
+            new BuildCommandOptions(projectRoot, DiagnosticOutputFormat.Text),
+            TestContext.CurrentContext.WorkDirectory);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.ExitCode, Is.EqualTo(CliExitCode.CompileError));
+            Assert.That(result.Diagnostics.Single().Code, Is.EqualTo("KES2008"));
+            Assert.That(result.Diagnostics.Single().Message, Does.Contain("A -> B -> A"));
+        });
+    }
+
+    [Test]
     public void ProcessInvocation_ReturnsSuccessForMinimalProject()
     {
         var projectRoot = GetTestDataPath("projects", "minimal");
@@ -167,6 +231,19 @@ jump #start
     }
 
     private sealed record ProcessResult(int ExitCode, string StandardOutput, string StandardError);
+
+    private static void AssertJsonDiagnostic(JsonElement root, string code, string file, int line, int column)
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(root.GetProperty("level").GetString(), Is.EqualTo("error"));
+            Assert.That(root.GetProperty("code").GetString(), Is.EqualTo(code));
+            Assert.That(root.GetProperty("file").GetString(), Is.EqualTo(file));
+            Assert.That(root.GetProperty("line").GetInt32(), Is.EqualTo(line));
+            Assert.That(root.GetProperty("column").GetInt32(), Is.EqualTo(column));
+            Assert.That(root.GetProperty("message").GetString(), Is.Not.Empty);
+        });
+    }
 
     private static string GetTestDataPath(params string[] segments)
     {

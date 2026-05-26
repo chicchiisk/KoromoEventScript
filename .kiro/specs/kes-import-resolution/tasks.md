@@ -65,7 +65,7 @@
   - _Requirements: 2.5, 3.4, 5.1, 5.2, 5.3, 5.4, 5.5_
   - _Depends: 3.3_
 
-- [ ] 4.2 CLI 診断出力で import/name 診断の順序とフィールドを保持する
+- [x] 4.2 CLI 診断出力で import/name 診断の順序とフィールドを保持する
   - import 元位置、import 先位置、循環経路、名前衝突対象が既存の診断出力形式で確認できるようにする
   - JSON Lines 出力でも file、line、column、code、message が欠落しないようにする
   - 完了時には、複数 import 診断が検査順序で出力され、missing import の診断が import 元の source location を示す
