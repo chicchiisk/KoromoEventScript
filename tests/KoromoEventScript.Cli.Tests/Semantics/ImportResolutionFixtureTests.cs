@@ -137,21 +137,21 @@ public class ImportResolutionFixtureTests
     }
 
     [Test]
-    public void BuildCheckOnly_LoadsEveryFixtureProject()
+    [TestCase("success", CliExitCode.Success)]
+    [TestCase("missing-import", CliExitCode.FileOrDirectoryError)]
+    [TestCase("ambiguous-import", CliExitCode.CompileError)]
+    [TestCase("cycle", CliExitCode.CompileError)]
+    [TestCase("syntax-error", CliExitCode.SyntaxError)]
+    [TestCase("name-resolution-failure", CliExitCode.CompileError)]
+    public void BuildCheckOnly_LoadsEveryFixtureProject(string scenarioName, CliExitCode expectedExitCode)
     {
-        foreach (var scenarioName in ScenarioNames)
-        {
-            var projectRoot = Path.Combine(GetImportResolutionFixtureRoot(), scenarioName);
+        var projectRoot = Path.Combine(GetImportResolutionFixtureRoot(), scenarioName);
 
-            var result = new BuildCheckOnlyCommand().Execute(
-                new BuildCommandOptions(projectRoot, DiagnosticOutputFormat.Text),
-                TestContext.CurrentContext.WorkDirectory);
+        var result = new BuildCheckOnlyCommand().Execute(
+            new BuildCommandOptions(projectRoot, DiagnosticOutputFormat.Text),
+            TestContext.CurrentContext.WorkDirectory);
 
-            Assert.That(
-                result.ExitCode,
-                Is.EqualTo(CliExitCode.Success),
-                scenarioName);
-        }
+        Assert.That(result.ExitCode, Is.EqualTo(expectedExitCode));
     }
 
     private static FixtureScenario ReadScenario(string scenarioName)

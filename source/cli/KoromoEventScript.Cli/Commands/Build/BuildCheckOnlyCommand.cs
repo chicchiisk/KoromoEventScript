@@ -1,6 +1,7 @@
 using KoromoEventScript.Cli.Build;
 using KoromoEventScript.Cli.Diagnostics;
 using KoromoEventScript.Cli.ProjectSystem;
+using KoromoEventScript.Cli.Semantics;
 
 namespace KoromoEventScript.Cli.Commands.Build;
 
@@ -10,9 +11,15 @@ public sealed class BuildCheckOnlyCommand
     private readonly ProjectConfigLoader _projectConfigLoader;
     private readonly SourceFileParser _sourceFileParser;
     private readonly KelScriptReferenceResolver _scriptReferenceResolver;
+    private readonly SemanticAnalyzer _semanticAnalyzer;
 
     public BuildCheckOnlyCommand()
-        : this(new ProjectRootResolver(), new ProjectConfigLoader(), new SourceFileParser(), new KelScriptReferenceResolver())
+        : this(
+            new ProjectRootResolver(),
+            new ProjectConfigLoader(),
+            new SourceFileParser(),
+            new KelScriptReferenceResolver(),
+            new SemanticAnalyzer())
     {
     }
 
@@ -20,12 +27,14 @@ public sealed class BuildCheckOnlyCommand
         ProjectRootResolver projectRootResolver,
         ProjectConfigLoader projectConfigLoader,
         SourceFileParser sourceFileParser,
-        KelScriptReferenceResolver scriptReferenceResolver)
+        KelScriptReferenceResolver scriptReferenceResolver,
+        SemanticAnalyzer semanticAnalyzer)
     {
         _projectRootResolver = projectRootResolver;
         _projectConfigLoader = projectConfigLoader;
         _sourceFileParser = sourceFileParser;
         _scriptReferenceResolver = scriptReferenceResolver;
+        _semanticAnalyzer = semanticAnalyzer;
     }
 
     public BuildCheckOnlyResult Execute(BuildCommandOptions options, string currentDirectory)
@@ -58,6 +67,7 @@ public sealed class BuildCheckOnlyCommand
             return new BuildCheckOnlyResult(MapParseStatus(kelResult.Status), diagnostics);
         }
 
+        var entryDocuments = new List<ScriptDocument>();
         foreach (var scriptReference in _scriptReferenceResolver.ResolveScriptReferences(kelResult.Syntax!))
         {
             var scriptAbsolutePath = ResolveProjectPath(config.ProjectRoot, scriptReference);
@@ -65,6 +75,10 @@ public sealed class BuildCheckOnlyCommand
             var scriptResult = _sourceFileParser.ParseKe(scriptAbsolutePath, scriptDisplayPath);
             if (scriptResult.Status == SourceParseStatus.Success)
             {
+                entryDocuments.Add(new ScriptDocument(
+                    scriptDisplayPath,
+                    Path.GetFileNameWithoutExtension(scriptDisplayPath),
+                    scriptResult.Syntax!));
                 continue;
             }
 
@@ -75,9 +89,13 @@ public sealed class BuildCheckOnlyCommand
             }
         }
 
-        return diagnostics.Count == 0
-            ? new BuildCheckOnlyResult(CliExitCode.Success, diagnostics)
-            : new BuildCheckOnlyResult(CliExitCode.SyntaxError, diagnostics);
+        if (diagnostics.Count > 0)
+        {
+            return new BuildCheckOnlyResult(CliExitCode.SyntaxError, diagnostics);
+        }
+
+        var semanticResult = _semanticAnalyzer.Analyze(config, entryDocuments);
+        return new BuildCheckOnlyResult(semanticResult.ExitCode, semanticResult.Diagnostics);
     }
 
     private static CliExitCode MapParseStatus(SourceParseStatus status)

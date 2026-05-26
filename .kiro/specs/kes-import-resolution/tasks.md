@@ -58,7 +58,7 @@
   - _Depends: 2.3, 3.2_
 
 - [ ] 4. Integration: `kes build --check-only` に import/name 検証を接続する
-- [ ] 4.1 build check-only の構文解析後に意味解析ステージを実行する
+- [x] 4.1 build check-only の構文解析後に意味解析ステージを実行する
   - `.kel` から参照された script の構文解析成功後、import 解決と名前解決を検証に含める
   - 既存の project/config/source read failures は意味解析より前に終了させ、import 関連でも earliest stage wins を維持する
   - 完了時には、import と名前解決が成功するプロジェクトで終了コード `0`、compile 診断で `4`、import ファイル I/O で `6`、import 先構文エラーで `3` が返る

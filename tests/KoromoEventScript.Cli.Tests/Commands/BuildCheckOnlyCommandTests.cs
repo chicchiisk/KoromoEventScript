@@ -89,6 +89,38 @@ jump #start
         });
     }
 
+    [TestCase("success", CliExitCode.Success, null)]
+    [TestCase("missing-import", CliExitCode.FileOrDirectoryError, "KES9005")]
+    [TestCase("ambiguous-import", CliExitCode.CompileError, "KES2007")]
+    [TestCase("cycle", CliExitCode.CompileError, "KES2008")]
+    [TestCase("syntax-error", CliExitCode.SyntaxError, "KES1000")]
+    [TestCase("name-resolution-failure", CliExitCode.CompileError, "KES2010")]
+    public void Execute_IncludesImportAndNameSemanticValidation(
+        string scenarioName,
+        CliExitCode expectedExitCode,
+        string? expectedFirstDiagnosticCode)
+    {
+        var projectRoot = GetTestDataPath("projects", "import-resolution", scenarioName);
+
+        var result = new BuildCheckOnlyCommand().Execute(
+            new BuildCommandOptions(projectRoot, DiagnosticOutputFormat.Text),
+            TestContext.CurrentContext.WorkDirectory);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.ExitCode, Is.EqualTo(expectedExitCode));
+            if (expectedFirstDiagnosticCode is null)
+            {
+                Assert.That(result.Diagnostics, Is.Empty);
+            }
+            else
+            {
+                Assert.That(result.Diagnostics, Is.Not.Empty);
+                Assert.That(result.Diagnostics[0].Code, Is.EqualTo(expectedFirstDiagnosticCode));
+            }
+        });
+    }
+
     [Test]
     public void ProcessInvocation_ReturnsSuccessForMinimalProject()
     {
