@@ -72,7 +72,7 @@
   - _Requirements: 1.4, 3.1, 3.3, 3.5, 5.1_
   - _Depends: 4.1_
 
-- [ ] 4.3 import なし既存プロジェクトと既存 `.kc` fixture の互換性を維持する
+- [x] 4.3 import なし既存プロジェクトと既存 `.kc` fixture の互換性を維持する
   - import 文を持たない最小プロジェクトでは意味解析追加後も成功終了する
   - `.ke` を正規として扱いつつ、現行 testdata の `.kc` script も build check-only 入力として扱える状態を保つ
   - 完了時には、既存の minimal project と既存 parser/CLI fixture が import 成果物なしで成功する
