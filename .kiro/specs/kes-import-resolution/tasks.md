@@ -80,13 +80,13 @@
   - _Depends: 4.1_
 
 - [ ] 5. Validation: 単体・統合・回帰検証で受け入れ条件を固定する
-- [ ] 5.1 semantic services の単体テストを追加する
+- [x] 5.1 semantic services の単体テストを追加する
   - module discovery、missing/ambiguous lookup、direct/transitive imports、重複抑制、stable order、cycle、import 先構文エラーを検証する
   - definition collection、duplicate definitions、imported lookup、unimported unresolved、local/import collision、ambiguous imported names を検証する
   - 完了時には、semantic services の各責務が単体テストで失敗分類と診断内容まで確認される
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 2.1, 2.2, 2.3, 2.4, 3.1, 3.2, 3.3, 3.4, 3.5, 4.1, 4.2, 4.3, 4.4, 4.5_
 
-- [ ] 5.2 build check-only の統合テストを追加する
+- [x] 5.2 build check-only の統合テストを追加する
   - imported definition success、missing import、ambiguous import、cycle、import 先 syntax error、name resolution failure を CLI 終了コード込みで検証する
   - JSON Lines 診断の順序と必須フィールドを検証する
   - 完了時には、`kes build --check-only` が import/name 検証を含む成功・失敗ケースをすべて自動テストで再現する
