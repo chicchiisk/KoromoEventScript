@@ -31,7 +31,11 @@ public class ImportResolutionFixtureTests
             {
                 Assert.That(File.Exists(Path.Combine(fixtureRoot, scenarioName, "kes.xml")), Is.True, scenarioName);
                 Assert.That(File.Exists(Path.Combine(fixtureRoot, scenarioName, "events", "main.kel")), Is.True, scenarioName);
-                Assert.That(File.Exists(Path.Combine(fixtureRoot, scenarioName, "events", "main.ke")), Is.True, scenarioName);
+                Assert.That(
+                    File.Exists(Path.Combine(fixtureRoot, scenarioName, "events", "main.ke")) ||
+                    File.Exists(Path.Combine(fixtureRoot, scenarioName, "events", "main.kc")),
+                    Is.True,
+                    scenarioName);
             }
         });
     }

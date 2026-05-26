@@ -151,7 +151,7 @@ public sealed class KeParser
         ConsumeKeyword("jump");
         var tagToken = Consume(TokenKind.Tag, "KES2001", "Expected a tag after jump.");
         EnsureLineEndsNow("KES2001", "Jump statements only support a single tag.");
-        return new JumpStatementSyntax(tagToken.Lexeme);
+        return new JumpStatementSyntax(tagToken.Lexeme, ToLocation(tagToken));
     }
 
     private SayStatementSyntax ParseSayStatement()
@@ -207,7 +207,7 @@ public sealed class KeParser
             var textToken = Consume(TokenKind.StringLiteral, "KES2001", "Case statements require a string literal.");
             var tagToken = Consume(TokenKind.Tag, "KES2001", "Case statements require a jump target tag.");
             EnsureLineEndsNow("KES2001", "Case statements only support a string literal and a tag.");
-            cases.Add(new CaseClauseSyntax(textToken.Lexeme, tagToken.Lexeme));
+            cases.Add(new CaseClauseSyntax(textToken.Lexeme, tagToken.Lexeme, ToLocation(tagToken)));
         }
 
         Consume(TokenKind.Dedent, "KES2004", "Select statements must end their block with a dedent.");

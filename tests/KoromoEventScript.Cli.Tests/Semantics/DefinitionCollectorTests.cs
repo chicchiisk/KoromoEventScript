@@ -105,6 +105,34 @@ var sharedValue = 3
     }
 
     [Test]
+    public void Collect_ReportsDuplicateTagsWithinModuleAsCompileDiagnostics()
+    {
+        const string source = """
+label #start
+say Riku #start:
+    duplicated
+""";
+
+        var document = new ScriptDocument(
+            "events/main.ke",
+            "Main",
+            KeParser.Parse(source));
+
+        var result = new DefinitionCollector().Collect(document);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Symbols.Select(static symbol => symbol.Name), Is.EqualTo(["#start", "#start"]));
+            Assert.That(result.Diagnostics, Has.Count.EqualTo(1));
+            Assert.That(result.Diagnostics[0].Code, Is.EqualTo("KES2009"));
+            Assert.That(result.Diagnostics[0].File, Is.EqualTo("events/main.ke"));
+            Assert.That(result.Diagnostics[0].Line, Is.EqualTo(2));
+            Assert.That(result.Diagnostics[0].Column, Is.EqualTo(10));
+            Assert.That(result.Diagnostics[0].Message, Does.Contain("#start"));
+        });
+    }
+
+    [Test]
     public void Collect_TreatsDefinitionNamesAsCaseSensitive()
     {
         var document = new ScriptDocument(

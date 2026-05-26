@@ -40,7 +40,9 @@ public sealed record LabelStatementSyntax(
     string Tag,
     SourceLocation TagLocation = default) : StatementSyntax;
 
-public sealed record JumpStatementSyntax(string Tag) : StatementSyntax;
+public sealed record JumpStatementSyntax(
+    string Tag,
+    SourceLocation TagLocation = default) : StatementSyntax;
 
 public sealed record CommandStatementSyntax(
     string Name,
@@ -72,4 +74,7 @@ public sealed record TextLineSyntax(string Text, bool IsExpressionLine);
 
 public sealed record SelectStatementSyntax(IReadOnlyList<CaseClauseSyntax> Cases) : StatementSyntax;
 
-public sealed record CaseClauseSyntax(string Text, string Tag);
+public sealed record CaseClauseSyntax(
+    string Text,
+    string Tag,
+    SourceLocation TagLocation = default);

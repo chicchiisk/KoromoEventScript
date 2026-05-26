@@ -26,6 +26,7 @@ public sealed class NameResolver
 
             diagnostics.AddRange(DetectLocalImportCollisions(document, localSymbols, reachableSymbols));
             diagnostics.AddRange(ResolveReferences(document, localSymbols, reachableSymbols));
+            diagnostics.AddRange(ResolveTagReferences(document, localSymbols));
         }
 
         return diagnostics.Count == 0
@@ -58,6 +59,11 @@ public sealed class NameResolver
     {
         foreach (var localSymbol in localSymbols)
         {
+            if (IsTagName(localSymbol.Name))
+            {
+                continue;
+            }
+
             var collisions = reachableSymbols
                 .Where(importedSymbol => string.Equals(importedSymbol.Name, localSymbol.Name, StringComparison.Ordinal))
                 .ToArray();
@@ -73,6 +79,32 @@ public sealed class NameResolver
                 localSymbol.Line,
                 localSymbol.Column,
                 $"Local definition '{localSymbol.Name}' in module '{document.ModuleName}' conflicts with imported definition from {FormatModules(collisions)}.");
+        }
+    }
+
+    private static IEnumerable<Diagnostic> ResolveTagReferences(
+        ScriptDocument document,
+        IReadOnlyList<SymbolDefinition> localSymbols)
+    {
+        var localTags = localSymbols
+            .Where(static symbol => IsTagName(symbol.Name))
+            .Select(static symbol => symbol.Name)
+            .ToHashSet(StringComparer.Ordinal);
+
+        foreach (var reference in GetTagReferences(document.Syntax))
+        {
+            if (localTags.Contains(reference.Name))
+            {
+                continue;
+            }
+
+            yield return new Diagnostic(
+                DiagnosticLevel.Error,
+                "KES2013",
+                document.ProjectRelativePath,
+                reference.Line,
+                reference.Column,
+                $"Undefined tag '{reference.Name}'.");
         }
     }
 
@@ -164,6 +196,41 @@ public sealed class NameResolver
         }
     }
 
+    private static IEnumerable<TagReference> GetTagReferences(ScriptSyntax syntax)
+    {
+        foreach (var statement in syntax.Statements)
+        {
+            foreach (var reference in GetTagReferences(statement))
+            {
+                yield return reference;
+            }
+        }
+    }
+
+    private static IEnumerable<TagReference> GetTagReferences(StatementSyntax statement)
+    {
+        switch (statement)
+        {
+            case JumpStatementSyntax jumpStatement:
+                yield return new TagReference(
+                    jumpStatement.Tag,
+                    jumpStatement.TagLocation.Line,
+                    jumpStatement.TagLocation.Column);
+                break;
+
+            case SelectStatementSyntax selectStatement:
+                foreach (var caseClause in selectStatement.Cases)
+                {
+                    yield return new TagReference(
+                        caseClause.Tag,
+                        caseClause.TagLocation.Line,
+                        caseClause.TagLocation.Column);
+                }
+
+                break;
+        }
+    }
+
     private static IEnumerable<IdentifierReference> FromLessStatement(LessStatementSyntax statement)
     {
         foreach (var reference in FromTokens(statement.SharedArguments))
@@ -209,5 +276,12 @@ public sealed class NameResolver
             .Order(StringComparer.Ordinal));
     }
 
+    private static bool IsTagName(string name)
+    {
+        return name.StartsWith('#');
+    }
+
     private sealed record IdentifierReference(string Name, int Line, int Column);
+
+    private sealed record TagReference(string Name, int Line, int Column);
 }

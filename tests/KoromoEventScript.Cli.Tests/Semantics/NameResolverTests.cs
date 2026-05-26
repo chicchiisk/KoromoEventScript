@@ -148,6 +148,96 @@ public class NameResolverTests
         Assert.That(result.Diagnostics, Is.Empty);
     }
 
+    [Test]
+    public void ResolveNames_AllowsJumpAndCaseTagsDefinedInSameDocument()
+    {
+        var main = Document(
+            "events/main.ke",
+            "Main",
+            new SelectStatementSyntax(
+            [
+                new CaseClauseSyntax("Go", "#choice", new SourceLocation(2, 15)),
+            ]),
+            new LabelStatementSyntax("#choice", new SourceLocation(3, 7)),
+            new JumpStatementSyntax("#ending", new SourceLocation(4, 6)),
+            new SayStatementSyntax("Noa", "#ending", [new TextLineSyntax("end", false)], new SourceLocation(5, 9)));
+        var graph = Graph([main], new Dictionary<string, IReadOnlyList<string>>
+        {
+            ["Main"] = [],
+        });
+
+        var result = new NameResolver().ResolveNames(
+            graph,
+            Symbols(
+                Definition("#choice", "Main", 3, 7),
+                Definition("#ending", "Main", 5, 9)));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Succeeded, Is.True);
+            Assert.That(result.Diagnostics, Is.Empty);
+        });
+    }
+
+    [Test]
+    public void ResolveNames_ReportsUndefinedJumpAndCaseTags()
+    {
+        var main = Document(
+            "events/main.ke",
+            "Main",
+            new SelectStatementSyntax(
+            [
+                new CaseClauseSyntax("Go", "#missingCase", new SourceLocation(2, 15)),
+            ]),
+            new JumpStatementSyntax("#missingJump", new SourceLocation(3, 6)));
+        var graph = Graph([main], new Dictionary<string, IReadOnlyList<string>>
+        {
+            ["Main"] = [],
+        });
+
+        var result = new NameResolver().ResolveNames(graph, Symbols());
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Succeeded, Is.False);
+            Assert.That(result.ExitCode, Is.EqualTo(CliExitCode.CompileError));
+            Assert.That(result.Diagnostics.Select(static diagnostic => diagnostic.Code), Is.EqualTo(["KES2013", "KES2013"]));
+            Assert.That(result.Diagnostics.Select(static diagnostic => diagnostic.File), Is.All.EqualTo("events/main.ke"));
+            Assert.That(result.Diagnostics.Select(static diagnostic => diagnostic.Line), Is.EqualTo([2, 3]));
+            Assert.That(result.Diagnostics.Select(static diagnostic => diagnostic.Column), Is.EqualTo([15, 6]));
+            Assert.That(result.Diagnostics[0].Message, Does.Contain("#missingCase"));
+            Assert.That(result.Diagnostics[1].Message, Does.Contain("#missingJump"));
+        });
+    }
+
+    [Test]
+    public void ResolveNames_DoesNotResolveJumpTagsFromImportedDocuments()
+    {
+        var main = Document(
+            "events/main.ke",
+            "Main",
+            new JumpStatementSyntax("#importedTag", new SourceLocation(2, 6)));
+        var common = Document("events/common.ke", "Common");
+        var graph = Graph([main, common], new Dictionary<string, IReadOnlyList<string>>
+        {
+            ["Main"] = ["Common"],
+            ["Common"] = [],
+        });
+
+        var result = new NameResolver().ResolveNames(
+            graph,
+            Symbols(Definition("#importedTag", "Common", 3, 7)));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Succeeded, Is.False);
+            Assert.That(result.Diagnostics, Has.Count.EqualTo(1));
+            Assert.That(result.Diagnostics[0].Code, Is.EqualTo("KES2013"));
+            Assert.That(result.Diagnostics[0].Line, Is.EqualTo(2));
+            Assert.That(result.Diagnostics[0].Column, Is.EqualTo(6));
+        });
+    }
+
     private static ScriptDocument Document(string file, string moduleName, params StatementSyntax[] statements)
     {
         return new ScriptDocument(file, moduleName, new ScriptSyntax(statements));

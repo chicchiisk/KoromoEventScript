@@ -11,7 +11,7 @@ public class SemanticAnalyzerTests
     public void Analyze_ReturnsSuccessForResolvableImportsAndNames()
     {
         var project = LoadFixtureProject("success");
-        var roots = ParseRoots(project, "events/main.ke");
+        var roots = ParseRoots(project, "events/main.kc");
 
         var result = new SemanticAnalyzer().Analyze(project, roots);
 

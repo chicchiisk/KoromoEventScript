@@ -66,11 +66,15 @@ jump #end
             var selectStatement = (SelectStatementSyntax)syntax.Statements[6];
             Assert.That(selectStatement.Cases.Select(static item => (item.Text, item.Tag)),
                 Is.EqualTo(new[] { ("はい", "#yes"), ("いいえ", "#no") }));
+            Assert.That(selectStatement.Cases.Select(static item => item.TagLocation),
+                Is.EqualTo(new[] { new SourceLocation(14, 15), new SourceLocation(15, 16) }));
 
             var labelStatement = (LabelStatementSyntax)syntax.Statements[7];
             Assert.That(labelStatement.Tag, Is.EqualTo("#yes"));
             Assert.That(labelStatement.TagLocation, Is.EqualTo(new SourceLocation(16, 7)));
-            Assert.That(syntax.Statements[8], Is.TypeOf<JumpStatementSyntax>());
+            var jumpStatement = (JumpStatementSyntax)syntax.Statements[8];
+            Assert.That(jumpStatement.Tag, Is.EqualTo("#end"));
+            Assert.That(jumpStatement.TagLocation, Is.EqualTo(new SourceLocation(17, 6)));
         });
     }
 
@@ -89,7 +93,7 @@ jump #end
             var labelStatement = (LabelStatementSyntax)syntax.Statements[0];
             Assert.That(labelStatement.Tag, Is.EqualTo("#start"));
             Assert.That(labelStatement.TagLocation, Is.EqualTo(new SourceLocation(1, 7)));
-            Assert.That(syntax.Statements[1], Is.EqualTo(new JumpStatementSyntax("#end")));
+            Assert.That(syntax.Statements[1], Is.EqualTo(new JumpStatementSyntax("#end", new SourceLocation(2, 6))));
         });
     }
 
