@@ -50,7 +50,7 @@
   - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
   - _Depends: 2.2, 3.1_
 
-- [ ] 3.3 import 解決、定義収集、名前解決を意味解析ステージとして統合する
+- [x] 3.3 import 解決、定義収集、名前解決を意味解析ステージとして統合する
   - root スクリプトごとに import グラフを構築し、成功したグラフだけを名前解決へ渡す
   - import ファイル I/O、import 先構文エラー、compile 診断を stage 別の終了コード分類へ集約する
   - 完了時には、意味解析ステージ単体で成功、file I/O、syntax、compile の分類と ordered diagnostics を返せる
