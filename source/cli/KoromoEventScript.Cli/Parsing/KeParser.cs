@@ -58,6 +58,26 @@ public sealed class KeParser
             return ParseVarStatement();
         }
 
+        if (IsKeyword("fn"))
+        {
+            return ParseFunctionDeclaration();
+        }
+
+        if (IsKeyword("class"))
+        {
+            return ParseClassDeclaration();
+        }
+
+        if (IsKeyword("enum"))
+        {
+            return ParseEnumDeclaration();
+        }
+
+        if (IsKeyword("actor"))
+        {
+            return ParseActorDeclaration();
+        }
+
         if (IsKeyword("label"))
         {
             return ParseLabelStatement();
@@ -136,6 +156,154 @@ public sealed class KeParser
 
         ExpectLineTerminator();
         return new VarStatementSyntax(nameToken.Lexeme, typeTokens, valueTokens, ToLocation(nameToken));
+    }
+
+    private FunctionDeclarationSyntax ParseFunctionDeclaration()
+    {
+        ConsumeKeyword("fn");
+        var nameToken = Consume(TokenKind.Identifier, "KES2001", "Expected a function name after fn.");
+        Consume(TokenKind.OpenParen, "KES2001", "Expected '(' after function name.");
+        var parameters = ParseParameterList();
+        Consume(TokenKind.Colon, "KES2002", "Function declarations must include a body separator ':'.");
+
+        IReadOnlyList<Token> returnTypeTokens = [];
+        if (!Check(TokenKind.Newline))
+        {
+            returnTypeTokens = ReadUntil(TokenKind.Colon, TokenKind.Newline);
+            if (returnTypeTokens.Count == 0 || !Match(TokenKind.Colon))
+            {
+                ThrowCurrent("KES2001", "Expected ':' after function return type.");
+            }
+        }
+
+        var body = ParseStatementBlock("KES2004", "Function declarations must have an indented body.");
+        return new FunctionDeclarationSyntax(
+            nameToken.Lexeme,
+            ToLocation(nameToken),
+            parameters,
+            returnTypeTokens,
+            body);
+    }
+
+    private IReadOnlyList<ParameterSyntax> ParseParameterList()
+    {
+        var parameters = new List<ParameterSyntax>();
+        if (Match(TokenKind.CloseParen))
+        {
+            return parameters;
+        }
+
+        while (!IsAtEnd())
+        {
+            var nameToken = Consume(TokenKind.Identifier, "KES2001", "Expected a parameter name.");
+            Consume(TokenKind.Colon, "KES2001", "Expected ':' after parameter name.");
+            var typeTokens = ReadUntil(TokenKind.Comma, TokenKind.CloseParen);
+            if (typeTokens.Count == 0)
+            {
+                ThrowCurrent("KES2001", "Expected a parameter type.");
+            }
+
+            parameters.Add(new ParameterSyntax(nameToken.Lexeme, typeTokens, ToLocation(nameToken)));
+
+            if (Match(TokenKind.Comma))
+            {
+                continue;
+            }
+
+            Consume(TokenKind.CloseParen, "KES2001", "Expected ')' after parameter list.");
+            return parameters;
+        }
+
+        ThrowCurrent("KES2001", "Expected ')' after parameter list.");
+        return parameters;
+    }
+
+    private ClassDeclarationSyntax ParseClassDeclaration()
+    {
+        ConsumeKeyword("class");
+        var nameToken = Consume(TokenKind.Identifier, "KES2001", "Expected a class name after class.");
+        Consume(TokenKind.Colon, "KES2002", "Class declarations must end with ':'.");
+        ExpectIndentedBlock("KES2004", "Class declarations must have an indented body.");
+
+        var members = new List<ClassMemberSyntax>();
+        while (!IsAtEnd() && !Check(TokenKind.Dedent))
+        {
+            if (Match(TokenKind.Newline))
+            {
+                continue;
+            }
+
+            var accessModifier = TryConsumeAccessModifier();
+            if (IsKeyword("var"))
+            {
+                members.Add(new ClassFieldSyntax(accessModifier, ParseVarStatement()));
+                continue;
+            }
+
+            if (IsKeyword("fn"))
+            {
+                members.Add(new ClassMethodSyntax(accessModifier, ParseFunctionDeclaration()));
+                continue;
+            }
+
+            ThrowCurrent("KES2001", "Class members must be var or fn declarations.");
+        }
+
+        Consume(TokenKind.Dedent, "KES2004", "Class declarations must end their body with a dedent.");
+        if (members.Count == 0)
+        {
+            ThrowPrevious("KES2004", "Class declarations must contain at least one member.");
+        }
+
+        return new ClassDeclarationSyntax(nameToken.Lexeme, ToLocation(nameToken), members);
+    }
+
+    private EnumDeclarationSyntax ParseEnumDeclaration()
+    {
+        ConsumeKeyword("enum");
+        var nameToken = Consume(TokenKind.Identifier, "KES2001", "Expected an enum name after enum.");
+        Consume(TokenKind.Colon, "KES2002", "Enum declarations must end with ':'.");
+        ExpectIndentedBlock("KES2004", "Enum declarations must have an indented body.");
+
+        var members = new List<EnumMemberSyntax>();
+        while (!IsAtEnd() && !Check(TokenKind.Dedent))
+        {
+            if (Match(TokenKind.Newline))
+            {
+                continue;
+            }
+
+            var memberToken = Consume(TokenKind.Identifier, "KES2001", "Enum members must be identifiers.");
+            EnsureLineEndsNow("KES2001", "Enum members only support a single identifier.");
+            members.Add(new EnumMemberSyntax(memberToken.Lexeme, ToLocation(memberToken)));
+        }
+
+        Consume(TokenKind.Dedent, "KES2004", "Enum declarations must end their body with a dedent.");
+        if (members.Count == 0)
+        {
+            ThrowPrevious("KES2004", "Enum declarations must contain at least one member.");
+        }
+
+        return new EnumDeclarationSyntax(nameToken.Lexeme, ToLocation(nameToken), members);
+    }
+
+    private ActorDeclarationSyntax ParseActorDeclaration()
+    {
+        ConsumeKeyword("actor");
+        var nameToken = Consume(TokenKind.Identifier, "KES2001", "Expected an actor name after actor.");
+        Consume(TokenKind.Colon, "KES2002", "Actor declarations must end with ':'.");
+        var body = ParseStatementBlock("KES2004", "Actor declarations must have an indented body.");
+        return new ActorDeclarationSyntax(nameToken.Lexeme, ToLocation(nameToken), body);
+    }
+
+    private string? TryConsumeAccessModifier()
+    {
+        if (IsKeyword("public") || IsKeyword("private"))
+        {
+            return Advance().Lexeme;
+        }
+
+        return null;
     }
 
     private LabelStatementSyntax ParseLabelStatement()
@@ -285,6 +453,26 @@ public sealed class KeParser
 
         Consume(TokenKind.Dedent, "KES2004", "LESS statements must end their block with a dedent.");
         return items;
+    }
+
+    private BlockSyntax ParseStatementBlock(string errorCode, string message)
+    {
+        ExpectIndentedBlock(errorCode, message);
+
+        var statements = new List<StatementSyntax>();
+        while (!IsAtEnd() && !Check(TokenKind.Dedent))
+        {
+            if (Match(TokenKind.Newline))
+            {
+                continue;
+            }
+
+            statements.Add(ParseStatement());
+            SkipNewlines();
+        }
+
+        Consume(TokenKind.Dedent, errorCode, "Block statements must end their body with a dedent.");
+        return new BlockSyntax(statements);
     }
 
     private IReadOnlyList<TextLineSyntax> ParseTextBlock(string errorCode, string emptyBlockMessage)

@@ -30,11 +30,54 @@ public abstract record StatementSyntax;
 
 public sealed record ImportStatementSyntax(string ModuleName) : StatementSyntax;
 
+public sealed record BlockSyntax(IReadOnlyList<StatementSyntax> Statements);
+
 public sealed record VarStatementSyntax(
     string Name,
     IReadOnlyList<Token> TypeTokens,
     IReadOnlyList<Token> ValueTokens,
     SourceLocation NameLocation = default) : StatementSyntax;
+
+public sealed record ParameterSyntax(
+    string Name,
+    IReadOnlyList<Token> TypeTokens,
+    SourceLocation NameLocation = default);
+
+public sealed record FunctionDeclarationSyntax(
+    string Name,
+    SourceLocation NameLocation,
+    IReadOnlyList<ParameterSyntax> Parameters,
+    IReadOnlyList<Token> ReturnTypeTokens,
+    BlockSyntax Body) : StatementSyntax;
+
+public sealed record ActorDeclarationSyntax(
+    string Name,
+    SourceLocation NameLocation,
+    BlockSyntax Body) : StatementSyntax;
+
+public sealed record EnumMemberSyntax(
+    string Name,
+    SourceLocation NameLocation = default);
+
+public sealed record EnumDeclarationSyntax(
+    string Name,
+    SourceLocation NameLocation,
+    IReadOnlyList<EnumMemberSyntax> Members) : StatementSyntax;
+
+public abstract record ClassMemberSyntax;
+
+public sealed record ClassFieldSyntax(
+    string? AccessModifier,
+    VarStatementSyntax Declaration) : ClassMemberSyntax;
+
+public sealed record ClassMethodSyntax(
+    string? AccessModifier,
+    FunctionDeclarationSyntax Declaration) : ClassMemberSyntax;
+
+public sealed record ClassDeclarationSyntax(
+    string Name,
+    SourceLocation NameLocation,
+    IReadOnlyList<ClassMemberSyntax> Members) : StatementSyntax;
 
 public sealed record LabelStatementSyntax(
     string Tag,
