@@ -219,6 +219,37 @@ enum Mood:
     }
 
     [Test]
+    public void Execute_ReportsUndefinedJumpAndCaseTagsAsCompileDiagnostics()
+    {
+        using var fixture = TemporaryProject.Create();
+        fixture.WriteConfig(entry: "events/main.kel");
+        fixture.WriteFile("events/main.kel", """
+entry = intro
+intro = {
+    chapter = "events/main.ke"
+}
+""");
+        fixture.WriteFile("events/main.ke", """
+select:
+    case "進む" #missing_case
+jump #missing_jump
+""");
+
+        var result = new BuildCheckOnlyCommand().Execute(
+            new BuildCommandOptions(fixture.Root, DiagnosticOutputFormat.Text),
+            TestContext.CurrentContext.WorkDirectory);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.ExitCode, Is.EqualTo(CliExitCode.CompileError));
+            Assert.That(result.Diagnostics.Select(static diagnostic => diagnostic.Code), Is.EqualTo(["KES2013", "KES2013"]));
+            Assert.That(result.Diagnostics.Select(static diagnostic => diagnostic.File), Is.All.EqualTo("events/main.ke"));
+            Assert.That(result.Diagnostics.Select(static diagnostic => diagnostic.Line), Is.EqualTo([2, 3]));
+            Assert.That(result.Diagnostics.Select(static diagnostic => diagnostic.Column), Is.EqualTo([15, 6]));
+        });
+    }
+
+    [Test]
     public void Execute_ReturnsCompileErrorForDefinitionShadowing()
     {
         using var fixture = TemporaryProject.Create();
@@ -247,6 +278,39 @@ fn calc(score: number):
             Assert.That(result.Diagnostics[0].File, Is.EqualTo("events/main.ke"));
             Assert.That(result.Diagnostics[0].Line, Is.EqualTo(2));
             Assert.That(result.Diagnostics[0].Column, Is.EqualTo(9));
+        });
+    }
+
+    [Test]
+    public void Execute_ReportsDuplicateTagsAsCompileDiagnostics()
+    {
+        using var fixture = TemporaryProject.Create();
+        fixture.WriteConfig(entry: "events/main.kel");
+        fixture.WriteFile("events/main.kel", """
+entry = intro
+intro = {
+    chapter = "events/main.ke"
+}
+""");
+        fixture.WriteFile("events/main.ke", """
+label #start
+nar #start:
+    duplicated
+""");
+
+        var result = new BuildCheckOnlyCommand().Execute(
+            new BuildCommandOptions(fixture.Root, DiagnosticOutputFormat.Text),
+            TestContext.CurrentContext.WorkDirectory);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.ExitCode, Is.EqualTo(CliExitCode.CompileError));
+            Assert.That(result.Diagnostics, Has.Count.EqualTo(1));
+            Assert.That(result.Diagnostics[0].Code, Is.EqualTo("KES2009"));
+            Assert.That(result.Diagnostics[0].File, Is.EqualTo("events/main.ke"));
+            Assert.That(result.Diagnostics[0].Line, Is.EqualTo(2));
+            Assert.That(result.Diagnostics[0].Column, Is.EqualTo(5));
+            Assert.That(result.Diagnostics[0].Message, Does.Contain("#start"));
         });
     }
 
