@@ -225,7 +225,7 @@ public sealed class DefinitionCollector
 
         if (!scopeDefinitions.TryAdd(name, definition))
         {
-            diagnostics.Add(DuplicateDefinitionDiagnostic(document, definition));
+            diagnostics.Add(DuplicateDefinitionDiagnostic(document, scopeDefinitions[name], definition));
             return;
         }
 
@@ -270,7 +270,7 @@ public sealed class DefinitionCollector
 
         if (!firstDefinitionsByName.TryAdd(symbol.Name, symbol) && reportDuplicate)
         {
-            diagnostics.Add(DuplicateDefinitionDiagnostic(document, symbol));
+            diagnostics.Add(DuplicateDefinitionDiagnostic(document, firstDefinitionsByName[symbol.Name], symbol));
         }
     }
 
@@ -298,7 +298,7 @@ public sealed class DefinitionCollector
             : DefinitionKind.Variable;
     }
 
-    private static Diagnostic DuplicateDefinitionDiagnostic(ScriptDocument document, SymbolDefinition duplicate)
+    private static Diagnostic DuplicateDefinitionDiagnostic(ScriptDocument document, SymbolDefinition original, SymbolDefinition duplicate)
     {
         return new Diagnostic(
             DiagnosticLevel.Error,
@@ -306,10 +306,14 @@ public sealed class DefinitionCollector
             duplicate.File,
             duplicate.Line,
             duplicate.Column,
-            $"Duplicate top-level definition '{duplicate.Name}' in module '{document.ModuleName}'.");
+            $"Duplicate top-level definition '{duplicate.Name}' in module '{document.ModuleName}'.",
+            [OriginalDefinitionLocation(original)]);
     }
 
-    private static Diagnostic DuplicateDefinitionDiagnostic(ScriptDocument document, ScopedSymbolDefinition duplicate)
+    private static Diagnostic DuplicateDefinitionDiagnostic(
+        ScriptDocument document,
+        ScopedSymbolDefinition original,
+        ScopedSymbolDefinition duplicate)
     {
         return new Diagnostic(
             DiagnosticLevel.Error,
@@ -317,7 +321,8 @@ public sealed class DefinitionCollector
             duplicate.File,
             duplicate.Line,
             duplicate.Column,
-            $"Duplicate definition '{duplicate.Name}' in module '{document.ModuleName}'.");
+            $"Duplicate definition '{duplicate.Name}' in module '{document.ModuleName}'.",
+            [OriginalDefinitionLocation(original)]);
     }
 
     private static Diagnostic ShadowingDiagnostic(ScriptDocument document, ScopedSymbolDefinition duplicate)
@@ -329,5 +334,23 @@ public sealed class DefinitionCollector
             duplicate.Line,
             duplicate.Column,
             $"Definition '{duplicate.Name}' in module '{document.ModuleName}' shadows an outer scope definition.");
+    }
+
+    private static DiagnosticRelatedLocation OriginalDefinitionLocation(SymbolDefinition original)
+    {
+        return new DiagnosticRelatedLocation(
+            original.File,
+            original.Line,
+            original.Column,
+            "Original definition is here.");
+    }
+
+    private static DiagnosticRelatedLocation OriginalDefinitionLocation(ScopedSymbolDefinition original)
+    {
+        return new DiagnosticRelatedLocation(
+            original.File,
+            original.Line,
+            original.Column,
+            "Original definition is here.");
     }
 }

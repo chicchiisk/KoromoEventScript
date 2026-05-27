@@ -111,6 +111,40 @@ var sharedValue = 2
     }
 
     [Test]
+    public void Analyze_ReportsDuplicateModuleDefinitionsAcrossRootFilesWithSameModuleName()
+    {
+        using var fixture = TemporaryProject.Create();
+        fixture.WriteConfig();
+        fixture.WriteFile("events/main.kel", """
+entry = intro
+intro = {
+    chapter = "events/first/Main.ke"
+    chapter = "events/second/Main.ke"
+}
+""");
+        fixture.WriteFile("events/first/Main.ke", "var score = 1\n");
+        fixture.WriteFile("events/second/Main.ke", "var score = 2\n");
+        var project = LoadProject(fixture.Root);
+        var roots = ParseRoots(project, "events/first/Main.ke", "events/second/Main.ke");
+
+        var result = new SemanticAnalyzer().Analyze(project, roots);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Succeeded, Is.False);
+            Assert.That(result.ExitCode, Is.EqualTo(CliExitCode.CompileError));
+            Assert.That(result.Diagnostics, Has.Count.EqualTo(1));
+            Assert.That(result.Diagnostics[0].Code, Is.EqualTo("KES2009"));
+            Assert.That(result.Diagnostics[0].File, Is.EqualTo("events/second/Main.ke"));
+            Assert.That(result.Diagnostics[0].Line, Is.EqualTo(1));
+            Assert.That(result.Diagnostics[0].Column, Is.EqualTo(5));
+            Assert.That(result.Diagnostics[0].RelatedLocations.Single().File, Is.EqualTo("events/first/Main.ke"));
+            Assert.That(result.Diagnostics[0].RelatedLocations.Single().Line, Is.EqualTo(1));
+            Assert.That(result.Diagnostics[0].RelatedLocations.Single().Column, Is.EqualTo(5));
+        });
+    }
+
+    [Test]
     public void Analyze_ReturnsCompileDiagnosticsForShadowingBeforeNameResolution()
     {
         using var fixture = TemporaryProject.Create();

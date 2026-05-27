@@ -348,6 +348,44 @@ class Counter:
             Assert.That(exitCode, Is.EqualTo((int)CliExitCode.CompileError));
             Assert.That(output.ToString(), Is.Empty);
             AssertJsonDiagnostic(document.RootElement, "KES2009", "events/main.ke", 3, 8);
+            var relatedLocation = document.RootElement.GetProperty("relatedLocations")[0];
+            Assert.That(relatedLocation.GetProperty("file").GetString(), Is.EqualTo("events/main.ke"));
+            Assert.That(relatedLocation.GetProperty("line").GetInt32(), Is.EqualTo(2));
+            Assert.That(relatedLocation.GetProperty("column").GetInt32(), Is.EqualTo(9));
+        });
+    }
+
+    [Test]
+    public void Run_OutputsDuplicateDefinitionOriginalLocationInText()
+    {
+        using var fixture = TemporaryProject.Create();
+        fixture.WriteConfig(entry: "events/main.kel");
+        fixture.WriteFile("events/main.kel", """
+entry = intro
+intro = {
+    chapter = "events/main.ke"
+}
+""");
+        fixture.WriteFile("events/main.ke", """
+var score = 0
+var score = 1
+""");
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+
+        var exitCode = new CliApplication().Run(
+            ["build", fixture.Root, "--check-only"],
+            output,
+            error,
+            TestContext.CurrentContext.WorkDirectory);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(exitCode, Is.EqualTo((int)CliExitCode.CompileError));
+            Assert.That(output.ToString(), Is.Empty);
+            Assert.That(error.ToString(), Does.Contain("events/main.ke:2:5 error KES2009"));
+            Assert.That(error.ToString(), Does.Contain("events/main.ke:1:5"));
+            Assert.That(error.ToString(), Does.Contain("Original definition is here."));
         });
     }
 

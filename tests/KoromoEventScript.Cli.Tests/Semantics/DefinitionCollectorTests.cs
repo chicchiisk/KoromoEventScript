@@ -224,6 +224,100 @@ fn Riku():
             Assert.That(result.Diagnostics[0].Line, Is.EqualTo(3));
             Assert.That(result.Diagnostics[0].Column, Is.EqualTo(4));
             Assert.That(result.Diagnostics[0].Message, Does.Contain("Riku"));
+            Assert.That(result.Diagnostics[0].RelatedLocations, Has.Count.EqualTo(1));
+            Assert.That(result.Diagnostics[0].RelatedLocations[0].File, Is.EqualTo("events/main.ke"));
+            Assert.That(result.Diagnostics[0].RelatedLocations[0].Line, Is.EqualTo(1));
+            Assert.That(result.Diagnostics[0].RelatedLocations[0].Column, Is.EqualTo(7));
+        });
+    }
+
+    [Test]
+    public void Collect_ReportsDuplicateMajorDefinitionKindsWithOriginalLocations()
+    {
+        const string source = """
+var shared = 1
+fn shared():
+    use shared
+class shared:
+    var value: number = 0
+enum shared:
+    normal
+""";
+
+        var document = new ScriptDocument("events/main.ke", "Main", KeParser.Parse(source));
+
+        var result = new DefinitionCollector().Collect(document);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Succeeded, Is.False);
+            Assert.That(result.Diagnostics, Has.Count.EqualTo(3));
+            Assert.That(result.Diagnostics.Select(static diagnostic => diagnostic.Code), Is.All.EqualTo("KES2009"));
+            Assert.That(result.Diagnostics.Select(static diagnostic => diagnostic.Line), Is.EqualTo([2, 4, 6]));
+            Assert.That(result.Diagnostics.Select(static diagnostic => diagnostic.Column), Is.EqualTo([4, 7, 6]));
+            Assert.That(result.Diagnostics.Select(static diagnostic => diagnostic.RelatedLocations.Single().Line), Is.EqualTo([1, 1, 1]));
+            Assert.That(result.Diagnostics.Select(static diagnostic => diagnostic.RelatedLocations.Single().Column), Is.EqualTo([5, 5, 5]));
+            Assert.That(result.Diagnostics.Select(static diagnostic => diagnostic.Message), Is.All.Contains("shared"));
+        });
+    }
+
+    [Test]
+    public void Collect_ReportsDuplicateClassMembersAndLocalVariablesWithOriginalLocations()
+    {
+        const string source = """
+class Counter:
+    var value: number = 0
+    fn value():
+        use value
+
+fn calc(score: number):
+    var score = 1
+    var score = 2
+""";
+
+        var document = new ScriptDocument("events/main.ke", "Main", KeParser.Parse(source));
+
+        var result = new DefinitionCollector().Collect(document);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Succeeded, Is.False);
+            Assert.That(result.Diagnostics.Select(static diagnostic => diagnostic.Code), Is.EqualTo(["KES2009", "KES2009", "KES2009"]));
+            Assert.That(result.Diagnostics.Select(static diagnostic => diagnostic.Line), Is.EqualTo([3, 7, 8]));
+            Assert.That(result.Diagnostics.Select(static diagnostic => diagnostic.Column), Is.EqualTo([8, 9, 9]));
+            Assert.That(result.Diagnostics[0].RelatedLocations.Single().Line, Is.EqualTo(2));
+            Assert.That(result.Diagnostics[0].RelatedLocations.Single().Column, Is.EqualTo(9));
+            Assert.That(result.Diagnostics[1].RelatedLocations.Single().Line, Is.EqualTo(6));
+            Assert.That(result.Diagnostics[1].RelatedLocations.Single().Column, Is.EqualTo(9));
+            Assert.That(result.Diagnostics[2].RelatedLocations.Single().Line, Is.EqualTo(6));
+            Assert.That(result.Diagnostics[2].RelatedLocations.Single().Column, Is.EqualTo(9));
+        });
+    }
+
+    [Test]
+    public void Collect_PreservesCaseSensitiveNamesAndDuplicateFileInformation()
+    {
+        var document = new ScriptDocument(
+            "events/other/Main.ke",
+            "Main",
+            new ScriptSyntax(
+            [
+                new VarStatementSyntax("score", [], [], new SourceLocation(10, 3)),
+                new VarStatementSyntax("Score", [], [], new SourceLocation(11, 3)),
+                new VarStatementSyntax("score", [], [], new SourceLocation(12, 3)),
+            ]));
+
+        var result = new DefinitionCollector().Collect(document);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Diagnostics, Has.Count.EqualTo(1));
+            Assert.That(result.Diagnostics[0].File, Is.EqualTo("events/other/Main.ke"));
+            Assert.That(result.Diagnostics[0].Line, Is.EqualTo(12));
+            Assert.That(result.Diagnostics[0].Column, Is.EqualTo(3));
+            Assert.That(result.Diagnostics[0].RelatedLocations.Single().File, Is.EqualTo("events/other/Main.ke"));
+            Assert.That(result.Diagnostics[0].RelatedLocations.Single().Line, Is.EqualTo(10));
+            Assert.That(result.Diagnostics[0].RelatedLocations.Single().Column, Is.EqualTo(3));
         });
     }
 

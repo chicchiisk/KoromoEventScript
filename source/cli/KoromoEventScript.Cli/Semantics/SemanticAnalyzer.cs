@@ -1,4 +1,5 @@
 using KoromoEventScript.Cli.Commands;
+using KoromoEventScript.Cli.Diagnostics;
 using KoromoEventScript.Cli.ProjectSystem;
 
 namespace KoromoEventScript.Cli.Semantics;
@@ -52,11 +53,14 @@ public sealed class SemanticAnalyzer
             .ToArray();
         var definitionDiagnostics = definitionResults
             .SelectMany(static result => result.Diagnostics)
+            .Concat(DetectDuplicateModuleDefinitionsAcrossDocuments(definitionResults))
             .ToArray();
-        var symbolsByModule = definitionResults.ToDictionary(
-            static result => result.Document.ModuleName,
-            static result => result.Symbols,
-            StringComparer.Ordinal);
+        var symbolsByModule = definitionResults
+            .GroupBy(static result => result.Document.ModuleName, StringComparer.Ordinal)
+            .ToDictionary(
+                static group => group.Key,
+                static group => (IReadOnlyList<SymbolDefinition>)group.SelectMany(static result => result.Symbols).ToArray(),
+                StringComparer.Ordinal);
 
         if (definitionDiagnostics.Length > 0)
         {
@@ -68,5 +72,62 @@ public sealed class SemanticAnalyzer
 
         var nameResult = nameResolver.ResolveNames(graph, symbolsByModule);
         return SemanticAnalysisResult.From(importResult, nameResult, definitionResults);
+    }
+
+    private static IEnumerable<Diagnostic> DetectDuplicateModuleDefinitionsAcrossDocuments(
+        IReadOnlyList<DefinitionCollectionResult> definitionResults)
+    {
+        foreach (var moduleGroup in definitionResults.GroupBy(static result => result.Document.ModuleName, StringComparer.Ordinal))
+        {
+            var firstDefinitionsByName = new Dictionary<string, ScopedSymbolDefinition>(StringComparer.Ordinal);
+            foreach (var result in moduleGroup)
+            {
+                foreach (var definition in result.DefinitionTable.Definitions.Where(IsModuleScopeMajorDefinition))
+                {
+                    if (!firstDefinitionsByName.TryGetValue(definition.Name, out var original))
+                    {
+                        firstDefinitionsByName[definition.Name] = definition;
+                        continue;
+                    }
+
+                    if (string.Equals(original.File, definition.File, StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    yield return DuplicateDefinitionDiagnostic(result.Document.ModuleName, original, definition);
+                }
+            }
+        }
+    }
+
+    private static bool IsModuleScopeMajorDefinition(ScopedSymbolDefinition definition)
+    {
+        return definition.Kind is DefinitionKind.Actor
+            or DefinitionKind.Function
+            or DefinitionKind.Class
+            or DefinitionKind.Enum
+            or DefinitionKind.Variable;
+    }
+
+    private static Diagnostic DuplicateDefinitionDiagnostic(
+        string moduleName,
+        ScopedSymbolDefinition original,
+        ScopedSymbolDefinition duplicate)
+    {
+        return new Diagnostic(
+            DiagnosticLevel.Error,
+            "KES2009",
+            duplicate.File,
+            duplicate.Line,
+            duplicate.Column,
+            $"Duplicate definition '{duplicate.Name}' in module '{moduleName}'.",
+            [
+                new DiagnosticRelatedLocation(
+                    original.File,
+                    original.Line,
+                    original.Column,
+                    "Original definition is here.")
+            ]);
     }
 }

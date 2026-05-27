@@ -71,4 +71,78 @@ public class DiagnosticFormatterTests
             Assert.That(jsonLines[1], Does.Contain("\"code\":\"KES4001\""));
         });
     }
+
+    [Test]
+    public void FormatText_IncludesRelatedLocationWhenPresent()
+    {
+        var diagnostic = new Diagnostic(
+            DiagnosticLevel.Error,
+            "KES2009",
+            "events/main.ke",
+            3,
+            5,
+            "Duplicate definition 'score'.",
+            [
+                new DiagnosticRelatedLocation(
+                    "events/main.ke",
+                    1,
+                    5,
+                    "Original definition is here.")
+            ]);
+
+        var text = DiagnosticFormatter.FormatText(diagnostic);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(text, Does.StartWith("events/main.ke:3:5 error KES2009: Duplicate definition 'score'."));
+            Assert.That(text, Does.Contain("events/main.ke:1:5"));
+            Assert.That(text, Does.Contain("Original definition is here."));
+        });
+    }
+
+    [Test]
+    public void FormatJsonLine_IncludesRelatedLocationsOnlyWhenPresent()
+    {
+        var diagnostic = new Diagnostic(
+            DiagnosticLevel.Error,
+            "KES2009",
+            "events/main.ke",
+            3,
+            5,
+            "Duplicate definition 'score'.",
+            [
+                new DiagnosticRelatedLocation(
+                    "events/main.ke",
+                    1,
+                    5,
+                    "Original definition is here.")
+            ]);
+
+        var json = DiagnosticFormatter.FormatJsonLine(diagnostic);
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+        var relatedLocation = root.GetProperty("relatedLocations")[0];
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(root.GetProperty("file").GetString(), Is.EqualTo("events/main.ke"));
+            Assert.That(root.GetProperty("line").GetInt32(), Is.EqualTo(3));
+            Assert.That(root.GetProperty("column").GetInt32(), Is.EqualTo(5));
+            Assert.That(relatedLocation.GetProperty("file").GetString(), Is.EqualTo("events/main.ke"));
+            Assert.That(relatedLocation.GetProperty("line").GetInt32(), Is.EqualTo(1));
+            Assert.That(relatedLocation.GetProperty("column").GetInt32(), Is.EqualTo(5));
+            Assert.That(relatedLocation.GetProperty("message").GetString(), Is.EqualTo("Original definition is here."));
+        });
+
+        var withoutRelated = new Diagnostic(
+            DiagnosticLevel.Error,
+            "KES1001",
+            "events/main.ke",
+            1,
+            1,
+            "plain");
+        using var plainDocument = JsonDocument.Parse(DiagnosticFormatter.FormatJsonLine(withoutRelated));
+
+        Assert.That(plainDocument.RootElement.TryGetProperty("relatedLocations", out _), Is.False);
+    }
 }

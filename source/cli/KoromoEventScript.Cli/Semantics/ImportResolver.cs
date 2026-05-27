@@ -51,7 +51,6 @@ public sealed class ImportResolver
         private readonly ModuleFileIndex moduleIndex;
         private readonly Func<ModuleFileEntry, SourceParseResult<ScriptSyntax>> parseImport;
         private readonly Dictionary<string, ScriptDocument> documentsByModule = new(StringComparer.Ordinal);
-        private readonly HashSet<string> orderedModules = new(StringComparer.Ordinal);
         private readonly HashSet<string> completedModules = new(StringComparer.Ordinal);
         private readonly Dictionary<string, int> activeIndexes = new(StringComparer.Ordinal);
         private readonly List<string> activePath = [];
@@ -79,7 +78,9 @@ public sealed class ImportResolver
 
         public void Visit(ScriptDocument document)
         {
-            if (completedModules.Contains(document.ModuleName))
+            if (completedModules.Contains(document.ModuleName) &&
+                documentsByModule.TryGetValue(document.ModuleName, out var canonicalDocument) &&
+                ReferenceEquals(canonicalDocument, document))
             {
                 return;
             }
@@ -99,7 +100,9 @@ public sealed class ImportResolver
                 ResolveImport(document, importStatement.ModuleName);
             }
 
-            DirectImports[document.ModuleName] = imports;
+            DirectImports[document.ModuleName] = DirectImports.TryGetValue(document.ModuleName, out var existingImports)
+                ? existingImports.Concat(imports).Distinct(StringComparer.Ordinal).ToArray()
+                : imports;
             activeIndexes.Remove(document.ModuleName);
             activePath.RemoveAt(activePath.Count - 1);
             completedModules.Add(document.ModuleName);
@@ -182,10 +185,7 @@ public sealed class ImportResolver
                 documentsByModule[document.ModuleName] = document;
             }
 
-            if (orderedModules.Add(document.ModuleName))
-            {
-                OrderedDocuments.Add(document);
-            }
+            OrderedDocuments.Add(document);
         }
 
         private void AddFileDiagnostic(Diagnostic diagnostic)
