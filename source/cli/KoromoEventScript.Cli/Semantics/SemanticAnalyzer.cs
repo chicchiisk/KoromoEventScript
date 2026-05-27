@@ -62,10 +62,11 @@ public sealed class SemanticAnalyzer
         {
             return SemanticAnalysisResult.From(
                 importResult,
-                NameResolutionResult.Failure(CliExitCode.CompileError, definitionDiagnostics));
+                NameResolutionResult.Failure(CliExitCode.CompileError, definitionDiagnostics),
+                definitionResults);
         }
 
         var nameResult = nameResolver.ResolveNames(graph, symbolsByModule);
-        return SemanticAnalysisResult.From(importResult, nameResult);
+        return SemanticAnalysisResult.From(importResult, nameResult, definitionResults);
     }
 }

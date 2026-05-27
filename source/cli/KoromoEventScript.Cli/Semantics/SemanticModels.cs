@@ -217,7 +217,8 @@ public sealed record DefinitionCollectionResult
     public DefinitionCollectionResult(
         ScriptDocument document,
         IReadOnlyList<SymbolDefinition> symbols,
-        IReadOnlyList<Diagnostic> diagnostics)
+        IReadOnlyList<Diagnostic> diagnostics,
+        DefinitionTable? definitionTable = null)
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(symbols);
@@ -226,6 +227,19 @@ public sealed record DefinitionCollectionResult
         Document = document;
         Symbols = symbols.ToArray();
         Diagnostics = diagnostics.ToArray();
+        DefinitionTable = definitionTable ?? new DefinitionTable(
+            $"{document.ModuleName}:module",
+            [new DefinitionScope($"{document.ModuleName}:module", ScopeKind.Module, null, document.ModuleName)],
+            symbols
+                .Select(static symbol => new ScopedSymbolDefinition(
+                    symbol.Name,
+                    DefinitionKind.Variable,
+                    symbol.ModuleName,
+                    symbol.File,
+                    symbol.Line,
+                    symbol.Column,
+                    $"{symbol.ModuleName}:module"))
+                .ToArray());
     }
 
     public ScriptDocument Document { get; }
@@ -233,6 +247,10 @@ public sealed record DefinitionCollectionResult
     public IReadOnlyList<SymbolDefinition> Symbols { get; }
 
     public IReadOnlyList<Diagnostic> Diagnostics { get; }
+
+    public DefinitionTable DefinitionTable { get; }
+
+    public bool Succeeded => Diagnostics.Count == 0;
 }
 
 public sealed record NameResolutionResult
@@ -295,16 +313,19 @@ public sealed record SemanticAnalysisResult
         CliExitCode exitCode,
         IReadOnlyList<Diagnostic> diagnostics,
         ImportResolutionResult importResolution,
-        NameResolutionResult nameResolution)
+        NameResolutionResult nameResolution,
+        IReadOnlyList<DefinitionCollectionResult> definitionCollections)
     {
         ArgumentNullException.ThrowIfNull(diagnostics);
         ArgumentNullException.ThrowIfNull(importResolution);
         ArgumentNullException.ThrowIfNull(nameResolution);
+        ArgumentNullException.ThrowIfNull(definitionCollections);
 
         ExitCode = exitCode;
         Diagnostics = diagnostics.ToArray();
         ImportResolution = importResolution;
         NameResolution = nameResolution;
+        DefinitionCollections = definitionCollections.ToArray();
     }
 
     public CliExitCode ExitCode { get; }
@@ -315,13 +336,16 @@ public sealed record SemanticAnalysisResult
 
     public NameResolutionResult NameResolution { get; }
 
+    public IReadOnlyList<DefinitionCollectionResult> DefinitionCollections { get; }
+
     public ImportGraph? ImportGraph => ImportResolution.ImportGraph;
 
     public bool Succeeded => ExitCode == CliExitCode.Success;
 
     public static SemanticAnalysisResult From(
         ImportResolutionResult importResolution,
-        NameResolutionResult nameResolution)
+        NameResolutionResult nameResolution,
+        IReadOnlyList<DefinitionCollectionResult>? definitionCollections = null)
     {
         ArgumentNullException.ThrowIfNull(importResolution);
         ArgumentNullException.ThrowIfNull(nameResolution);
@@ -334,6 +358,6 @@ public sealed record SemanticAnalysisResult
             .Concat(nameResolution.Diagnostics)
             .ToArray();
 
-        return new SemanticAnalysisResult(exitCode, diagnostics, importResolution, nameResolution);
+        return new SemanticAnalysisResult(exitCode, diagnostics, importResolution, nameResolution, definitionCollections ?? []);
     }
 }

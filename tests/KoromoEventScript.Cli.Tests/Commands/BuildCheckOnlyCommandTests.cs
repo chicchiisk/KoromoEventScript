@@ -186,6 +186,108 @@ jump #start
     }
 
     [Test]
+    public void Execute_ReturnsSuccessForValidMajorDefinitions()
+    {
+        using var fixture = TemporaryProject.Create();
+        fixture.WriteConfig(entry: "events/main.kel");
+        fixture.WriteFile("events/main.kel", """
+entry = intro
+intro = {
+    chapter = "events/main.ke"
+}
+""");
+        fixture.WriteFile("events/main.ke", """
+actor Riku:
+    cast Riku
+fn setup():
+    var localValue = 1
+class Counter:
+    var value: number = 0
+enum Mood:
+    normal
+""");
+
+        var result = new BuildCheckOnlyCommand().Execute(
+            new BuildCommandOptions(fixture.Root, DiagnosticOutputFormat.Text),
+            TestContext.CurrentContext.WorkDirectory);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.ExitCode, Is.EqualTo(CliExitCode.Success));
+            Assert.That(result.Diagnostics, Is.Empty);
+        });
+    }
+
+    [Test]
+    public void Execute_ReturnsCompileErrorForDefinitionShadowing()
+    {
+        using var fixture = TemporaryProject.Create();
+        fixture.WriteConfig(entry: "events/main.kel");
+        fixture.WriteFile("events/main.kel", """
+entry = intro
+intro = {
+    chapter = "events/main.ke"
+}
+""");
+        fixture.WriteFile("events/main.ke", """
+var score = 0
+fn calc(score: number):
+    score_value score
+""");
+
+        var result = new BuildCheckOnlyCommand().Execute(
+            new BuildCommandOptions(fixture.Root, DiagnosticOutputFormat.Text),
+            TestContext.CurrentContext.WorkDirectory);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.ExitCode, Is.EqualTo(CliExitCode.CompileError));
+            Assert.That(result.Diagnostics, Has.Count.EqualTo(1));
+            Assert.That(result.Diagnostics[0].Code, Is.EqualTo("KES2014"));
+            Assert.That(result.Diagnostics[0].File, Is.EqualTo("events/main.ke"));
+            Assert.That(result.Diagnostics[0].Line, Is.EqualTo(2));
+            Assert.That(result.Diagnostics[0].Column, Is.EqualTo(9));
+        });
+    }
+
+    [Test]
+    public void Run_OutputsDefinitionDiagnosticsAsJsonLines()
+    {
+        using var fixture = TemporaryProject.Create();
+        fixture.WriteConfig(entry: "events/main.kel");
+        fixture.WriteFile("events/main.kel", """
+entry = intro
+intro = {
+    chapter = "events/main.ke"
+}
+""");
+        fixture.WriteFile("events/main.ke", """
+class Counter:
+    var value: number = 0
+    fn value():
+        use value
+""");
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+
+        var exitCode = new CliApplication().Run(
+            ["build", fixture.Root, "--check-only", "--log-format", "json"],
+            output,
+            error,
+            TestContext.CurrentContext.WorkDirectory);
+
+        var lines = error.ToString().Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+        using var document = JsonDocument.Parse(lines.Single());
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(exitCode, Is.EqualTo((int)CliExitCode.CompileError));
+            Assert.That(output.ToString(), Is.Empty);
+            AssertJsonDiagnostic(document.RootElement, "KES2009", "events/main.ke", 3, 8);
+        });
+    }
+
+    [Test]
     public void ProcessInvocation_ReturnsSuccessForMinimalProject()
     {
         var projectRoot = GetTestDataPath("projects", "minimal");

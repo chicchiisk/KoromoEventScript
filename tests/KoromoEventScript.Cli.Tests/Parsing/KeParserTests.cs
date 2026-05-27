@@ -94,6 +94,86 @@ jump #end
     }
 
     [Test]
+    public void Parse_BuildsSyntaxTreeForMajorDefinitions()
+    {
+        const string source = """
+actor Riku:
+    var faceName: string = "normal"
+
+fn calc_score(base: number, bonus: number): number:
+    var total = base
+    score total
+
+class Counter:
+    private var value: number = 0
+    public fn add(amount: number): number:
+        var next = value
+        score next
+
+enum Mood:
+    normal
+    smile
+""";
+
+        var syntax = KeParser.Parse(source);
+
+        Assert.That(syntax.Statements, Has.Count.EqualTo(4));
+        Assert.Multiple(() =>
+        {
+            var actor = (ActorDeclarationSyntax)syntax.Statements[0];
+            Assert.That(actor.Name, Is.EqualTo("Riku"));
+            Assert.That(actor.NameLocation, Is.EqualTo(new SourceLocation(1, 7)));
+            Assert.That(actor.Body.Statements.Single(), Is.TypeOf<VarStatementSyntax>());
+
+            var function = (FunctionDeclarationSyntax)syntax.Statements[1];
+            Assert.That(function.Name, Is.EqualTo("calc_score"));
+            Assert.That(function.NameLocation, Is.EqualTo(new SourceLocation(4, 4)));
+            Assert.That(function.Parameters.Select(static parameter => (parameter.Name, parameter.NameLocation)),
+                Is.EqualTo(new[] { ("base", new SourceLocation(4, 15)), ("bonus", new SourceLocation(4, 29)) }));
+            Assert.That(function.Parameters[0].TypeTokens.Select(static token => token.Lexeme), Is.EqualTo(["number"]));
+            Assert.That(function.ReturnTypeTokens.Select(static token => token.Lexeme), Is.EqualTo(["number"]));
+            Assert.That(function.Body.Statements.OfType<VarStatementSyntax>().Single().Name, Is.EqualTo("total"));
+
+            var classDeclaration = (ClassDeclarationSyntax)syntax.Statements[2];
+            Assert.That(classDeclaration.Name, Is.EqualTo("Counter"));
+            Assert.That(classDeclaration.NameLocation, Is.EqualTo(new SourceLocation(8, 7)));
+            Assert.That(classDeclaration.Members, Has.Count.EqualTo(2));
+            var field = (ClassFieldSyntax)classDeclaration.Members[0];
+            Assert.That(field.AccessModifier, Is.EqualTo("private"));
+            Assert.That(field.Declaration.Name, Is.EqualTo("value"));
+            Assert.That(field.Declaration.NameLocation, Is.EqualTo(new SourceLocation(9, 17)));
+            var method = (ClassMethodSyntax)classDeclaration.Members[1];
+            Assert.That(method.AccessModifier, Is.EqualTo("public"));
+            Assert.That(method.Declaration.Name, Is.EqualTo("add"));
+            Assert.That(method.Declaration.NameLocation, Is.EqualTo(new SourceLocation(10, 15)));
+            Assert.That(method.Declaration.Parameters.Single().Name, Is.EqualTo("amount"));
+            Assert.That(method.Declaration.Body.Statements.OfType<VarStatementSyntax>().Single().Name, Is.EqualTo("next"));
+
+            var enumDeclaration = (EnumDeclarationSyntax)syntax.Statements[3];
+            Assert.That(enumDeclaration.Name, Is.EqualTo("Mood"));
+            Assert.That(enumDeclaration.NameLocation, Is.EqualTo(new SourceLocation(14, 6)));
+            Assert.That(enumDeclaration.Members.Select(static member => (member.Name, member.NameLocation)),
+                Is.EqualTo(new[] { ("normal", new SourceLocation(15, 5)), ("smile", new SourceLocation(16, 5)) }));
+        });
+    }
+
+    [Test]
+    public void Parse_ReportsIncompleteMajorDefinitionAsSyntaxDiagnostic()
+    {
+        const string source = """
+fn missingBody()
+""";
+
+        var exception = Assert.Throws<ParserException>(() => KeParser.Parse(source));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(exception!.Diagnostic.Code, Is.EqualTo("KES2002"));
+            Assert.That(exception.Diagnostic.Line, Is.EqualTo(1));
+        });
+    }
+
+    [Test]
     public void Parse_ReportsMissingColonOnSayStatement()
     {
         const string source = """
