@@ -130,7 +130,7 @@
   - _Requirements: 4.1, 4.2, 4.5, 5.1, 5.2, 5.3, 5.4, 5.5_
   - _Boundary: SemanticAnalyzerTests, BuildCheckOnlyCommandTests_
 
-- [ ] 4.4 全体回帰と差分品質チェックを実行する
+- [x] 4.4 全体回帰と差分品質チェックを実行する
   - 既存 lexer/parser/semantic/build tests が主要定義収集追加後も通ることを確認する
   - `dotnet test` と差分空白チェックを実行し、失敗があれば原因を修正する
   - 実装範囲が parser、semantics、CLI 統合、tests に収まっていることを確認する
