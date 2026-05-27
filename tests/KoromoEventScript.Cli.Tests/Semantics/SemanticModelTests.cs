@@ -127,6 +127,31 @@ public class SemanticModelTests
     }
 
     [Test]
+    public void DefinitionTable_StoresScopesAndScopedDefinitions()
+    {
+        var moduleScope = new DefinitionScope("Main:Module:0", ScopeKind.Module, null, "Main");
+        var classScope = new DefinitionScope("Main:Class:1", ScopeKind.Class, moduleScope.Id, "Counter");
+        var definition = new ScopedSymbolDefinition(
+            "Counter",
+            DefinitionKind.Class,
+            "Main",
+            "events/main.ke",
+            3,
+            7,
+            moduleScope.Id);
+
+        var table = new DefinitionTable(moduleScope.Id, [moduleScope, classScope], [definition]);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(table.ModuleScopeId, Is.EqualTo(moduleScope.Id));
+            Assert.That(table.Scopes.Select(static scope => scope.Kind), Is.EqualTo([ScopeKind.Module, ScopeKind.Class]));
+            Assert.That(table.Scopes[1].ParentId, Is.EqualTo(moduleScope.Id));
+            Assert.That(table.Definitions.Single(), Is.EqualTo(definition));
+        });
+    }
+
+    [Test]
     public void SemanticAnalysisResult_PreservesDiagnosticsInStageOrder()
     {
         var importDiagnostic = Error("KES2002", "events/main.ke", 1, 1, "missing import");

@@ -217,7 +217,8 @@ public sealed record DefinitionCollectionResult
     public DefinitionCollectionResult(
         ScriptDocument document,
         IReadOnlyList<SymbolDefinition> symbols,
-        IReadOnlyList<Diagnostic> diagnostics)
+        IReadOnlyList<Diagnostic> diagnostics,
+        DefinitionTable? definitionTable = null)
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(symbols);
@@ -226,6 +227,19 @@ public sealed record DefinitionCollectionResult
         Document = document;
         Symbols = symbols.ToArray();
         Diagnostics = diagnostics.ToArray();
+        DefinitionTable = definitionTable ?? new DefinitionTable(
+            $"{document.ModuleName}:module",
+            [new DefinitionScope($"{document.ModuleName}:module", ScopeKind.Module, null, document.ModuleName)],
+            symbols
+                .Select(static symbol => new ScopedSymbolDefinition(
+                    symbol.Name,
+                    DefinitionKind.Variable,
+                    symbol.ModuleName,
+                    symbol.File,
+                    symbol.Line,
+                    symbol.Column,
+                    $"{symbol.ModuleName}:module"))
+                .ToArray());
     }
 
     public ScriptDocument Document { get; }
@@ -233,6 +247,10 @@ public sealed record DefinitionCollectionResult
     public IReadOnlyList<SymbolDefinition> Symbols { get; }
 
     public IReadOnlyList<Diagnostic> Diagnostics { get; }
+
+    public DefinitionTable DefinitionTable { get; }
+
+    public bool Succeeded => Diagnostics.Count == 0;
 }
 
 public sealed record NameResolutionResult

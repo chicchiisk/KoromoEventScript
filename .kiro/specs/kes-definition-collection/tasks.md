@@ -34,7 +34,7 @@
   - _Boundary: KeParser_
 
 - [ ] 2. Core: スコープ付き定義モデルと収集規則を実装する
-- [ ] 2.1 定義種別とスコープ階層の semantic model を用意する
+- [x] 2.1 定義種別とスコープ階層の semantic model を用意する
   - variable、function、class、enum、enum member、actor、parameter、class field、class method を区別できる
   - module、class、function、method、block の scope kind と親子関係を表せる
   - module-level compatibility symbol view の入力に必要な module / file / location 情報を保持する
@@ -42,7 +42,7 @@
   - _Requirements: 2.5, 4.2, 4.3, 4.4_
   - _Boundary: Definition Models_
 
-- [ ] 2.2 module scope の主要定義を収集する
+- [x] 2.2 module scope の主要定義を収集する
   - syntax-valid script の top-level `actor`、`fn`、`class`、`enum`、`var` を module scope に登録する
   - 既存の tag 定義収集と競合しない形で主要定義を扱う
   - module-level compatibility symbol view から既存名前解決が主要定義を参照できるようにする
@@ -50,7 +50,7 @@
   - _Requirements: 2.1, 4.1, 4.2, 4.3, 4.4_
   - _Boundary: DefinitionCollector_
 
-- [ ] 2.3 class scope の member 定義を収集する
+- [x] 2.3 class scope の member 定義を収集する
   - class ごとに独立した class scope を作成する
   - member `var` を class field、member `fn` を class method として登録する
   - 異なる class 間の同名 member は別 scope として扱う
@@ -58,7 +58,7 @@
   - _Requirements: 2.2, 2.5, 3.4, 4.4_
   - _Boundary: DefinitionCollector_
 
-- [ ] 2.4 function / method / block scope の定義を収集する
+- [x] 2.4 function / method / block scope の定義を収集する
   - function と method の parameter を function-or-method scope に登録する
   - function / method 直下の local `var` を同じ function-or-method scope に登録する
   - nested block 内の local `var` を block scope に登録し、親 scope との関係を保持する
@@ -66,7 +66,7 @@
   - _Requirements: 2.3, 2.4, 2.5, 4.1_
   - _Boundary: DefinitionCollector_
 
-- [ ] 2.5 重複定義とシャドーイングを診断する
+- [x] 2.5 重複定義とシャドーイングを診断する
   - 同一 scope 内の同名定義を duplicate compile diagnostic として報告する
   - outer scope の visible definition と同名の内側定義を shadowing compile diagnostic として報告する
   - module scope の `actor`、`fn`、`class`、`enum`、`var` は同じ名前空間として衝突させる
