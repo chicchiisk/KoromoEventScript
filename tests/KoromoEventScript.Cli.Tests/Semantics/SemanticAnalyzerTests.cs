@@ -11,7 +11,7 @@ public class SemanticAnalyzerTests
     public void Analyze_ReturnsSuccessForResolvableImportsAndNames()
     {
         var project = LoadFixtureProject("success");
-        var roots = ParseRoots(project, "events/main.ke");
+        var roots = ParseRoots(project, "events/main.kc");
 
         var result = new SemanticAnalyzer().Analyze(project, roots);
 
@@ -20,6 +20,9 @@ public class SemanticAnalyzerTests
             Assert.That(result.Succeeded, Is.True);
             Assert.That(result.ExitCode, Is.EqualTo(CliExitCode.Success));
             Assert.That(result.Diagnostics, Is.Empty);
+            Assert.That(result.DefinitionCollections, Is.Not.Empty);
+            Assert.That(result.DefinitionCollections.SelectMany(static collection => collection.DefinitionTable.Definitions).Select(static definition => definition.Name),
+                Does.Contain("commonValue"));
             Assert.That(result.ImportGraph!.OrderedDocuments.Select(static document => document.ModuleName),
                 Is.EqualTo(["main", "Common", "Shared", "LegacyCommon"]));
         });
@@ -102,6 +105,39 @@ var sharedValue = 2
             Assert.That(result.ExitCode, Is.EqualTo(CliExitCode.CompileError));
             Assert.That(result.Diagnostics.Select(static diagnostic => diagnostic.Code), Is.EqualTo(["KES2009"]));
             Assert.That(result.Diagnostics[0].Line, Is.EqualTo(2));
+            Assert.That(result.NameResolution.Succeeded, Is.False);
+            Assert.That(result.DefinitionCollections.Single().Succeeded, Is.False);
+        });
+    }
+
+    [Test]
+    public void Analyze_ReturnsCompileDiagnosticsForShadowingBeforeNameResolution()
+    {
+        using var fixture = TemporaryProject.Create();
+        fixture.WriteConfig();
+        fixture.WriteFile("events/main.kel", """
+entry = intro
+intro = {
+    chapter = "events/main.ke"
+}
+""");
+        fixture.WriteFile("events/main.ke", """
+var score = 0
+fn calc(score: number):
+    use missingName
+""");
+        var project = LoadProject(fixture.Root);
+        var roots = ParseRoots(project, "events/main.ke");
+
+        var result = new SemanticAnalyzer().Analyze(project, roots);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Succeeded, Is.False);
+            Assert.That(result.ExitCode, Is.EqualTo(CliExitCode.CompileError));
+            Assert.That(result.Diagnostics.Select(static diagnostic => diagnostic.Code), Is.EqualTo(["KES2014"]));
+            Assert.That(result.NameResolution.Succeeded, Is.False);
+            Assert.That(result.DefinitionCollections.Single().Succeeded, Is.False);
         });
     }
 

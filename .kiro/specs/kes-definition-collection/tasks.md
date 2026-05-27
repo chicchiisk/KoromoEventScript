@@ -75,7 +75,7 @@
   - _Boundary: DefinitionCollector_
 
 - [ ] 3. Integration: semantic stage と CLI check-only に接続する
-- [ ] 3.1 定義収集結果を semantic analysis result に保持する
+- [x] 3.1 定義収集結果を semantic analysis result に保持する
   - import 解決成功後に scoped definition collection を実行する
   - 収集成功時には後続 semantic validation が定義表を参照できる状態にする
   - 収集失敗時には name resolution へ進まず compile error として分類する
@@ -84,7 +84,7 @@
   - _Requirements: 4.1, 4.2, 4.5, 5.1, 5.2, 5.3_
   - _Boundary: SemanticAnalyzer_
 
-- [ ] 3.2 既存 name resolution との互換接続を維持する
+- [x] 3.2 既存 name resolution との互換接続を維持する
   - scoped definition result から existing name resolver が使う module-level symbol view を渡す
   - imported module definitions と local module definitions を区別できる状態を維持する
   - 既存 import/name/tag resolution の成功・失敗分類を変えない
@@ -93,7 +93,7 @@
   - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
   - _Boundary: SemanticAnalyzer, NameResolver_
 
-- [ ] 3.3 `kes build --check-only` の診断と終了コードに反映する
+- [x] 3.3 `kes build --check-only` の診断と終了コードに反映する
   - valid major definitions を含む project が成功終了することを統合する
   - duplicate / shadowing diagnostics が compile error exit code になることを統合する
   - text と JSON Lines の両方で既存 diagnostic fields と順序を保持する
@@ -103,7 +103,7 @@
   - _Boundary: CLI Check-only Flow_
 
 - [ ] 4. Validation: 要求範囲と回帰をテストで固定する
-- [ ] 4.1 (P) parser 宣言構文の回帰テストを完成させる
+- [x] 4.1 (P) parser 宣言構文の回帰テストを完成させる
   - top-level 主要宣言、class member、parameter、local `var` の source location を検証する
   - malformed declaration が syntax diagnostic として分類されることを検証する
   - 既存 command、LESS、text block、select、label、jump の parser tests が成功することを確認する
@@ -112,7 +112,7 @@
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5_
   - _Boundary: KeParserTests_
 
-- [ ] 4.2 (P) scoped definition collection の単体テストを完成させる
+- [x] 4.2 (P) scoped definition collection の単体テストを完成させる
   - definition kind、scope kind、parent-child scope、compatibility symbol view を検証する
   - duplicate と shadowing の compile diagnostics を検証する
   - 異なる class 間の同名 member が許容されることを検証する
@@ -121,7 +121,7 @@
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 3.1, 3.2, 3.3, 3.4, 3.5, 4.1, 4.2, 4.3, 4.4, 4.5_
   - _Boundary: DefinitionCollectorTests_
 
-- [ ] 4.3 semantic / CLI 統合テストを完成させる
+- [x] 4.3 semantic / CLI 統合テストを完成させる
   - semantic analyzer が import 後、name resolution 前に definition collection を実行することを検証する
   - collection diagnostics で name resolution が消費されないことを検証する
   - `kes build --check-only` の text と JSON Lines diagnostics を検証する

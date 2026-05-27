@@ -313,16 +313,19 @@ public sealed record SemanticAnalysisResult
         CliExitCode exitCode,
         IReadOnlyList<Diagnostic> diagnostics,
         ImportResolutionResult importResolution,
-        NameResolutionResult nameResolution)
+        NameResolutionResult nameResolution,
+        IReadOnlyList<DefinitionCollectionResult> definitionCollections)
     {
         ArgumentNullException.ThrowIfNull(diagnostics);
         ArgumentNullException.ThrowIfNull(importResolution);
         ArgumentNullException.ThrowIfNull(nameResolution);
+        ArgumentNullException.ThrowIfNull(definitionCollections);
 
         ExitCode = exitCode;
         Diagnostics = diagnostics.ToArray();
         ImportResolution = importResolution;
         NameResolution = nameResolution;
+        DefinitionCollections = definitionCollections.ToArray();
     }
 
     public CliExitCode ExitCode { get; }
@@ -333,13 +336,16 @@ public sealed record SemanticAnalysisResult
 
     public NameResolutionResult NameResolution { get; }
 
+    public IReadOnlyList<DefinitionCollectionResult> DefinitionCollections { get; }
+
     public ImportGraph? ImportGraph => ImportResolution.ImportGraph;
 
     public bool Succeeded => ExitCode == CliExitCode.Success;
 
     public static SemanticAnalysisResult From(
         ImportResolutionResult importResolution,
-        NameResolutionResult nameResolution)
+        NameResolutionResult nameResolution,
+        IReadOnlyList<DefinitionCollectionResult>? definitionCollections = null)
     {
         ArgumentNullException.ThrowIfNull(importResolution);
         ArgumentNullException.ThrowIfNull(nameResolution);
@@ -352,6 +358,6 @@ public sealed record SemanticAnalysisResult
             .Concat(nameResolution.Diagnostics)
             .ToArray();
 
-        return new SemanticAnalysisResult(exitCode, diagnostics, importResolution, nameResolution);
+        return new SemanticAnalysisResult(exitCode, diagnostics, importResolution, nameResolution, definitionCollections ?? []);
     }
 }
