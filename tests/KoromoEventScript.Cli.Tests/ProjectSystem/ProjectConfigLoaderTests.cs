@@ -19,6 +19,53 @@ public class ProjectConfigLoaderTests
             Assert.That(result.Config.EventsPath, Is.EqualTo("events"));
             Assert.That(result.Config.BuildPath, Is.EqualTo("build"));
             Assert.That(result.Config.DistPath, Is.EqualTo("dist"));
+            Assert.That(result.Config.WarningsAsErrors, Is.False);
+        });
+    }
+
+    [TestCase("true", true)]
+    [TestCase("false", false)]
+    public void Load_ReadsWarningsAsErrorsBuildConfig(string value, bool expected)
+    {
+        using var fixture = TemporaryProject.Create();
+        fixture.WriteFile("kes.xml", $$"""
+<?xml version="1.0" encoding="utf-8"?>
+<KoromoEventScript>
+    <Project Name="Temp" Version="0.1.0" Entry="events/main.kel" />
+    <Paths Events="events" Assets="assets" Locale="locale" Build="build" Dist="dist" />
+    <Build WarningsAsErrors="{{value}}" />
+</KoromoEventScript>
+""");
+
+        var result = new ProjectConfigLoader().Load(fixture.Root);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Succeeded, Is.True);
+            Assert.That(result.Config!.WarningsAsErrors, Is.EqualTo(expected));
+        });
+    }
+
+    [Test]
+    public void Load_ReturnsDiagnosticForInvalidWarningsAsErrorsBuildConfig()
+    {
+        using var fixture = TemporaryProject.Create();
+        fixture.WriteFile("kes.xml", """
+<?xml version="1.0" encoding="utf-8"?>
+<KoromoEventScript>
+    <Project Name="Temp" Version="0.1.0" Entry="events/main.kel" />
+    <Paths Events="events" Assets="assets" Locale="locale" Build="build" Dist="dist" />
+    <Build WarningsAsErrors="maybe" />
+</KoromoEventScript>
+""");
+
+        var result = new ProjectConfigLoader().Load(fixture.Root);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Succeeded, Is.False);
+            Assert.That(result.Diagnostic!.Code, Is.EqualTo("KES9003"));
+            Assert.That(result.Diagnostic.File, Is.EqualTo("kes.xml"));
         });
     }
 

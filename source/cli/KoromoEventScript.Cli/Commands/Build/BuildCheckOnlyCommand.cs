@@ -95,7 +95,11 @@ public sealed class BuildCheckOnlyCommand
         }
 
         var semanticResult = _semanticAnalyzer.Analyze(config, entryDocuments);
-        return new BuildCheckOnlyResult(semanticResult.ExitCode, semanticResult.Diagnostics);
+        var exitCode = WarningPolicy.Apply(
+            semanticResult.ExitCode,
+            semanticResult.Diagnostics,
+            options.WarningsAsErrors || config.WarningsAsErrors);
+        return new BuildCheckOnlyResult(exitCode, semanticResult.Diagnostics);
     }
 
     private static CliExitCode MapParseStatus(SourceParseStatus status)

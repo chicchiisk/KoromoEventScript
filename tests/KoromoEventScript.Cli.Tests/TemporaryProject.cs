@@ -16,14 +16,15 @@ internal sealed class TemporaryProject : IDisposable
         return new TemporaryProject(root);
     }
 
-    public void WriteConfig(string entry = "events/main.kel")
+    public void WriteConfig(string entry = "events/main.kel", bool warningsAsErrors = false)
     {
+        var build = warningsAsErrors ? """    <Build WarningsAsErrors="true" />""" + Environment.NewLine : string.Empty;
         WriteFile("kes.xml", $$"""
 <?xml version="1.0" encoding="utf-8"?>
 <KoromoEventScript>
     <Project Name="Temp" Version="0.1.0" Entry="{{entry}}" />
     <Paths Events="events" Assets="assets" Locale="locale" Build="build" Dist="dist" />
-</KoromoEventScript>
+{{build}}</KoromoEventScript>
 """);
     }
 

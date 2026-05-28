@@ -139,6 +139,33 @@ var score: number = "bad"
     }
 
     [Test]
+    public void Analyze_IncludesWarningDiagnosticsOnSuccess()
+    {
+        using var fixture = TemporaryProject.Create();
+        fixture.WriteConfig();
+        fixture.WriteFile("events/main.kel", """
+entry = intro
+intro = {
+    chapter = "events/main.ke"
+}
+""");
+        fixture.WriteFile("events/main.ke", string.Empty);
+        var project = LoadProject(fixture.Root);
+        var roots = ParseRoots(project, "events/main.ke");
+
+        var result = new SemanticAnalyzer().Analyze(project, roots);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Succeeded, Is.True);
+            Assert.That(result.ExitCode, Is.EqualTo(CliExitCode.Success));
+            Assert.That(result.Diagnostics.Single().Code, Is.EqualTo("KES4001"));
+            Assert.That(result.Diagnostics.Single().Level, Is.EqualTo(KoromoEventScript.Cli.Diagnostics.DiagnosticLevel.Warning));
+            Assert.That(result.TypeChecking.Succeeded, Is.True);
+        });
+    }
+
+    [Test]
     public void Analyze_DoesNotRunTypeCheckingWhenNameResolutionFails()
     {
         using var fixture = TemporaryProject.Create();

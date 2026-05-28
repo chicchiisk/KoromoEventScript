@@ -7,4 +7,5 @@ public sealed record ProjectConfig(
     string AssetsPath,
     string LocalePath,
     string BuildPath,
-    string DistPath);
+    string DistPath,
+    bool WarningsAsErrors = false);

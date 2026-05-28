@@ -4,4 +4,5 @@ namespace KoromoEventScript.Cli.Commands.Build;
 
 public sealed record BuildCommandOptions(
     string? ProjectDirectory,
-    DiagnosticOutputFormat OutputFormat);
+    DiagnosticOutputFormat OutputFormat,
+    bool WarningsAsErrors = false);

@@ -11,9 +11,10 @@ public sealed class SemanticAnalyzer
     private readonly DefinitionCollector definitionCollector;
     private readonly NameResolver nameResolver;
     private readonly TypeChecker typeChecker;
+    private readonly WarningAnalyzer warningAnalyzer;
 
     public SemanticAnalyzer()
-        : this(new ModuleFileIndex(), new ImportResolver(), new DefinitionCollector(), new NameResolver(), new TypeChecker())
+        : this(new ModuleFileIndex(), new ImportResolver(), new DefinitionCollector(), new NameResolver(), new TypeChecker(), new WarningAnalyzer())
     {
     }
 
@@ -22,7 +23,8 @@ public sealed class SemanticAnalyzer
         ImportResolver importResolver,
         DefinitionCollector definitionCollector,
         NameResolver nameResolver,
-        TypeChecker typeChecker)
+        TypeChecker typeChecker,
+        WarningAnalyzer? warningAnalyzer = null)
     {
         ArgumentNullException.ThrowIfNull(moduleFileIndex);
         ArgumentNullException.ThrowIfNull(importResolver);
@@ -35,6 +37,7 @@ public sealed class SemanticAnalyzer
         this.definitionCollector = definitionCollector;
         this.nameResolver = nameResolver;
         this.typeChecker = typeChecker;
+        this.warningAnalyzer = warningAnalyzer ?? new WarningAnalyzer();
     }
 
     public SemanticAnalysisResult Analyze(
@@ -81,7 +84,13 @@ public sealed class SemanticAnalyzer
         }
 
         var typeResult = typeChecker.CheckTypes(graph, definitionResults);
-        return SemanticAnalysisResult.From(importResult, nameResult, typeResult, definitionResults);
+        if (!typeResult.Succeeded)
+        {
+            return SemanticAnalysisResult.From(importResult, nameResult, typeResult, definitionResults);
+        }
+
+        var warningResult = warningAnalyzer.Analyze(graph.OrderedDocuments);
+        return SemanticAnalysisResult.From(importResult, nameResult, typeResult, warningResult, definitionResults);
     }
 
     private static IEnumerable<Diagnostic> DetectDuplicateModuleDefinitionsAcrossDocuments(

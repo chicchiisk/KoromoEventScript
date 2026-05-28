@@ -307,6 +307,18 @@ public sealed record NameResolutionResult
     }
 }
 
+public sealed record WarningAnalysisResult
+{
+    public WarningAnalysisResult(IReadOnlyList<Diagnostic> diagnostics)
+    {
+        ArgumentNullException.ThrowIfNull(diagnostics);
+
+        Diagnostics = diagnostics.ToArray();
+    }
+
+    public IReadOnlyList<Diagnostic> Diagnostics { get; }
+}
+
 public sealed record SemanticAnalysisResult
 {
     private SemanticAnalysisResult(
@@ -315,12 +327,14 @@ public sealed record SemanticAnalysisResult
         ImportResolutionResult importResolution,
         NameResolutionResult nameResolution,
         TypeCheckingResult typeChecking,
+        WarningAnalysisResult warningAnalysis,
         IReadOnlyList<DefinitionCollectionResult> definitionCollections)
     {
         ArgumentNullException.ThrowIfNull(diagnostics);
         ArgumentNullException.ThrowIfNull(importResolution);
         ArgumentNullException.ThrowIfNull(nameResolution);
         ArgumentNullException.ThrowIfNull(typeChecking);
+        ArgumentNullException.ThrowIfNull(warningAnalysis);
         ArgumentNullException.ThrowIfNull(definitionCollections);
 
         ExitCode = exitCode;
@@ -328,6 +342,7 @@ public sealed record SemanticAnalysisResult
         ImportResolution = importResolution;
         NameResolution = nameResolution;
         TypeChecking = typeChecking;
+        WarningAnalysis = warningAnalysis;
         DefinitionCollections = definitionCollections.ToArray();
     }
 
@@ -340,6 +355,8 @@ public sealed record SemanticAnalysisResult
     public NameResolutionResult NameResolution { get; }
 
     public TypeCheckingResult TypeChecking { get; }
+
+    public WarningAnalysisResult WarningAnalysis { get; }
 
     public IReadOnlyList<DefinitionCollectionResult> DefinitionCollections { get; }
 
@@ -365,13 +382,30 @@ public sealed record SemanticAnalysisResult
             .Concat(nameResolution.Diagnostics)
             .ToArray();
 
-        return new SemanticAnalysisResult(exitCode, diagnostics, importResolution, nameResolution, TypeCheckingResult.Success(), definitionCollections ?? []);
+        return new SemanticAnalysisResult(
+            exitCode,
+            diagnostics,
+            importResolution,
+            nameResolution,
+            TypeCheckingResult.Success(),
+            new WarningAnalysisResult([]),
+            definitionCollections ?? []);
     }
 
     public static SemanticAnalysisResult From(
         ImportResolutionResult importResolution,
         NameResolutionResult nameResolution,
         TypeCheckingResult typeChecking,
+        IReadOnlyList<DefinitionCollectionResult>? definitionCollections = null)
+    {
+        return From(importResolution, nameResolution, typeChecking, new WarningAnalysisResult([]), definitionCollections);
+    }
+
+    public static SemanticAnalysisResult From(
+        ImportResolutionResult importResolution,
+        NameResolutionResult nameResolution,
+        TypeCheckingResult typeChecking,
+        WarningAnalysisResult? warningAnalysis = null,
         IReadOnlyList<DefinitionCollectionResult>? definitionCollections = null)
     {
         ArgumentNullException.ThrowIfNull(importResolution);
@@ -384,11 +418,14 @@ public sealed record SemanticAnalysisResult
                 : nameResolution.ExitCode
             : importResolution.ExitCode;
 
+        warningAnalysis ??= new WarningAnalysisResult([]);
+
         var diagnostics = importResolution.Diagnostics
             .Concat(nameResolution.Diagnostics)
             .Concat(typeChecking.Diagnostics)
+            .Concat(warningAnalysis.Diagnostics)
             .ToArray();
 
-        return new SemanticAnalysisResult(exitCode, diagnostics, importResolution, nameResolution, typeChecking, definitionCollections ?? []);
+        return new SemanticAnalysisResult(exitCode, diagnostics, importResolution, nameResolution, typeChecking, warningAnalysis, definitionCollections ?? []);
     }
 }

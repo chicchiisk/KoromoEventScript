@@ -9,4 +9,5 @@ public enum CliExitCode
     CompileError = 4,
     RuntimeError = 5,
     FileOrDirectoryError = 6,
+    WarningsAsErrors = 9,
 }

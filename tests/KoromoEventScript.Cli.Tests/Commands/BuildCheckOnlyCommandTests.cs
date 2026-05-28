@@ -219,6 +219,142 @@ enum Mood:
     }
 
     [Test]
+    public void Execute_IncludesWarningDiagnosticsWithoutFailingByDefault()
+    {
+        using var fixture = TemporaryProject.Create();
+        fixture.WriteConfig(entry: "events/main.kel");
+        fixture.WriteFile("events/main.kel", """
+entry = intro
+intro = {
+    chapter = "events/main.ke"
+}
+""");
+        fixture.WriteFile("events/main.ke", string.Empty);
+
+        var result = new BuildCheckOnlyCommand().Execute(
+            new BuildCommandOptions(fixture.Root, DiagnosticOutputFormat.Text),
+            TestContext.CurrentContext.WorkDirectory);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.ExitCode, Is.EqualTo(CliExitCode.Success));
+            Assert.That(result.Diagnostics, Has.Count.EqualTo(1));
+            Assert.That(result.Diagnostics[0].Level, Is.EqualTo(DiagnosticLevel.Warning));
+            Assert.That(result.Diagnostics[0].Code, Is.EqualTo("KES4001"));
+            Assert.That(result.Diagnostics[0].File, Is.EqualTo("events/main.ke"));
+            Assert.That(result.Diagnostics[0].Line, Is.EqualTo(1));
+            Assert.That(result.Diagnostics[0].Column, Is.EqualTo(1));
+        });
+    }
+
+    [Test]
+    public void Execute_ReturnsWarningsAsErrorsForWarningDiagnosticsWhenOptionIsEnabled()
+    {
+        using var fixture = TemporaryProject.Create();
+        fixture.WriteConfig(entry: "events/main.kel");
+        fixture.WriteFile("events/main.kel", """
+entry = intro
+intro = {
+    chapter = "events/main.ke"
+}
+""");
+        fixture.WriteFile("events/main.ke", string.Empty);
+
+        var result = new BuildCheckOnlyCommand().Execute(
+            new BuildCommandOptions(fixture.Root, DiagnosticOutputFormat.Text, WarningsAsErrors: true),
+            TestContext.CurrentContext.WorkDirectory);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.ExitCode, Is.EqualTo(CliExitCode.WarningsAsErrors));
+            Assert.That(result.Diagnostics.Single().Code, Is.EqualTo("KES4001"));
+        });
+    }
+
+    [Test]
+    public void Execute_ReturnsWarningsAsErrorsForWarningDiagnosticsWhenConfigIsEnabled()
+    {
+        using var fixture = TemporaryProject.Create();
+        fixture.WriteConfig(entry: "events/main.kel", warningsAsErrors: true);
+        fixture.WriteFile("events/main.kel", """
+entry = intro
+intro = {
+    chapter = "events/main.ke"
+}
+""");
+        fixture.WriteFile("events/main.ke", string.Empty);
+
+        var result = new BuildCheckOnlyCommand().Execute(
+            new BuildCommandOptions(fixture.Root, DiagnosticOutputFormat.Text),
+            TestContext.CurrentContext.WorkDirectory);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.ExitCode, Is.EqualTo(CliExitCode.WarningsAsErrors));
+            Assert.That(result.Diagnostics.Single().Code, Is.EqualTo("KES4001"));
+        });
+    }
+
+    [Test]
+    public void Run_OutputsWarningDiagnosticsAsJsonLines()
+    {
+        using var fixture = TemporaryProject.Create();
+        fixture.WriteConfig(entry: "events/main.kel");
+        fixture.WriteFile("events/main.kel", """
+entry = intro
+intro = {
+    chapter = "events/main.ke"
+}
+""");
+        fixture.WriteFile("events/main.ke", string.Empty);
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+
+        var exitCode = new CliApplication().Run(
+            ["build", fixture.Root, "--check-only", "--log-format", "json"],
+            output,
+            error,
+            TestContext.CurrentContext.WorkDirectory);
+
+        using var document = JsonDocument.Parse(error.ToString());
+        Assert.Multiple(() =>
+        {
+            Assert.That(exitCode, Is.EqualTo((int)CliExitCode.Success));
+            Assert.That(output.ToString(), Is.Empty);
+            AssertJsonDiagnostic(document.RootElement, "warning", "KES4001", "events/main.ke", 1, 1);
+        });
+    }
+
+    [Test]
+    public void Run_OutputsWarningDiagnosticsToStderrAndReturnsWarningsAsErrors()
+    {
+        using var fixture = TemporaryProject.Create();
+        fixture.WriteConfig(entry: "events/main.kel");
+        fixture.WriteFile("events/main.kel", """
+entry = intro
+intro = {
+    chapter = "events/main.ke"
+}
+""");
+        fixture.WriteFile("events/main.ke", string.Empty);
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+
+        var exitCode = new CliApplication().Run(
+            ["build", fixture.Root, "--check-only", "--warnings-as-errors"],
+            output,
+            error,
+            TestContext.CurrentContext.WorkDirectory);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(exitCode, Is.EqualTo((int)CliExitCode.WarningsAsErrors));
+            Assert.That(output.ToString(), Is.Empty);
+            Assert.That(error.ToString(), Does.Contain("events/main.ke:1:1 warning KES4001"));
+        });
+    }
+
+    [Test]
     public void Execute_ReportsUndefinedJumpAndCaseTagsAsCompileDiagnostics()
     {
         using var fixture = TemporaryProject.Create();
@@ -535,6 +671,29 @@ var score = 1
     }
 
     [Test]
+    public void ProcessInvocation_ReturnsWarningsAsErrorsForWarningOnlyProject()
+    {
+        using var fixture = TemporaryProject.Create();
+        fixture.WriteConfig(entry: "events/main.kel");
+        fixture.WriteFile("events/main.kel", """
+entry = intro
+intro = {
+    chapter = "events/main.ke"
+}
+""");
+        fixture.WriteFile("events/main.ke", string.Empty);
+
+        var result = RunCliProcess($"build \"{fixture.Root}\" --check-only --warnings-as-errors");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.ExitCode, Is.EqualTo((int)CliExitCode.WarningsAsErrors));
+            Assert.That(result.StandardOutput, Is.Empty);
+            Assert.That(result.StandardError, Does.Contain("warning KES4001"));
+        });
+    }
+
+    [Test]
     public void ProcessInvocation_ReturnsCommandLineErrorForUnsupportedCommand()
     {
         var result = RunCliProcess("run");
@@ -568,9 +727,14 @@ var score = 1
 
     private static void AssertJsonDiagnostic(JsonElement root, string code, string file, int line, int column)
     {
+        AssertJsonDiagnostic(root, "error", code, file, line, column);
+    }
+
+    private static void AssertJsonDiagnostic(JsonElement root, string level, string code, string file, int line, int column)
+    {
         Assert.Multiple(() =>
         {
-            Assert.That(root.GetProperty("level").GetString(), Is.EqualTo("error"));
+            Assert.That(root.GetProperty("level").GetString(), Is.EqualTo(level));
             Assert.That(root.GetProperty("code").GetString(), Is.EqualTo(code));
             Assert.That(root.GetProperty("file").GetString(), Is.EqualTo(file));
             Assert.That(root.GetProperty("line").GetInt32(), Is.EqualTo(line));

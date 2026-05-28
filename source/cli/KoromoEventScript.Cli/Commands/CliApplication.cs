@@ -50,6 +50,7 @@ public sealed class CliApplication
         string? positionalProject = null;
         string? optionProject = null;
         var checkOnly = false;
+        var warningsAsErrors = false;
         var outputFormat = DiagnosticOutputFormat.Text;
         var diagnostics = new List<Diagnostic>();
 
@@ -60,6 +61,10 @@ public sealed class CliApplication
             {
                 case "--check-only":
                     checkOnly = true;
+                    break;
+
+                case "--warnings-as-errors":
+                    warningsAsErrors = true;
                     break;
 
                 case "--project":
@@ -128,7 +133,7 @@ public sealed class CliApplication
             return BuildCommandParseResult.Failure(outputFormat, diagnostics);
         }
 
-        return BuildCommandParseResult.Success(new BuildCommandOptions(optionProject ?? positionalProject, outputFormat));
+        return BuildCommandParseResult.Success(new BuildCommandOptions(optionProject ?? positionalProject, outputFormat, warningsAsErrors));
     }
 
     private static Diagnostic CommandLineDiagnostic(string message)
