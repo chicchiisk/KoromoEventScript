@@ -143,8 +143,8 @@ jump #start
             Assert.That(exitCode, Is.EqualTo((int)CliExitCode.CompileError));
             Assert.That(output.ToString(), Is.Empty);
             Assert.That(lines, Has.Length.EqualTo(2));
-            AssertJsonDiagnostic(first.RootElement, "KES2010", "events/main.ke", 4, 17);
-            AssertJsonDiagnostic(second.RootElement, "KES2012", "events/main.ke", 4, 28);
+            AssertJsonDiagnostic(first.RootElement, "KES2010", "events/main.ke", 7, 17);
+            AssertJsonDiagnostic(second.RootElement, "KES2012", "events/main.ke", 7, 28);
         });
     }
 
@@ -246,6 +246,46 @@ jump #missing_jump
             Assert.That(result.Diagnostics.Select(static diagnostic => diagnostic.File), Is.All.EqualTo("events/main.ke"));
             Assert.That(result.Diagnostics.Select(static diagnostic => diagnostic.Line), Is.EqualTo([2, 3]));
             Assert.That(result.Diagnostics.Select(static diagnostic => diagnostic.Column), Is.EqualTo([15, 6]));
+        });
+    }
+
+    [Test]
+    public void Execute_ReportsUndefinedActorAndFunctionReferencesAtReferenceLocations()
+    {
+        using var fixture = TemporaryProject.Create();
+        fixture.WriteConfig(entry: "events/main.kel");
+        fixture.WriteFile("events/main.kel", """
+entry = intro
+intro = {
+    chapter = "events/main.ke"
+}
+""");
+        fixture.WriteFile("events/main.ke", """
+actor Riku:
+    var faceName: string = "normal"
+
+say MissingSpeaker:
+    こんにちは
+
+show MissingActor 0
+missing_command Riku
+var result = missing_call()
+""");
+
+        var result = new BuildCheckOnlyCommand().Execute(
+            new BuildCommandOptions(fixture.Root, DiagnosticOutputFormat.Text),
+            TestContext.CurrentContext.WorkDirectory);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.ExitCode, Is.EqualTo(CliExitCode.CompileError));
+            Assert.That(result.Diagnostics.Select(static diagnostic => diagnostic.Code), Is.EqualTo(["KES2010", "KES2010", "KES2010", "KES2010"]));
+            Assert.That(result.Diagnostics.Select(static diagnostic => diagnostic.Line), Is.EqualTo([4, 7, 8, 9]));
+            Assert.That(result.Diagnostics.Select(static diagnostic => diagnostic.Column), Is.EqualTo([5, 6, 1, 14]));
+            Assert.That(result.Diagnostics[0].Message, Does.Contain("MissingSpeaker"));
+            Assert.That(result.Diagnostics[1].Message, Does.Contain("MissingActor"));
+            Assert.That(result.Diagnostics[2].Message, Does.Contain("missing_command"));
+            Assert.That(result.Diagnostics[3].Message, Does.Contain("missing_call"));
         });
     }
 

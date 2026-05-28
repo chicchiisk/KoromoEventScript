@@ -2,6 +2,9 @@ import Common
 import LegacyCommon
 import Shared
 
+fn use(first: number, second: number, third: number):
+    var sink = first
+
 use commonValue legacyValue sharedValue
 
 label #start

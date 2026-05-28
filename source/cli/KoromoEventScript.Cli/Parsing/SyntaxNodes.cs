@@ -89,14 +89,16 @@ public sealed record JumpStatementSyntax(
 
 public sealed record CommandStatementSyntax(
     string Name,
-    IReadOnlyList<Token> Arguments) : StatementSyntax;
+    IReadOnlyList<Token> Arguments,
+    SourceLocation NameLocation = default) : StatementSyntax;
 
 public abstract record LessBlockItemSyntax;
 
 public sealed record LessStatementSyntax(
     string Name,
     IReadOnlyList<Token> SharedArguments,
-    IReadOnlyList<LessBlockItemSyntax> Items) : StatementSyntax;
+    IReadOnlyList<LessBlockItemSyntax> Items,
+    SourceLocation NameLocation = default) : StatementSyntax;
 
 public sealed record LessCommandItemSyntax(IReadOnlyList<Token> Arguments) : LessBlockItemSyntax;
 
@@ -106,7 +108,8 @@ public sealed record SayStatementSyntax(
     string Speaker,
     string? Tag,
     IReadOnlyList<TextLineSyntax> Lines,
-    SourceLocation? TagLocation = null) : StatementSyntax;
+    SourceLocation? TagLocation = null,
+    SourceLocation SpeakerLocation = default) : StatementSyntax;
 
 public sealed record NarStatementSyntax(
     string? Tag,

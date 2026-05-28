@@ -7,6 +7,67 @@ namespace KoromoEventScript.Cli.Semantics;
 
 public sealed class NameResolver
 {
+    private static readonly HashSet<string> BuiltInCallables = new(StringComparer.Ordinal)
+    {
+        "array_len",
+        "bg",
+        "bgm",
+        "bgm_stop",
+        "camera_autofocus",
+        "cast",
+        "face",
+        "hide",
+        "move",
+        "nar",
+        "save",
+        "se",
+        "se_stop",
+        "show",
+        "trans",
+        "vf",
+        "vo",
+        "voice_stop",
+        "wait_click",
+        "action_jump",
+    };
+
+    private static readonly HashSet<string> ActorFirstArgumentCallables = new(StringComparer.Ordinal)
+    {
+        "action_jump",
+        "cast",
+        "face",
+        "hide",
+        "move",
+        "show",
+        "vf",
+    };
+
+    public NameResolutionResult ResolveNames(
+        ImportGraph graph,
+        IReadOnlyList<DefinitionCollectionResult> definitionCollections)
+    {
+        ArgumentNullException.ThrowIfNull(graph);
+        ArgumentNullException.ThrowIfNull(definitionCollections);
+
+        var context = ResolutionContext.From(definitionCollections, strictReferenceKinds: true);
+        var diagnostics = new List<Diagnostic>();
+
+        foreach (var document in graph.OrderedDocuments)
+        {
+            if (!context.DocumentsByModule.TryGetValue(document.ModuleName, out var documentContext))
+            {
+                continue;
+            }
+
+            diagnostics.AddRange(DetectLocalImportCollisions(document, documentContext, graph, context));
+            diagnostics.AddRange(ResolveReferences(document, documentContext, graph, context));
+        }
+
+        return diagnostics.Count == 0
+            ? NameResolutionResult.Success(context.SymbolsByModule)
+            : NameResolutionResult.Failure(CliExitCode.CompileError, diagnostics);
+    }
+
     public NameResolutionResult ResolveNames(
         ImportGraph graph,
         IReadOnlyDictionary<string, IReadOnlyList<SymbolDefinition>> symbolsByModule)
@@ -14,33 +75,406 @@ public sealed class NameResolver
         ArgumentNullException.ThrowIfNull(graph);
         ArgumentNullException.ThrowIfNull(symbolsByModule);
 
+        var collections = graph.OrderedDocuments
+            .Select(document => new DefinitionCollectionResult(
+                document,
+                GetSymbols(symbolsByModule, document.ModuleName),
+                []))
+            .ToArray();
+        var context = ResolutionContext.From(collections, strictReferenceKinds: false);
         var diagnostics = new List<Diagnostic>();
-        var normalizedSymbols = CopySymbols(symbolsByModule);
 
         foreach (var document in graph.OrderedDocuments)
         {
-            var localSymbols = GetSymbols(normalizedSymbols, document.ModuleName);
-            var reachableSymbols = graph.GetReachableImports(document.ModuleName)
-                .SelectMany(moduleName => GetSymbols(normalizedSymbols, moduleName))
-                .ToArray();
+            if (!context.DocumentsByModule.TryGetValue(document.ModuleName, out var documentContext))
+            {
+                continue;
+            }
 
-            diagnostics.AddRange(DetectLocalImportCollisions(document, localSymbols, reachableSymbols));
-            diagnostics.AddRange(ResolveReferences(document, localSymbols, reachableSymbols));
-            diagnostics.AddRange(ResolveTagReferences(document, localSymbols));
+            diagnostics.AddRange(DetectLocalImportCollisions(document, documentContext, graph, context));
+            diagnostics.AddRange(ResolveReferences(document, documentContext, graph, context));
         }
 
         return diagnostics.Count == 0
-            ? NameResolutionResult.Success(normalizedSymbols)
+            ? NameResolutionResult.Success(context.SymbolsByModule)
             : NameResolutionResult.Failure(CliExitCode.CompileError, diagnostics);
     }
 
-    private static IReadOnlyDictionary<string, IReadOnlyList<SymbolDefinition>> CopySymbols(
-        IReadOnlyDictionary<string, IReadOnlyList<SymbolDefinition>> symbolsByModule)
+    private static IEnumerable<Diagnostic> DetectLocalImportCollisions(
+        ScriptDocument document,
+        DocumentResolutionContext documentContext,
+        ImportGraph graph,
+        ResolutionContext context)
     {
-        return symbolsByModule.ToDictionary(
-            static pair => pair.Key,
-            static pair => pair.Value.ToArray() as IReadOnlyList<SymbolDefinition>,
-            StringComparer.Ordinal);
+        foreach (var localDefinition in documentContext.ModuleDefinitions.Where(static definition => !IsTagName(definition.Name)))
+        {
+            var collisions = GetReachableModuleDefinitions(graph, context, document.ModuleName)
+                .Where(importedDefinition => string.Equals(importedDefinition.Name, localDefinition.Name, StringComparison.Ordinal))
+                .ToArray();
+            if (collisions.Length == 0)
+            {
+                continue;
+            }
+
+            yield return new Diagnostic(
+                DiagnosticLevel.Error,
+                "KES2011",
+                localDefinition.File,
+                localDefinition.Line,
+                localDefinition.Column,
+                $"Local definition '{localDefinition.Name}' in module '{document.ModuleName}' conflicts with imported definition from {FormatModules(collisions)}.");
+        }
+    }
+
+    private static IEnumerable<Diagnostic> ResolveReferences(
+        ScriptDocument document,
+        DocumentResolutionContext documentContext,
+        ImportGraph graph,
+        ResolutionContext context)
+    {
+        foreach (var reference in CollectReferences(documentContext, document.Syntax))
+        {
+            if (reference.Kind == ReferenceKind.Label)
+            {
+                if (!documentContext.LocalTags.Contains(reference.Name))
+                {
+                    yield return UndefinedTagDiagnostic(reference);
+                }
+
+                continue;
+            }
+
+            var resolution = ResolveReference(reference, document.ModuleName, graph, context);
+            switch (resolution.Status)
+            {
+                case ReferenceResolutionStatus.Resolved:
+                    break;
+
+                case ReferenceResolutionStatus.Ambiguous:
+                    yield return new Diagnostic(
+                        DiagnosticLevel.Error,
+                        "KES2012",
+                        reference.File,
+                        reference.Line,
+                        reference.Column,
+                        $"Reference '{reference.Name}' is ambiguous between imported definitions from {FormatModules(resolution.ImportedMatches)}.");
+                    break;
+
+                case ReferenceResolutionStatus.Undefined:
+                    yield return UndefinedNameDiagnostic(reference);
+                    break;
+            }
+        }
+    }
+
+    private static ReferenceResolution ResolveReference(
+        Reference reference,
+        string moduleName,
+        ImportGraph graph,
+        ResolutionContext context)
+    {
+        if (reference.Kind == ReferenceKind.Function && BuiltInCallables.Contains(reference.Name))
+        {
+            return ReferenceResolution.Resolved();
+        }
+
+        var documentContext = context.DocumentsByModule[moduleName];
+        if (ResolveLocal(reference, documentContext))
+        {
+            return ReferenceResolution.Resolved();
+        }
+
+        var importedMatches = GetReachableModuleDefinitions(graph, context, moduleName)
+            .Where(definition => string.Equals(definition.Name, reference.Name, StringComparison.Ordinal))
+            .Where(definition => IsAllowedKind(reference.Kind, definition.Kind))
+            .ToArray();
+
+        return importedMatches.Length switch
+        {
+            0 => ReferenceResolution.Undefined(),
+            1 => ReferenceResolution.Resolved(),
+            _ => ReferenceResolution.Ambiguous(importedMatches),
+        };
+    }
+
+    private static bool ResolveLocal(Reference reference, DocumentResolutionContext documentContext)
+    {
+        var scope = documentContext.FindScope(reference.ScopeId);
+        while (scope is not null)
+        {
+            if (documentContext.DefinitionsByScope.TryGetValue(scope.Id, out var definitions) &&
+                definitions.TryGetValue(reference.Name, out var definition) &&
+                IsAllowedKind(reference.Kind, definition.Kind))
+            {
+                return true;
+            }
+
+            scope = scope.ParentId is null ? null : documentContext.FindScope(scope.ParentId);
+        }
+
+        return false;
+    }
+
+    private static bool IsAllowedKind(ReferenceKind referenceKind, DefinitionKind definitionKind)
+    {
+        return referenceKind switch
+        {
+            ReferenceKind.Variable => definitionKind is DefinitionKind.Variable
+                or DefinitionKind.Parameter
+                or DefinitionKind.ClassField
+                or DefinitionKind.EnumMember
+                or DefinitionKind.Actor,
+            ReferenceKind.Actor => definitionKind is DefinitionKind.Actor,
+            ReferenceKind.Function => definitionKind is DefinitionKind.Function or DefinitionKind.ClassMethod,
+            _ => false,
+        };
+    }
+
+    private static IEnumerable<Reference> CollectReferences(
+        DocumentResolutionContext documentContext,
+        ScriptSyntax syntax)
+    {
+        foreach (var statement in syntax.Statements)
+        {
+            foreach (var reference in CollectReferences(documentContext, statement, documentContext.DefinitionTable.ModuleScopeId))
+            {
+                yield return reference;
+            }
+        }
+    }
+
+    private static IEnumerable<Reference> CollectReferences(
+        DocumentResolutionContext documentContext,
+        StatementSyntax statement,
+        string scopeId)
+    {
+        switch (statement)
+        {
+            case VarStatementSyntax varStatement:
+                foreach (var reference in FromExpressionTokens(documentContext.Document, varStatement.ValueTokens, scopeId))
+                {
+                    yield return reference;
+                }
+
+                break;
+
+            case FunctionDeclarationSyntax function:
+                if (documentContext.TryFindChildScope(scopeId, ScopeKind.Function, function.Name, out var functionScope))
+                {
+                    foreach (var reference in CollectReferences(documentContext, function.Body, functionScope.Id))
+                    {
+                        yield return reference;
+                    }
+                }
+
+                break;
+
+            case ActorDeclarationSyntax actor:
+                if (documentContext.TryFindChildScope(scopeId, ScopeKind.Block, actor.Name, out var actorScope))
+                {
+                    foreach (var reference in CollectReferences(documentContext, actor.Body, actorScope.Id))
+                    {
+                        yield return reference;
+                    }
+                }
+
+                break;
+
+            case ClassDeclarationSyntax classDeclaration:
+                if (documentContext.TryFindChildScope(scopeId, ScopeKind.Class, classDeclaration.Name, out var classScope))
+                {
+                    foreach (var member in classDeclaration.Members)
+                    {
+                        foreach (var reference in CollectClassMemberReferences(documentContext, member, classScope.Id))
+                        {
+                            yield return reference;
+                        }
+                    }
+                }
+
+                break;
+
+            case JumpStatementSyntax jumpStatement:
+                yield return new Reference(ReferenceKind.Label, jumpStatement.Tag, documentContext.Document.ProjectRelativePath, jumpStatement.TagLocation.Line, jumpStatement.TagLocation.Column, scopeId);
+                break;
+
+            case CommandStatementSyntax commandStatement:
+                if (documentContext.StrictReferenceKinds)
+                {
+                    yield return new Reference(ReferenceKind.Function, commandStatement.Name, documentContext.Document.ProjectRelativePath, commandStatement.NameLocation.Line, commandStatement.NameLocation.Column, scopeId);
+                }
+
+                foreach (var reference in FromCommandArguments(documentContext.Document, commandStatement.Name, commandStatement.Arguments, scopeId))
+                {
+                    yield return reference;
+                }
+
+                break;
+
+            case LessStatementSyntax lessStatement:
+                foreach (var reference in FromLessStatement(documentContext.Document, lessStatement, scopeId, documentContext.StrictReferenceKinds))
+                {
+                    yield return reference;
+                }
+
+                break;
+
+            case SayStatementSyntax sayStatement:
+                if (documentContext.StrictReferenceKinds)
+                {
+                    yield return new Reference(ReferenceKind.Actor, sayStatement.Speaker, documentContext.Document.ProjectRelativePath, sayStatement.SpeakerLocation.Line, sayStatement.SpeakerLocation.Column, scopeId);
+                }
+
+                break;
+
+            case SelectStatementSyntax selectStatement:
+                foreach (var caseClause in selectStatement.Cases)
+                {
+                    yield return new Reference(ReferenceKind.Label, caseClause.Tag, documentContext.Document.ProjectRelativePath, caseClause.TagLocation.Line, caseClause.TagLocation.Column, scopeId);
+                }
+
+                break;
+        }
+    }
+
+    private static IEnumerable<Reference> CollectReferences(
+        DocumentResolutionContext documentContext,
+        BlockSyntax block,
+        string scopeId)
+    {
+        foreach (var statement in block.Statements)
+        {
+            foreach (var reference in CollectReferences(documentContext, statement, scopeId))
+            {
+                yield return reference;
+            }
+        }
+    }
+
+    private static IEnumerable<Reference> CollectClassMemberReferences(
+        DocumentResolutionContext documentContext,
+        ClassMemberSyntax member,
+        string classScopeId)
+    {
+        switch (member)
+        {
+            case ClassFieldSyntax field:
+                foreach (var reference in CollectReferences(documentContext, field.Declaration, classScopeId))
+                {
+                    yield return reference;
+                }
+
+                break;
+
+            case ClassMethodSyntax method:
+                if (documentContext.TryFindChildScope(classScopeId, ScopeKind.Method, method.Declaration.Name, out var methodScope))
+                {
+                    foreach (var reference in CollectReferences(documentContext, method.Declaration.Body, methodScope.Id))
+                    {
+                        yield return reference;
+                    }
+                }
+
+                break;
+        }
+    }
+
+    private static IEnumerable<Reference> FromLessStatement(
+        ScriptDocument document,
+        LessStatementSyntax statement,
+        string scopeId,
+        bool strictReferenceKinds)
+    {
+        if (strictReferenceKinds)
+        {
+            yield return new Reference(ReferenceKind.Function, statement.Name, document.ProjectRelativePath, statement.NameLocation.Line, statement.NameLocation.Column, scopeId);
+        }
+        foreach (var reference in FromCommandArguments(document, statement.Name, statement.SharedArguments, scopeId))
+        {
+            yield return reference;
+        }
+
+        foreach (var item in statement.Items)
+        {
+            switch (item)
+            {
+                case LessCommandItemSyntax commandItem:
+                    foreach (var reference in FromCommandArguments(document, statement.Name, commandItem.Arguments, scopeId))
+                    {
+                        yield return reference;
+                    }
+
+                    break;
+
+                case LessNestedStatementSyntax nestedStatement:
+                    foreach (var reference in FromLessStatement(document, nestedStatement.Statement, scopeId, strictReferenceKinds))
+                    {
+                        yield return reference;
+                    }
+
+                    break;
+            }
+        }
+    }
+
+    private static IEnumerable<Reference> FromCommandArguments(
+        ScriptDocument document,
+        string commandName,
+        IReadOnlyList<Token> tokens,
+        string scopeId)
+    {
+        for (var index = 0; index < tokens.Count; index++)
+        {
+            var token = tokens[index];
+            if (token.Kind != TokenKind.Identifier)
+            {
+                continue;
+            }
+
+            var kind = index == 0 && ActorFirstArgumentCallables.Contains(commandName)
+                ? ReferenceKind.Actor
+                : ReferenceKind.Variable;
+            yield return new Reference(kind, token.Lexeme, document.ProjectRelativePath, token.Line, token.Column, scopeId);
+        }
+    }
+
+    private static IEnumerable<Reference> FromExpressionTokens(
+        ScriptDocument document,
+        IReadOnlyList<Token> tokens,
+        string scopeId)
+    {
+        for (var index = 0; index < tokens.Count; index++)
+        {
+            var token = tokens[index];
+            if (token.Kind != TokenKind.Identifier)
+            {
+                continue;
+            }
+
+            var kind = IsFunctionCallToken(tokens, index) ? ReferenceKind.Function : ReferenceKind.Variable;
+            yield return new Reference(kind, token.Lexeme, document.ProjectRelativePath, token.Line, token.Column, scopeId);
+        }
+    }
+
+    private static bool IsFunctionCallToken(IReadOnlyList<Token> tokens, int index)
+    {
+        if (index + 1 >= tokens.Count)
+        {
+            return false;
+        }
+
+        return tokens[index + 1].Kind is TokenKind.OpenParen or TokenKind.Identifier or TokenKind.StringLiteral or TokenKind.NumberLiteral;
+    }
+
+    private static IEnumerable<ScopedSymbolDefinition> GetReachableModuleDefinitions(
+        ImportGraph graph,
+        ResolutionContext context,
+        string moduleName)
+    {
+        return graph.GetReachableImports(moduleName)
+            .SelectMany(importedModule => context.DocumentsByModule.TryGetValue(importedModule, out var importedContext)
+                ? importedContext.ModuleDefinitions
+                : []);
     }
 
     private static IReadOnlyList<SymbolDefinition> GetSymbols(
@@ -52,226 +486,37 @@ public sealed class NameResolver
             : [];
     }
 
-    private static IEnumerable<Diagnostic> DetectLocalImportCollisions(
-        ScriptDocument document,
-        IReadOnlyList<SymbolDefinition> localSymbols,
-        IReadOnlyList<SymbolDefinition> reachableSymbols)
+    private static Diagnostic UndefinedNameDiagnostic(Reference reference)
     {
-        foreach (var localSymbol in localSymbols)
-        {
-            if (IsTagName(localSymbol.Name))
+        return new Diagnostic(
+            DiagnosticLevel.Error,
+            "KES2010",
+            reference.File,
+            reference.Line,
+            reference.Column,
+            reference.Kind switch
             {
-                continue;
-            }
-
-            var collisions = reachableSymbols
-                .Where(importedSymbol => string.Equals(importedSymbol.Name, localSymbol.Name, StringComparison.Ordinal))
-                .ToArray();
-            if (collisions.Length == 0)
-            {
-                continue;
-            }
-
-            yield return new Diagnostic(
-                DiagnosticLevel.Error,
-                "KES2011",
-                localSymbol.File,
-                localSymbol.Line,
-                localSymbol.Column,
-                $"Local definition '{localSymbol.Name}' in module '{document.ModuleName}' conflicts with imported definition from {FormatModules(collisions)}.");
-        }
+                ReferenceKind.Actor => $"Undefined actor '{reference.Name}'.",
+                ReferenceKind.Function => $"Undefined function '{reference.Name}'.",
+                _ => $"Undefined name '{reference.Name}'.",
+            });
     }
 
-    private static IEnumerable<Diagnostic> ResolveTagReferences(
-        ScriptDocument document,
-        IReadOnlyList<SymbolDefinition> localSymbols)
+    private static Diagnostic UndefinedTagDiagnostic(Reference reference)
     {
-        var localTags = localSymbols
-            .Where(static symbol => IsTagName(symbol.Name))
-            .Select(static symbol => symbol.Name)
-            .ToHashSet(StringComparer.Ordinal);
-
-        foreach (var reference in GetTagReferences(document.Syntax))
-        {
-            if (localTags.Contains(reference.Name))
-            {
-                continue;
-            }
-
-            yield return new Diagnostic(
-                DiagnosticLevel.Error,
-                "KES2013",
-                document.ProjectRelativePath,
-                reference.Line,
-                reference.Column,
-                $"Undefined tag '{reference.Name}'.");
-        }
+        return new Diagnostic(
+            DiagnosticLevel.Error,
+            "KES2013",
+            reference.File,
+            reference.Line,
+            reference.Column,
+            $"Undefined tag '{reference.Name}'.");
     }
 
-    private static IEnumerable<Diagnostic> ResolveReferences(
-        ScriptDocument document,
-        IReadOnlyList<SymbolDefinition> localSymbols,
-        IReadOnlyList<SymbolDefinition> reachableSymbols)
+    private static string FormatModules(IEnumerable<ScopedSymbolDefinition> definitions)
     {
-        var localNames = localSymbols
-            .Select(static symbol => symbol.Name)
-            .ToHashSet(StringComparer.Ordinal);
-
-        foreach (var reference in GetIdentifierReferences(document.Syntax))
-        {
-            if (localNames.Contains(reference.Name))
-            {
-                continue;
-            }
-
-            var importedMatches = reachableSymbols
-                .Where(symbol => string.Equals(symbol.Name, reference.Name, StringComparison.Ordinal))
-                .ToArray();
-
-            if (importedMatches.Length == 1)
-            {
-                continue;
-            }
-
-            if (importedMatches.Length > 1)
-            {
-                yield return new Diagnostic(
-                    DiagnosticLevel.Error,
-                    "KES2012",
-                    document.ProjectRelativePath,
-                    reference.Line,
-                    reference.Column,
-                    $"Reference '{reference.Name}' is ambiguous between imported definitions from {FormatModules(importedMatches)}.");
-                continue;
-            }
-
-            yield return new Diagnostic(
-                DiagnosticLevel.Error,
-                "KES2010",
-                document.ProjectRelativePath,
-                reference.Line,
-                reference.Column,
-                $"Undefined name '{reference.Name}'.");
-        }
-    }
-
-    private static IEnumerable<IdentifierReference> GetIdentifierReferences(ScriptSyntax syntax)
-    {
-        foreach (var statement in syntax.Statements)
-        {
-            foreach (var reference in GetIdentifierReferences(statement))
-            {
-                yield return reference;
-            }
-        }
-    }
-
-    private static IEnumerable<IdentifierReference> GetIdentifierReferences(StatementSyntax statement)
-    {
-        switch (statement)
-        {
-            case VarStatementSyntax varStatement:
-                foreach (var reference in FromTokens(varStatement.ValueTokens))
-                {
-                    yield return reference;
-                }
-
-                break;
-
-            case CommandStatementSyntax commandStatement:
-                foreach (var reference in FromTokens(commandStatement.Arguments))
-                {
-                    yield return reference;
-                }
-
-                break;
-
-            case LessStatementSyntax lessStatement:
-                foreach (var reference in FromLessStatement(lessStatement))
-                {
-                    yield return reference;
-                }
-
-                break;
-        }
-    }
-
-    private static IEnumerable<TagReference> GetTagReferences(ScriptSyntax syntax)
-    {
-        foreach (var statement in syntax.Statements)
-        {
-            foreach (var reference in GetTagReferences(statement))
-            {
-                yield return reference;
-            }
-        }
-    }
-
-    private static IEnumerable<TagReference> GetTagReferences(StatementSyntax statement)
-    {
-        switch (statement)
-        {
-            case JumpStatementSyntax jumpStatement:
-                yield return new TagReference(
-                    jumpStatement.Tag,
-                    jumpStatement.TagLocation.Line,
-                    jumpStatement.TagLocation.Column);
-                break;
-
-            case SelectStatementSyntax selectStatement:
-                foreach (var caseClause in selectStatement.Cases)
-                {
-                    yield return new TagReference(
-                        caseClause.Tag,
-                        caseClause.TagLocation.Line,
-                        caseClause.TagLocation.Column);
-                }
-
-                break;
-        }
-    }
-
-    private static IEnumerable<IdentifierReference> FromLessStatement(LessStatementSyntax statement)
-    {
-        foreach (var reference in FromTokens(statement.SharedArguments))
-        {
-            yield return reference;
-        }
-
-        foreach (var item in statement.Items)
-        {
-            switch (item)
-            {
-                case LessCommandItemSyntax commandItem:
-                    foreach (var reference in FromTokens(commandItem.Arguments))
-                    {
-                        yield return reference;
-                    }
-
-                    break;
-
-                case LessNestedStatementSyntax nestedStatement:
-                    foreach (var reference in FromLessStatement(nestedStatement.Statement))
-                    {
-                        yield return reference;
-                    }
-
-                    break;
-            }
-        }
-    }
-
-    private static IEnumerable<IdentifierReference> FromTokens(IEnumerable<Token> tokens)
-    {
-        return tokens
-            .Where(static token => token.Kind == TokenKind.Identifier)
-            .Select(static token => new IdentifierReference(token.Lexeme, token.Line, token.Column));
-    }
-
-    private static string FormatModules(IEnumerable<SymbolDefinition> symbols)
-    {
-        return string.Join(", ", symbols
-            .Select(static symbol => symbol.ModuleName)
+        return string.Join(", ", definitions
+            .Select(static definition => definition.ModuleName)
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal));
     }
@@ -281,7 +526,167 @@ public sealed class NameResolver
         return name.StartsWith('#');
     }
 
-    private sealed record IdentifierReference(string Name, int Line, int Column);
+    private enum ReferenceKind
+    {
+        Variable,
+        Actor,
+        Function,
+        Label,
+    }
 
-    private sealed record TagReference(string Name, int Line, int Column);
+    private enum ReferenceResolutionStatus
+    {
+        Resolved,
+        Undefined,
+        Ambiguous,
+    }
+
+    private sealed record Reference(
+        ReferenceKind Kind,
+        string Name,
+        string File,
+        int Line,
+        int Column,
+        string ScopeId);
+
+    private sealed record ReferenceResolution(
+        ReferenceResolutionStatus Status,
+        IReadOnlyList<ScopedSymbolDefinition> ImportedMatches)
+    {
+        public static ReferenceResolution Resolved()
+        {
+            return new ReferenceResolution(ReferenceResolutionStatus.Resolved, []);
+        }
+
+        public static ReferenceResolution Undefined()
+        {
+            return new ReferenceResolution(ReferenceResolutionStatus.Undefined, []);
+        }
+
+        public static ReferenceResolution Ambiguous(IReadOnlyList<ScopedSymbolDefinition> importedMatches)
+        {
+            return new ReferenceResolution(ReferenceResolutionStatus.Ambiguous, importedMatches);
+        }
+    }
+
+    private sealed record ResolutionContext(
+        IReadOnlyDictionary<string, DocumentResolutionContext> DocumentsByModule,
+        IReadOnlyDictionary<string, IReadOnlyList<SymbolDefinition>> SymbolsByModule)
+    {
+        public static ResolutionContext From(IReadOnlyList<DefinitionCollectionResult> definitionCollections, bool strictReferenceKinds)
+        {
+            var documentsByModule = definitionCollections
+                .GroupBy(static collection => collection.Document.ModuleName, StringComparer.Ordinal)
+                .ToDictionary(
+                    static group => group.Key,
+                    group => new DocumentResolutionContext(group.First().Document, MergeTables(group), group.SelectMany(static collection => collection.Symbols).ToArray(), strictReferenceKinds),
+                    StringComparer.Ordinal);
+            var symbolsByModule = definitionCollections
+                .GroupBy(static collection => collection.Document.ModuleName, StringComparer.Ordinal)
+                .ToDictionary(
+                    static group => group.Key,
+                    static group => (IReadOnlyList<SymbolDefinition>)group.SelectMany(static collection => collection.Symbols).ToArray(),
+                    StringComparer.Ordinal);
+
+            return new ResolutionContext(documentsByModule, symbolsByModule);
+        }
+
+        private static DefinitionTable MergeTables(IEnumerable<DefinitionCollectionResult> results)
+        {
+            var resultArray = results.ToArray();
+            var firstTable = resultArray[0].DefinitionTable;
+            if (resultArray.Length == 1)
+            {
+                return firstTable;
+            }
+
+            return new DefinitionTable(
+                firstTable.ModuleScopeId,
+                resultArray.SelectMany(static result => result.DefinitionTable.Scopes).ToArray(),
+                resultArray.SelectMany(static result => result.DefinitionTable.Definitions).ToArray());
+        }
+    }
+
+    private sealed class DocumentResolutionContext
+    {
+        private readonly Dictionary<string, DefinitionScope> scopesById;
+        private readonly Dictionary<string, List<DefinitionScope>> childScopesByParent;
+
+        public DocumentResolutionContext(
+            ScriptDocument document,
+            DefinitionTable definitionTable,
+            IReadOnlyList<SymbolDefinition> symbols)
+            : this(document, definitionTable, symbols, strictReferenceKinds: true)
+        {
+        }
+
+        public DocumentResolutionContext(
+            ScriptDocument document,
+            DefinitionTable definitionTable,
+            IReadOnlyList<SymbolDefinition> symbols,
+            bool strictReferenceKinds)
+        {
+            Document = document;
+            DefinitionTable = definitionTable;
+            Symbols = symbols;
+            StrictReferenceKinds = strictReferenceKinds;
+            scopesById = definitionTable.Scopes.ToDictionary(static scope => scope.Id, StringComparer.Ordinal);
+            childScopesByParent = definitionTable.Scopes
+                .Where(static scope => scope.ParentId is not null)
+                .GroupBy(static scope => scope.ParentId!, StringComparer.Ordinal)
+                .ToDictionary(static group => group.Key, static group => group.ToList(), StringComparer.Ordinal);
+            DefinitionsByScope = definitionTable.Definitions
+                .GroupBy(static definition => definition.ScopeId, StringComparer.Ordinal)
+                .ToDictionary(
+                    static group => group.Key,
+                    static group => group
+                        .GroupBy(static definition => definition.Name, StringComparer.Ordinal)
+                        .ToDictionary(static group => group.Key, static group => group.First(), StringComparer.Ordinal),
+                    StringComparer.Ordinal);
+            ModuleDefinitions = definitionTable.Definitions
+                .Where(definition => string.Equals(definition.ScopeId, definitionTable.ModuleScopeId, StringComparison.Ordinal))
+                .ToArray();
+            LocalTags = symbols
+                .Where(static symbol => IsTagName(symbol.Name))
+                .Select(static symbol => symbol.Name)
+                .ToHashSet(StringComparer.Ordinal);
+        }
+
+        public ScriptDocument Document { get; }
+
+        public DefinitionTable DefinitionTable { get; }
+
+        public IReadOnlyList<SymbolDefinition> Symbols { get; }
+
+        public bool StrictReferenceKinds { get; }
+
+        public IReadOnlyDictionary<string, Dictionary<string, ScopedSymbolDefinition>> DefinitionsByScope { get; }
+
+        public IReadOnlyList<ScopedSymbolDefinition> ModuleDefinitions { get; }
+
+        public HashSet<string> LocalTags { get; }
+
+        public DefinitionScope? FindScope(string scopeId)
+        {
+            return scopesById.GetValueOrDefault(scopeId);
+        }
+
+        public bool TryFindChildScope(string parentScopeId, ScopeKind kind, string? ownerName, out DefinitionScope scope)
+        {
+            if (childScopesByParent.TryGetValue(parentScopeId, out var childScopes))
+            {
+                var match = childScopes.FirstOrDefault(candidate =>
+                    candidate.Kind == kind &&
+                    string.Equals(candidate.OwnerName, ownerName, StringComparison.Ordinal));
+                if (match is not null)
+                {
+                    scope = match;
+                    return true;
+                }
+            }
+
+            scope = null!;
+            return false;
+        }
+    }
 }

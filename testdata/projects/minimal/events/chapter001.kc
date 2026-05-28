@@ -1,3 +1,6 @@
+actor Riku:
+    var faceName: string = "normal"
+
 label #start
 
 say Riku:

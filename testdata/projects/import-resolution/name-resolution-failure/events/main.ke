@@ -1,6 +1,9 @@
 import Common
 import Other
 
+fn use(first: number, second: number, third: number):
+    var sink = first
+
 use visibleOnly hiddenOnly sharedName
 
 label #start

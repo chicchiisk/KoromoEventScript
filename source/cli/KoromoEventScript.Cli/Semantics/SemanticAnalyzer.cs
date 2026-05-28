@@ -70,7 +70,7 @@ public sealed class SemanticAnalyzer
                 definitionResults);
         }
 
-        var nameResult = nameResolver.ResolveNames(graph, symbolsByModule);
+        var nameResult = nameResolver.ResolveNames(graph, definitionResults);
         return SemanticAnalysisResult.From(importResult, nameResult, definitionResults);
     }
 

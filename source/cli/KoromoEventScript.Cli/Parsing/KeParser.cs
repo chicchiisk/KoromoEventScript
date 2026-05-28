@@ -335,7 +335,7 @@ public sealed class KeParser
         }
 
         var lines = ParseTextBlock("KES2003", "Say blocks must contain at least one text line.");
-        return new SayStatementSyntax(speakerToken.Lexeme, tag, lines, tagToken is null ? null : ToLocation(tagToken));
+        return new SayStatementSyntax(speakerToken.Lexeme, tag, lines, tagToken is null ? null : ToLocation(tagToken), ToLocation(speakerToken));
     }
 
     private NarStatementSyntax ParseNarStatement()
@@ -403,11 +403,11 @@ public sealed class KeParser
         {
             var sharedArguments = lineTokens.Skip(1).Take(lineTokens.Count - 2).ToArray();
             var items = ParseLessBlock();
-            return new LessStatementSyntax(nameToken.Lexeme, sharedArguments, items);
+            return new LessStatementSyntax(nameToken.Lexeme, sharedArguments, items, ToLocation(nameToken));
         }
 
         var arguments = lineTokens.Skip(1).ToArray();
-        return new CommandStatementSyntax(nameToken.Lexeme, arguments);
+        return new CommandStatementSyntax(nameToken.Lexeme, arguments, ToLocation(nameToken));
     }
 
     private IReadOnlyList<LessBlockItemSyntax> ParseLessBlock()
@@ -444,7 +444,7 @@ public sealed class KeParser
 
                 var sharedArguments = itemTokens.Skip(1).Take(itemTokens.Count - 2).ToArray();
                 var nestedItems = ParseLessBlock();
-                items.Add(new LessNestedStatementSyntax(new LessStatementSyntax(nameToken.Lexeme, sharedArguments, nestedItems)));
+                items.Add(new LessNestedStatementSyntax(new LessStatementSyntax(nameToken.Lexeme, sharedArguments, nestedItems, ToLocation(nameToken))));
                 continue;
             }
 

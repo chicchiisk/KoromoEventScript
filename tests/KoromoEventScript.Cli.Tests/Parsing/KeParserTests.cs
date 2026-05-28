@@ -43,16 +43,19 @@ jump #end
 
             var commandStatement = (CommandStatementSyntax)syntax.Statements[2];
             Assert.That(commandStatement.Name, Is.EqualTo("show"));
+            Assert.That(commandStatement.NameLocation, Is.EqualTo(new SourceLocation(4, 1)));
             Assert.That(commandStatement.Arguments.Select(static token => token.Lexeme), Is.EqualTo(["Noa", "0", "face", "=", "normal"]));
 
             var lessStatement = (LessStatementSyntax)syntax.Statements[3];
             Assert.That(lessStatement.Name, Is.EqualTo("cast"));
+            Assert.That(lessStatement.NameLocation, Is.EqualTo(new SourceLocation(5, 1)));
             Assert.That(lessStatement.SharedArguments.Select(static token => token.Lexeme), Is.EqualTo(["exp", "=", "eye_open"]));
             Assert.That(lessStatement.Items.Cast<LessCommandItemSyntax>().Select(static item => string.Join(' ', item.Arguments.Select(static token => token.Lexeme))),
                 Is.EqualTo(["Riku", "Amane"]));
 
             var sayStatement = (SayStatementSyntax)syntax.Statements[4];
             Assert.That(sayStatement.Speaker, Is.EqualTo("Riku"));
+            Assert.That(sayStatement.SpeakerLocation, Is.EqualTo(new SourceLocation(8, 5)));
             Assert.That(sayStatement.Tag, Is.EqualTo("#line_1"));
             Assert.That(sayStatement.TagLocation, Is.EqualTo(new SourceLocation(8, 10)));
             Assert.That(sayStatement.Lines.Select(static line => (line.Text, line.IsExpressionLine)),
@@ -285,6 +288,7 @@ change_scene:
 
             var nestedItem = (LessNestedStatementSyntax)lessStatement.Items[1];
             Assert.That(nestedItem.Statement.Name, Is.EqualTo("show"));
+            Assert.That(nestedItem.Statement.NameLocation, Is.EqualTo(new SourceLocation(3, 5)));
             Assert.That(nestedItem.Statement.SharedArguments, Is.Empty);
             Assert.That(nestedItem.Statement.Items.Cast<LessCommandItemSyntax>()
                 .Select(static item => string.Join(' ', item.Arguments.Select(static token => token.Lexeme))),
