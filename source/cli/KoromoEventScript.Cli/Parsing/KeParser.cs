@@ -103,6 +103,21 @@ public sealed class KeParser
             return ParseSelectStatement();
         }
 
+        if (IsKeyword("if"))
+        {
+            return ParseIfStatement();
+        }
+
+        if (IsKeyword("while"))
+        {
+            return ParseWhileStatement();
+        }
+
+        if (IsKeyword("for"))
+        {
+            return ParseForStatement();
+        }
+
         if (IsKeyword("case"))
         {
             ThrowCurrent("KES2006", "Case statements can only appear inside a select block.");
@@ -388,6 +403,81 @@ public sealed class KeParser
         return new SelectStatementSyntax(cases);
     }
 
+    private IfStatementSyntax ParseIfStatement()
+    {
+        var ifToken = ConsumeKeyword("if");
+        var conditionTokens = ReadUntil(TokenKind.Colon, TokenKind.Newline);
+        if (conditionTokens.Count == 0)
+        {
+            ThrowCurrent("KES2001", "If statements require a condition.");
+        }
+
+        Consume(TokenKind.Colon, "KES2002", "If statements must end with ':'.");
+        var body = ParseStatementBlock("KES2004", "If statements must have an indented body.");
+        var elseIfClauses = new List<ElseIfClauseSyntax>();
+        BlockSyntax? elseBody = null;
+
+        while (IsKeyword("else"))
+        {
+            var elseToken = ConsumeKeyword("else");
+            if (IsKeyword("if"))
+            {
+                ConsumeKeyword("if");
+                var elseIfCondition = ReadUntil(TokenKind.Colon, TokenKind.Newline);
+                if (elseIfCondition.Count == 0)
+                {
+                    ThrowCurrent("KES2001", "Else-if statements require a condition.");
+                }
+
+                Consume(TokenKind.Colon, "KES2002", "Else-if statements must end with ':'.");
+                var elseIfBody = ParseStatementBlock("KES2004", "Else-if statements must have an indented body.");
+                elseIfClauses.Add(new ElseIfClauseSyntax(elseIfCondition, elseIfBody, ToLocation(elseToken)));
+                continue;
+            }
+
+            Consume(TokenKind.Colon, "KES2002", "Else statements must end with ':'.");
+            elseBody = ParseStatementBlock("KES2004", "Else statements must have an indented body.");
+            break;
+        }
+
+        return new IfStatementSyntax(conditionTokens, body, elseIfClauses, elseBody, ToLocation(ifToken));
+    }
+
+    private WhileStatementSyntax ParseWhileStatement()
+    {
+        var whileToken = ConsumeKeyword("while");
+        var conditionTokens = ReadUntil(TokenKind.Colon, TokenKind.Newline);
+        if (conditionTokens.Count == 0)
+        {
+            ThrowCurrent("KES2001", "While statements require a condition.");
+        }
+
+        Consume(TokenKind.Colon, "KES2002", "While statements must end with ':'.");
+        var body = ParseStatementBlock("KES2004", "While statements must have an indented body.");
+        return new WhileStatementSyntax(conditionTokens, body, ToLocation(whileToken));
+    }
+
+    private ForStatementSyntax ParseForStatement()
+    {
+        var forToken = ConsumeKeyword("for");
+        var variableToken = ConsumeName("KES2001", "Expected a loop variable after for.");
+        if (!IsKeyword("in"))
+        {
+            ThrowCurrent("KES2001", "For statements require 'in'.");
+        }
+
+        ConsumeKeyword("in");
+        var iterableTokens = ReadUntil(TokenKind.Colon, TokenKind.Newline);
+        if (iterableTokens.Count == 0)
+        {
+            ThrowCurrent("KES2001", "For statements require an iterable expression.");
+        }
+
+        Consume(TokenKind.Colon, "KES2002", "For statements must end with ':'.");
+        var body = ParseStatementBlock("KES2004", "For statements must have an indented body.");
+        return new ForStatementSyntax(variableToken.Lexeme, iterableTokens, body, ToLocation(variableToken), ToLocation(forToken));
+    }
+
     private StatementSyntax ParseCommandOrLessStatement()
     {
         var lineTokens = ReadUntil(TokenKind.Newline);
@@ -399,6 +489,11 @@ public sealed class KeParser
         ExpectLineTerminator();
 
         var nameToken = lineTokens[0];
+        if (lineTokens.Count > 2 && lineTokens[1].Kind == TokenKind.Equals)
+        {
+            return new AssignmentStatementSyntax(nameToken.Lexeme, lineTokens.Skip(2).ToArray(), ToLocation(nameToken));
+        }
+
         if (lineTokens[^1].Kind == TokenKind.Colon)
         {
             var sharedArguments = lineTokens.Skip(1).Take(lineTokens.Count - 2).ToArray();
@@ -557,6 +652,16 @@ public sealed class KeParser
     private Token Consume(TokenKind kind, string errorCode, string message)
     {
         if (!Check(kind))
+        {
+            ThrowCurrent(errorCode, message);
+        }
+
+        return Advance();
+    }
+
+    private Token ConsumeName(string errorCode, string message)
+    {
+        if (Current.Kind is not (TokenKind.Identifier or TokenKind.Keyword))
         {
             ThrowCurrent(errorCode, message);
         }

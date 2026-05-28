@@ -290,6 +290,96 @@ var result = missing_call()
     }
 
     [Test]
+    public void Execute_ReportsTypeDiagnosticsAsCompileErrors()
+    {
+        using var fixture = TemporaryProject.Create();
+        fixture.WriteConfig(entry: "events/main.kel");
+        fixture.WriteFile("events/main.kel", """
+entry = intro
+intro = {
+    chapter = "events/main.ke"
+}
+""");
+        fixture.WriteFile("events/main.ke", """
+var score: number = "bad"
+""");
+
+        var result = new BuildCheckOnlyCommand().Execute(
+            new BuildCommandOptions(fixture.Root, DiagnosticOutputFormat.Text),
+            TestContext.CurrentContext.WorkDirectory);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.ExitCode, Is.EqualTo(CliExitCode.CompileError));
+            Assert.That(result.Diagnostics.Single().Code, Is.EqualTo("KES2015"));
+            Assert.That(result.Diagnostics.Single().File, Is.EqualTo("events/main.ke"));
+            Assert.That(result.Diagnostics.Single().Line, Is.EqualTo(1));
+            Assert.That(result.Diagnostics.Single().Message, Does.Contain("number"));
+            Assert.That(result.Diagnostics.Single().Message, Does.Contain("string"));
+        });
+    }
+
+    [TestCase("success", CliExitCode.Success, null)]
+    [TestCase("failures", CliExitCode.CompileError, "KES2015")]
+    public void Execute_ValidatesTypeCheckingFixtures(
+        string scenarioName,
+        CliExitCode expectedExitCode,
+        string? expectedFirstDiagnosticCode)
+    {
+        var projectRoot = GetTestDataPath("projects", "type-checking", scenarioName);
+
+        var result = new BuildCheckOnlyCommand().Execute(
+            new BuildCommandOptions(projectRoot, DiagnosticOutputFormat.Text),
+            TestContext.CurrentContext.WorkDirectory);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.ExitCode, Is.EqualTo(expectedExitCode));
+            if (expectedFirstDiagnosticCode is null)
+            {
+                Assert.That(result.Diagnostics, Is.Empty);
+            }
+            else
+            {
+                Assert.That(result.Diagnostics, Is.Not.Empty);
+                Assert.That(result.Diagnostics[0].Code, Is.EqualTo(expectedFirstDiagnosticCode));
+            }
+        });
+    }
+
+    [Test]
+    public void Run_OutputsTypeDiagnosticsAsJsonLines()
+    {
+        using var fixture = TemporaryProject.Create();
+        fixture.WriteConfig(entry: "events/main.kel");
+        fixture.WriteFile("events/main.kel", """
+entry = intro
+intro = {
+    chapter = "events/main.ke"
+}
+""");
+        fixture.WriteFile("events/main.ke", """
+var score: number = "bad"
+""");
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+
+        var exitCode = new CliApplication().Run(
+            ["build", fixture.Root, "--check-only", "--log-format", "json"],
+            output,
+            error,
+            TestContext.CurrentContext.WorkDirectory);
+
+        using var document = JsonDocument.Parse(error.ToString());
+        Assert.Multiple(() =>
+        {
+            Assert.That(exitCode, Is.EqualTo((int)CliExitCode.CompileError));
+            Assert.That(output.ToString(), Is.Empty);
+            AssertJsonDiagnostic(document.RootElement, "KES2015", "events/main.ke", 1, 5);
+        });
+    }
+
+    [Test]
     public void Execute_ReturnsCompileErrorForDefinitionShadowing()
     {
         using var fixture = TemporaryProject.Create();

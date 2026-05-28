@@ -1,0 +1,11 @@
+actor Noa:
+    cast Noa
+
+var name: string = 1
+var score: number = 1 + "bad"
+var mixed: number[] = [1, "two"]
+
+if score:
+    print 1
+
+show "Noa" 0

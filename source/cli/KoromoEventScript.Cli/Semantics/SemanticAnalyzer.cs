@@ -10,9 +10,10 @@ public sealed class SemanticAnalyzer
     private readonly ImportResolver importResolver;
     private readonly DefinitionCollector definitionCollector;
     private readonly NameResolver nameResolver;
+    private readonly TypeChecker typeChecker;
 
     public SemanticAnalyzer()
-        : this(new ModuleFileIndex(), new ImportResolver(), new DefinitionCollector(), new NameResolver())
+        : this(new ModuleFileIndex(), new ImportResolver(), new DefinitionCollector(), new NameResolver(), new TypeChecker())
     {
     }
 
@@ -20,17 +21,20 @@ public sealed class SemanticAnalyzer
         ModuleFileIndex moduleFileIndex,
         ImportResolver importResolver,
         DefinitionCollector definitionCollector,
-        NameResolver nameResolver)
+        NameResolver nameResolver,
+        TypeChecker typeChecker)
     {
         ArgumentNullException.ThrowIfNull(moduleFileIndex);
         ArgumentNullException.ThrowIfNull(importResolver);
         ArgumentNullException.ThrowIfNull(definitionCollector);
         ArgumentNullException.ThrowIfNull(nameResolver);
+        ArgumentNullException.ThrowIfNull(typeChecker);
 
         this.moduleFileIndex = moduleFileIndex;
         this.importResolver = importResolver;
         this.definitionCollector = definitionCollector;
         this.nameResolver = nameResolver;
+        this.typeChecker = typeChecker;
     }
 
     public SemanticAnalysisResult Analyze(
@@ -71,7 +75,13 @@ public sealed class SemanticAnalyzer
         }
 
         var nameResult = nameResolver.ResolveNames(graph, definitionResults);
-        return SemanticAnalysisResult.From(importResult, nameResult, definitionResults);
+        if (!nameResult.Succeeded)
+        {
+            return SemanticAnalysisResult.From(importResult, nameResult, definitionResults);
+        }
+
+        var typeResult = typeChecker.CheckTypes(graph, definitionResults);
+        return SemanticAnalysisResult.From(importResult, nameResult, typeResult, definitionResults);
     }
 
     private static IEnumerable<Diagnostic> DetectDuplicateModuleDefinitionsAcrossDocuments(

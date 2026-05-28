@@ -124,6 +124,38 @@ public sealed class DefinitionCollector
             case NarStatementSyntax { Tag: { Length: > 0 } tag, TagLocation: { } location }:
                 AddLegacySymbol(document, symbols, diagnostics, legacyDefinitionsByName, tag, location);
                 break;
+
+            case IfStatementSyntax ifStatement:
+                CollectBlock(document, ifStatement.Body, scopeId, symbols, definitions, scopes, definitionsByScope, diagnostics, legacyDefinitionsByName);
+                foreach (var elseIfClause in ifStatement.ElseIfClauses)
+                {
+                    CollectBlock(document, elseIfClause.Body, scopeId, symbols, definitions, scopes, definitionsByScope, diagnostics, legacyDefinitionsByName);
+                }
+
+                if (ifStatement.ElseBody is not null)
+                {
+                    CollectBlock(document, ifStatement.ElseBody, scopeId, symbols, definitions, scopes, definitionsByScope, diagnostics, legacyDefinitionsByName);
+                }
+
+                break;
+
+            case WhileStatementSyntax whileStatement:
+                CollectBlock(document, whileStatement.Body, scopeId, symbols, definitions, scopes, definitionsByScope, diagnostics, legacyDefinitionsByName);
+                break;
+
+            case ForStatementSyntax forStatement:
+                AddScopedDefinition(
+                    document,
+                    definitions,
+                    definitionsByScope,
+                    scopes,
+                    diagnostics,
+                    scopeId,
+                    forStatement.VariableName,
+                    DefinitionKind.Variable,
+                    forStatement.VariableLocation);
+                CollectBlock(document, forStatement.Body, scopeId, symbols, definitions, scopes, definitionsByScope, diagnostics, legacyDefinitionsByName);
+                break;
         }
     }
 

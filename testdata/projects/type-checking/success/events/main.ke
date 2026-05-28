@@ -1,0 +1,12 @@
+actor Noa:
+    cast Noa
+
+var actors: Actor[] = [Noa]
+var enabled = true
+var score: number = 1 + 2
+
+if enabled:
+    print (number_to_string score)
+
+for actor in actors:
+    show actor 0

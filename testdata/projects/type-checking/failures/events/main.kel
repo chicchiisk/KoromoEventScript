@@ -1,0 +1,4 @@
+entry = intro
+intro = {
+    chapter = "events/main.ke"
+}

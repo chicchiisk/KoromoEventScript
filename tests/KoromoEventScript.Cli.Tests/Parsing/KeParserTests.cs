@@ -165,6 +165,48 @@ enum Mood:
     }
 
     [Test]
+    public void Parse_BuildsSyntaxTreeForTypeCheckedControlStatements()
+    {
+        const string source = """
+score = score + 1
+if score > 10:
+    show Noa 0
+else if enabled:
+    hide Noa
+else:
+    wait 1
+while enabled:
+    wait 1
+for actor in actors:
+    show actor 0
+""";
+
+        var syntax = KeParser.Parse(source);
+
+        Assert.Multiple(() =>
+        {
+            var assignment = (AssignmentStatementSyntax)syntax.Statements[0];
+            Assert.That(assignment.TargetName, Is.EqualTo("score"));
+            Assert.That(assignment.TargetLocation, Is.EqualTo(new SourceLocation(1, 1)));
+            Assert.That(assignment.ValueTokens.Select(static token => token.Lexeme), Is.EqualTo(["score", "+", "1"]));
+
+            var ifStatement = (IfStatementSyntax)syntax.Statements[1];
+            Assert.That(ifStatement.ConditionTokens.Select(static token => token.Lexeme), Is.EqualTo(["score", ">", "10"]));
+            Assert.That(ifStatement.Body.Statements.Single(), Is.TypeOf<CommandStatementSyntax>());
+            Assert.That(ifStatement.ElseIfClauses.Single().ConditionTokens.Select(static token => token.Lexeme), Is.EqualTo(["enabled"]));
+            Assert.That(ifStatement.ElseBody!.Statements.Single(), Is.TypeOf<CommandStatementSyntax>());
+
+            var whileStatement = (WhileStatementSyntax)syntax.Statements[2];
+            Assert.That(whileStatement.ConditionTokens.Select(static token => token.Lexeme), Is.EqualTo(["enabled"]));
+
+            var forStatement = (ForStatementSyntax)syntax.Statements[3];
+            Assert.That(forStatement.VariableName, Is.EqualTo("actor"));
+            Assert.That(forStatement.VariableLocation, Is.EqualTo(new SourceLocation(10, 5)));
+            Assert.That(forStatement.IterableTokens.Select(static token => token.Lexeme), Is.EqualTo(["actors"]));
+        });
+    }
+
+    [Test]
     public void Parse_ReportsIncompleteMajorDefinitionAsSyntaxDiagnostic()
     {
         const string source = """

@@ -38,6 +38,11 @@ public sealed record VarStatementSyntax(
     IReadOnlyList<Token> ValueTokens,
     SourceLocation NameLocation = default) : StatementSyntax;
 
+public sealed record AssignmentStatementSyntax(
+    string TargetName,
+    IReadOnlyList<Token> ValueTokens,
+    SourceLocation TargetLocation = default) : StatementSyntax;
+
 public sealed record ParameterSyntax(
     string Name,
     IReadOnlyList<Token> TypeTokens,
@@ -124,3 +129,27 @@ public sealed record CaseClauseSyntax(
     string Text,
     string Tag,
     SourceLocation TagLocation = default);
+
+public sealed record IfStatementSyntax(
+    IReadOnlyList<Token> ConditionTokens,
+    BlockSyntax Body,
+    IReadOnlyList<ElseIfClauseSyntax> ElseIfClauses,
+    BlockSyntax? ElseBody,
+    SourceLocation IfLocation = default) : StatementSyntax;
+
+public sealed record ElseIfClauseSyntax(
+    IReadOnlyList<Token> ConditionTokens,
+    BlockSyntax Body,
+    SourceLocation ElseIfLocation = default);
+
+public sealed record WhileStatementSyntax(
+    IReadOnlyList<Token> ConditionTokens,
+    BlockSyntax Body,
+    SourceLocation WhileLocation = default) : StatementSyntax;
+
+public sealed record ForStatementSyntax(
+    string VariableName,
+    IReadOnlyList<Token> IterableTokens,
+    BlockSyntax Body,
+    SourceLocation VariableLocation = default,
+    SourceLocation ForLocation = default) : StatementSyntax;

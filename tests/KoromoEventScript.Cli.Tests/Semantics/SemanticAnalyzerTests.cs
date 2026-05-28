@@ -111,6 +111,62 @@ var sharedValue = 2
     }
 
     [Test]
+    public void Analyze_ReturnsCompileDiagnosticsForTypeCheckingFailures()
+    {
+        using var fixture = TemporaryProject.Create();
+        fixture.WriteConfig();
+        fixture.WriteFile("events/main.kel", """
+entry = intro
+intro = {
+    chapter = "events/main.ke"
+}
+""");
+        fixture.WriteFile("events/main.ke", """
+var score: number = "bad"
+""");
+        var project = LoadProject(fixture.Root);
+        var roots = ParseRoots(project, "events/main.ke");
+
+        var result = new SemanticAnalyzer().Analyze(project, roots);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Succeeded, Is.False);
+            Assert.That(result.ExitCode, Is.EqualTo(CliExitCode.CompileError));
+            Assert.That(result.Diagnostics.Single().Code, Is.EqualTo("KES2015"));
+            Assert.That(result.TypeChecking.Succeeded, Is.False);
+        });
+    }
+
+    [Test]
+    public void Analyze_DoesNotRunTypeCheckingWhenNameResolutionFails()
+    {
+        using var fixture = TemporaryProject.Create();
+        fixture.WriteConfig();
+        fixture.WriteFile("events/main.kel", """
+entry = intro
+intro = {
+    chapter = "events/main.ke"
+}
+""");
+        fixture.WriteFile("events/main.ke", """
+var score: number = missingName
+""");
+        var project = LoadProject(fixture.Root);
+        var roots = ParseRoots(project, "events/main.ke");
+
+        var result = new SemanticAnalyzer().Analyze(project, roots);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Succeeded, Is.False);
+            Assert.That(result.Diagnostics.Select(static diagnostic => diagnostic.Code), Is.EqualTo(["KES2010"]));
+            Assert.That(result.TypeChecking.Succeeded, Is.True);
+            Assert.That(result.TypeChecking.Diagnostics, Is.Empty);
+        });
+    }
+
+    [Test]
     public void Analyze_ReportsDuplicateModuleDefinitionsAcrossRootFilesWithSameModuleName()
     {
         using var fixture = TemporaryProject.Create();

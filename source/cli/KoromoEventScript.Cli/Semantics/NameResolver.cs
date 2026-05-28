@@ -10,19 +10,38 @@ public sealed class NameResolver
     private static readonly HashSet<string> BuiltInCallables = new(StringComparer.Ordinal)
     {
         "array_len",
+        "assert",
         "bg",
         "bgm",
         "bgm_stop",
+        "bool_to_string",
         "camera_autofocus",
         "cast",
+        "cm",
         "face",
+        "get_config",
         "hide",
+        "l",
+        "load",
+        "mark_read",
         "move",
         "nar",
+        "number_to_string",
+        "p",
+        "print",
+        "r",
+        "range",
         "save",
         "se",
+        "se_stop_all",
         "se_stop",
+        "set_auto",
+        "set_config_bool",
+        "set_config_number",
+        "set_config_string",
+        "set_skip",
         "show",
+        "str_len",
         "trans",
         "vf",
         "vo",
@@ -251,7 +270,16 @@ public sealed class NameResolver
         switch (statement)
         {
             case VarStatementSyntax varStatement:
-                foreach (var reference in FromExpressionTokens(documentContext.Document, varStatement.ValueTokens, scopeId))
+                foreach (var reference in FromExpressionTokens(documentContext, varStatement.ValueTokens, scopeId))
+                {
+                    yield return reference;
+                }
+
+                break;
+
+            case AssignmentStatementSyntax assignment:
+                yield return new Reference(ReferenceKind.Variable, assignment.TargetName, documentContext.Document.ProjectRelativePath, assignment.TargetLocation.Line, assignment.TargetLocation.Column, scopeId);
+                foreach (var reference in FromExpressionTokens(documentContext, assignment.ValueTokens, scopeId))
                 {
                     yield return reference;
                 }
@@ -304,7 +332,7 @@ public sealed class NameResolver
                     yield return new Reference(ReferenceKind.Function, commandStatement.Name, documentContext.Document.ProjectRelativePath, commandStatement.NameLocation.Line, commandStatement.NameLocation.Column, scopeId);
                 }
 
-                foreach (var reference in FromCommandArguments(documentContext.Document, commandStatement.Name, commandStatement.Arguments, scopeId))
+                foreach (var reference in FromCommandArguments(documentContext, commandStatement.Name, commandStatement.Arguments, scopeId))
                 {
                     yield return reference;
                 }
@@ -312,7 +340,7 @@ public sealed class NameResolver
                 break;
 
             case LessStatementSyntax lessStatement:
-                foreach (var reference in FromLessStatement(documentContext.Document, lessStatement, scopeId, documentContext.StrictReferenceKinds))
+                foreach (var reference in FromLessStatement(documentContext, lessStatement, scopeId, documentContext.StrictReferenceKinds))
                 {
                     yield return reference;
                 }
@@ -331,6 +359,66 @@ public sealed class NameResolver
                 foreach (var caseClause in selectStatement.Cases)
                 {
                     yield return new Reference(ReferenceKind.Label, caseClause.Tag, documentContext.Document.ProjectRelativePath, caseClause.TagLocation.Line, caseClause.TagLocation.Column, scopeId);
+                }
+
+                break;
+
+            case IfStatementSyntax ifStatement:
+                foreach (var reference in FromExpressionTokens(documentContext, ifStatement.ConditionTokens, scopeId))
+                {
+                    yield return reference;
+                }
+
+                foreach (var reference in CollectReferences(documentContext, ifStatement.Body, scopeId))
+                {
+                    yield return reference;
+                }
+
+                foreach (var elseIfClause in ifStatement.ElseIfClauses)
+                {
+                    foreach (var reference in FromExpressionTokens(documentContext, elseIfClause.ConditionTokens, scopeId))
+                    {
+                        yield return reference;
+                    }
+
+                    foreach (var reference in CollectReferences(documentContext, elseIfClause.Body, scopeId))
+                    {
+                        yield return reference;
+                    }
+                }
+
+                if (ifStatement.ElseBody is not null)
+                {
+                    foreach (var reference in CollectReferences(documentContext, ifStatement.ElseBody, scopeId))
+                    {
+                        yield return reference;
+                    }
+                }
+
+                break;
+
+            case WhileStatementSyntax whileStatement:
+                foreach (var reference in FromExpressionTokens(documentContext, whileStatement.ConditionTokens, scopeId))
+                {
+                    yield return reference;
+                }
+
+                foreach (var reference in CollectReferences(documentContext, whileStatement.Body, scopeId))
+                {
+                    yield return reference;
+                }
+
+                break;
+
+            case ForStatementSyntax forStatement:
+                foreach (var reference in FromExpressionTokens(documentContext, forStatement.IterableTokens, scopeId))
+                {
+                    yield return reference;
+                }
+
+                foreach (var reference in CollectReferences(documentContext, forStatement.Body, scopeId))
+                {
+                    yield return reference;
                 }
 
                 break;
@@ -380,16 +468,16 @@ public sealed class NameResolver
     }
 
     private static IEnumerable<Reference> FromLessStatement(
-        ScriptDocument document,
+        DocumentResolutionContext documentContext,
         LessStatementSyntax statement,
         string scopeId,
         bool strictReferenceKinds)
     {
         if (strictReferenceKinds)
         {
-            yield return new Reference(ReferenceKind.Function, statement.Name, document.ProjectRelativePath, statement.NameLocation.Line, statement.NameLocation.Column, scopeId);
+            yield return new Reference(ReferenceKind.Function, statement.Name, documentContext.Document.ProjectRelativePath, statement.NameLocation.Line, statement.NameLocation.Column, scopeId);
         }
-        foreach (var reference in FromCommandArguments(document, statement.Name, statement.SharedArguments, scopeId))
+        foreach (var reference in FromCommandArguments(documentContext, statement.Name, statement.SharedArguments, scopeId))
         {
             yield return reference;
         }
@@ -399,7 +487,7 @@ public sealed class NameResolver
             switch (item)
             {
                 case LessCommandItemSyntax commandItem:
-                    foreach (var reference in FromCommandArguments(document, statement.Name, commandItem.Arguments, scopeId))
+                    foreach (var reference in FromCommandArguments(documentContext, statement.Name, commandItem.Arguments, scopeId))
                     {
                         yield return reference;
                     }
@@ -407,7 +495,7 @@ public sealed class NameResolver
                     break;
 
                 case LessNestedStatementSyntax nestedStatement:
-                    foreach (var reference in FromLessStatement(document, nestedStatement.Statement, scopeId, strictReferenceKinds))
+                    foreach (var reference in FromLessStatement(documentContext, nestedStatement.Statement, scopeId, strictReferenceKinds))
                     {
                         yield return reference;
                     }
@@ -418,7 +506,7 @@ public sealed class NameResolver
     }
 
     private static IEnumerable<Reference> FromCommandArguments(
-        ScriptDocument document,
+        DocumentResolutionContext documentContext,
         string commandName,
         IReadOnlyList<Token> tokens,
         string scopeId)
@@ -431,15 +519,19 @@ public sealed class NameResolver
                 continue;
             }
 
-            var kind = index == 0 && ActorFirstArgumentCallables.Contains(commandName)
-                ? ReferenceKind.Actor
-                : ReferenceKind.Variable;
-            yield return new Reference(kind, token.Lexeme, document.ProjectRelativePath, token.Line, token.Column, scopeId);
+            if (index == 0 && ActorFirstArgumentCallables.Contains(commandName))
+            {
+                yield return new Reference(ReferenceKind.Actor, token.Lexeme, documentContext.Document.ProjectRelativePath, token.Line, token.Column, scopeId);
+                continue;
+            }
+
+            var kind = IsFunctionCallToken(documentContext, tokens, index) ? ReferenceKind.Function : ReferenceKind.Variable;
+            yield return new Reference(kind, token.Lexeme, documentContext.Document.ProjectRelativePath, token.Line, token.Column, scopeId);
         }
     }
 
     private static IEnumerable<Reference> FromExpressionTokens(
-        ScriptDocument document,
+        DocumentResolutionContext documentContext,
         IReadOnlyList<Token> tokens,
         string scopeId)
     {
@@ -451,19 +543,38 @@ public sealed class NameResolver
                 continue;
             }
 
-            var kind = IsFunctionCallToken(tokens, index) ? ReferenceKind.Function : ReferenceKind.Variable;
-            yield return new Reference(kind, token.Lexeme, document.ProjectRelativePath, token.Line, token.Column, scopeId);
+            var kind = IsFunctionCallToken(documentContext, tokens, index) ? ReferenceKind.Function : ReferenceKind.Variable;
+            yield return new Reference(kind, token.Lexeme, documentContext.Document.ProjectRelativePath, token.Line, token.Column, scopeId);
         }
     }
 
-    private static bool IsFunctionCallToken(IReadOnlyList<Token> tokens, int index)
+    private static bool IsFunctionCallToken(DocumentResolutionContext documentContext, IReadOnlyList<Token> tokens, int index)
     {
         if (index + 1 >= tokens.Count)
         {
             return false;
         }
 
-        return tokens[index + 1].Kind is TokenKind.OpenParen or TokenKind.Identifier or TokenKind.StringLiteral or TokenKind.NumberLiteral;
+        var token = tokens[index];
+        if (tokens[index + 1].Kind == TokenKind.OpenParen)
+        {
+            return IsCallableName(documentContext, token.Lexeme);
+        }
+
+        return IsCallableName(documentContext, token.Lexeme) &&
+            tokens[index + 1].Kind is TokenKind.Identifier or TokenKind.Keyword or TokenKind.StringLiteral or TokenKind.NumberLiteral or TokenKind.OpenBracket;
+    }
+
+    private static bool IsCallableName(DocumentResolutionContext documentContext, string name)
+    {
+        if (BuiltInCallables.Contains(name))
+        {
+            return true;
+        }
+
+        return documentContext.DefinitionTable.Definitions.Any(definition =>
+            string.Equals(definition.Name, name, StringComparison.Ordinal) &&
+            definition.Kind is DefinitionKind.Function or DefinitionKind.ClassMethod);
     }
 
     private static IEnumerable<ScopedSymbolDefinition> GetReachableModuleDefinitions(
