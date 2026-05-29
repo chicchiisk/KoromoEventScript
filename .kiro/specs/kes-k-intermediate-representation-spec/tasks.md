@@ -58,7 +58,7 @@
   - _Boundary: KIntermediateRepresentationSpec_
 
 - [ ] 3. Integration: 既存仕様から `.k` 仕様へ接続する
-- [ ] 3.1 (P) CLI 仕様の `.k` 出力説明を新仕様へ接続する
+- [x] 3.1 (P) CLI 仕様の `.k` 出力説明を新仕様へ接続する
   - `kes build`、`kes run`、`kes publish` の `.k` 出力または入力説明から、新しい `.k` 中間表現仕様へ参照を追加する。
   - CLI 仕様は `.k` を生成する責務を持ち、instruction schema の詳細は `.k` 仕様が所有することを明確にする。
   - 完了時には、CLI 仕様の build 成果物説明から `docs/spec/k-intermediate-representation-spec.md` を辿れる。

@@ -233,7 +233,7 @@ kes init . --template empty
 プロジェクト内の `.ke` / `.kel` を解析・検証し、`.ke` ファイルを VM が解釈しやすい中間表現 `.k` ファイルへコンパイルする。
 
 `.k` は VM 実行用の中間表現ファイルである。
-中間表現の命令体系、データ構造、バイナリ形式またはテキスト形式の詳細は、別途中間表現仕様書で定義する。
+中間表現の命令体系、instruction schema、データ構造、バイナリ形式またはテキスト形式の詳細は、[`.k` 中間表現仕様](k-intermediate-representation-spec.md)で定義する。
 本仕様書では、`kes build` が `.k` を生成し、ランタイムは `.k` を VM で読み取って実行する方式であることを定義する。
 
 ```txt
@@ -283,6 +283,8 @@ build/
 たとえば `events/chapter001.ke` は `build/<target>/events/chapter001.k` に出力する。
 
 `manifest.json` には、入力 `.ke` / `.kel`、生成された `.k`、素材参照、ローカライズ情報、CLI バージョンを含める。
+CLI は `.k` を生成し、`manifest.json` から `.k` を参照できる成果物構成を作る責務を持つ。
+`.k` ファイル内部の instruction schema、命令体系、source mapping、manifest 参照契約の詳細は [`.k` 中間表現仕様](k-intermediate-representation-spec.md)が所有する。
 ランタイムは `manifest.json` と `.k` を読み込み、VM に `.k` を渡してイベントを実行する。
 
 ### 例
@@ -358,6 +360,9 @@ kes run [PATH_TO_EVENT_LIST] [options] [-- runtime-arguments]
 5. ランタイム内の VM が `.k` ファイルを読み取り、イベントを実行する。
 6. ランタイムの終了コードを CLI の終了コードへ反映する。
 
+`kes run` が `--build` または自動ビルドで生成する `.k` は `kes build` と同じ成果物契約に従う。
+`.k` の読み取り時に VM が検証する instruction schema と manifest 参照契約は [`.k` 中間表現仕様](k-intermediate-representation-spec.md)を参照する。
+
 `--` 以降の引数は CLI では解釈せず、ランタイムへそのまま渡す。
 
 ### 例
@@ -397,6 +402,7 @@ kes publish [PROJECT_DIR] [options]
 5. `--archive zip` の場合は zip アーカイブを生成する。
 
 `--target windows` の場合は、単体実行ランタイム、`.k`、`manifest.json`、必要素材、ローカライズ辞書、ライセンス情報を収集する。
+配布物に含める `.k` は `kes build` が生成した VM 実行用中間表現であり、ファイル形式、instruction schema、命令体系、manifest 参照契約は [`.k` 中間表現仕様](k-intermediate-representation-spec.md)に従う。
 
 `--target unity` または `--target unreal` の場合は、エンジン組み込み拡張から読み込むためのデータフォルダを生成する。
 このフォルダには、生成済みの `.k` ファイルと、イベントマスタファイル `.kel` のみを含める。
