@@ -32,7 +32,7 @@
   - _Requirements: 2.1, 2.2, 2.3, 2.4_
   - _Boundary: KIntermediateRepresentationSpec_
 
-- [ ] 2.3 value、variable、scope、execution state reference を定義する
+- [x] 2.3 value、variable、scope、execution state reference を定義する
   - number、bool、string、null、array、actor reference、tag reference、asset reference、locale key、runtime dynamic value の表現を定義する。
   - 変数の宣言、読み取り、書き込み、scope、初期値に必要な情報を定義する。
   - save/load が参照できる script id、instruction index、call/continuation state、variable state、branch return position を定義する。

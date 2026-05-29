@@ -7,7 +7,7 @@
 `.k` は CLI が `.ke` を解析・検証した後に生成し、VM と runtime がイベント実行時に参照する中間表現である。
 本仕様は、CLI、VM、runtime、debug tooling の実装者とレビュー担当者が、`.k` の責務境界と隣接仕様との関係を同じ前提で確認できるようにする。
 
-この文書は段階的に拡張する。現時点では、`.k` 中間表現仕様が扱う範囲、扱わない範囲、参照すべき隣接仕様、現行用語と旧称の関係に加えて、基本 file format、compatibility policy、document/module/import、instruction schema、主要 opcode 群を定義する。value model、source mapping、manifest 参照契約の詳細は後続タスクでこの文書へ追記する。
+この文書は段階的に拡張する。現時点では、`.k` 中間表現仕様が扱う範囲、扱わない範囲、参照すべき隣接仕様、現行用語と旧称の関係に加えて、基本 file format、compatibility policy、document/module/import、instruction schema、主要 opcode 群、value model、variable/scope、execution state reference を定義する。source mapping と manifest 参照契約の詳細は後続タスクでこの文書へ追記する。
 
 ## 基本ファイル形式
 
@@ -199,7 +199,7 @@ _Requirements: 2.2_
 | `var.def` | `variable`、`scope`、`type`、`initializer` | variable target | 変数定義を表す。`initializer` は literal、temporary、または `null`。初期値が式の場合は先行する `eval` の `result` を参照する。 |
 | `assign` | `target`、`value`、任意の `operator` | variable target または `null` | 代入を表す。`target` は compile-time 解決済み variable reference。`value` は literal、temporary、variable reference。複合代入の場合は `operator` に正規化済み演算子を持つ。 |
 
-temporary target は instruction sequence 内の後続 instruction が参照できる一時値である。temporary の lifetime、型表現、保存対象かどうかの詳細は value/variable/execution state task で定義する。ただし本 task の範囲では、値を生成する opcode は `result` に生成先を明示し、値を消費する opcode は `args` からその生成先を参照することを必須契約とする。
+temporary target は instruction sequence 内の後続 instruction が参照できる一時値である。temporary の lifetime、型表現、保存対象かどうかは `value、variable、scope、execution state reference` 節の operand reference と save/load 境界に従う。値を生成する opcode は `result` に生成先を明示し、値を消費する opcode は `args` からその生成先を参照することを必須契約とする。
 
 式が副作用を持つ runtime call を含む場合、compiler は副作用境界が分かるように `__systemcall__` または `runtime.call` instruction と `eval` instruction を分離する。VM は `eval` を純粋な値計算として扱い、runtime interaction は runtime call opcode に集約する。
 
@@ -285,6 +285,132 @@ STL や runtime 機能への呼び出しは、`.ke` 上の `__systemcall__` ま�
 ```
 
 戻り値を式で使う場合、`__systemcall__` の `result` に temporary target を置き、後続の `eval`、`assign`、`command` がその temporary を `args` から参照する。これにより、VM 実装者は runtime call の戻り値利用を instruction と operand の依存関係として読み取れる。
+
+## value、variable、scope、execution state reference
+
+_Requirements: 3.1, 3.2, 3.3, 3.4_
+
+この節は、instruction の `args`、`result`、`typedArgs`、`initializer`、`value`、`ref` に現れる値と参照の共通契約を定義する。`.k` は VM が実行時に読む契約であり、runtime の save data そのものではない。save/load は `.k` に含まれる安定識別子を参照して実行状態を復元する。
+
+### value model
+
+_Requirements: 3.1, 3.4_
+
+値は tagged object を正規形とし、`kind` で値種別を識別する。VM/runtime は未知の `kind` を load error として扱う。literal value は `.k` に直接含め、reference value は manifest、module、または runtime contract が所有する実体を安定 ID/key で参照する。
+
+| `kind` | 必須 field | 仕様 |
+|--------|------------|------|
+| `number` | `value` | JSON number として表す。整数/小数の言語上の型差が必要な場合は `type` で補足する。NaN、Infinity、文字列化された数値は正規形ではない。 |
+| `bool` | `value` | `true` または `false`。 |
+| `string` | `value` | UTF-8 文字列 literal。locale 置換対象ではない固定文字列として扱う。 |
+| `null` | なし | 値が存在しないことを表す。`value` field は持たない。 |
+| `array` | `items` | 値の配列。各要素は本表の value object、temporary reference、variable reference のいずれかである。 |
+| `actorRef` | `id` | compile-time に解決済みの actor reference。表示名や立ち絵 metadata は `.k` ではなく manifest/runtime 側が所有する。 |
+| `tagRef` | `id` | compile-time に解決済みの tag reference。未解決 tag name を runtime が探索してはならない。 |
+| `assetRef` | `id` | manifest が所有する asset ID への参照。asset path、hash、platform variant は `.k` に複製しない。 |
+| `localeKey` | `key` | locale dictionary が所有する key への参照。fallback text が必要な場合は debug metadata として扱い、VM 実行意味に使わない。 |
+| `runtimeDynamic` | `source`、`type` | runtime call、user input、platform state など、実行時に値が確定することを表す境界値。`source` は `syscall`、`selection`、`runtimeState` などの分類であり、VM は compile-time literal として畳み込まない。 |
+
+```json
+{ "kind": "array", "items": [
+  { "kind": "number", "value": 1 },
+  { "kind": "bool", "value": true },
+  { "kind": "assetRef", "id": "bgm.opening" }
+] }
+```
+
+compiler は `.k` 生成前に、名前解決、型検査、actor/tag/asset/locale key の存在検証を可能な範囲で完了する。`.k` に残る actor/tag/asset/locale は人間向け名前ではなく、manifest または runtime contract と照合できる安定 ID/key でなければならない。
+
+runtime dynamic value は、runtime の現在状態、ユーザー入力、外部 platform 情報、`__systemcall__` の戻り値のように build 時点で値を確定できない情報を表す。runtime dynamic value であっても、`type`、発生元、保存対象かどうかを VM が判断できる metadata は `.k` の operand または opcode contract に含める。
+
+### operand reference と target
+
+_Requirements: 3.1, 3.2_
+
+instruction が値を読む場合、operand は literal value、temporary reference、variable reference のいずれかで表す。instruction が値を書き込む場合、`result` は temporary target または variable target を表す。戻り値を破棄する場合は `result: null` とする。
+
+| 種別 | 形 | 仕様 |
+|------|----|------|
+| literal value | `{ "kind": "...", ... }` | `.k` に直接埋め込まれた値。 |
+| temporary reference | `{ "kind": "tempRef", "id": "t1" }` | 同一 `.k` document の先行 instruction が生成した一時値を読む。 |
+| temporary target | `{ "kind": "temp", "id": "t1", "type": "number" }` | 後続 instruction から参照できる一時値の生成先。 |
+| variable reference | `{ "kind": "varRef", "id": "v.score", "scope": "script", "type": "number" }` | compile-time 解決済み variable を読む。 |
+| variable target | `{ "kind": "var", "id": "v.score", "scope": "script", "type": "number" }` | `var.def`、`assign`、runtime call result が variable を書き込む先。 |
+
+temporary は式分解と runtime call 戻り値の受け渡しに使う VM 内部値であり、save data の安定対象ではない。save/load 境界を越えて値を保持する必要がある場合、compiler は variable state として保存できる variable target に書き込む命令列を生成する。
+
+### variable と scope
+
+_Requirements: 3.2, 3.4_
+
+変数は compile-time に宣言と参照が解決され、`.k` では stable variable identifier と scope を持つ。VM は未解決の変数名を lexical scope から探索せず、`var.def`、`eval`、`assign`、`command`、`__systemcall__` の operand に含まれる variable reference をそのまま使う。
+
+| 項目 | 仕様 |
+|------|------|
+| declaration | `var.def` の `args.variable` が stable variable identifier、source name、type、scope、任意の storage class を持つ。 |
+| read | `eval` または opcode operand の `varRef` が variable identifier、scope、type を持つ。読み取り前に初期化が必要な変数は VM load または実行時 validation の対象にする。 |
+| write | `assign` の `args.target` または戻り値を持つ opcode の `result` が variable target を持つ。型不一致や read-only variable への書き込みは compile-time error または load error とする。 |
+| scope | `global`、`script`、`chapter`、`block`、`temporary` などの安定 scope kind と、必要に応じて `scopeId` を持つ。scope kind の追加は feature compatibility の対象にする。 |
+| initial values | `var.def.args.initializer` は literal value、temporary reference、variable reference、または `null`。初期値が式の場合は先行する `eval` の temporary を参照する。 |
+
+```json
+{
+  "index": 4,
+  "op": "var.def",
+  "args": {
+    "variable": {
+      "kind": "var",
+      "id": "v.score",
+      "sourceName": "score",
+      "scope": "script",
+      "type": "number"
+    },
+    "initializer": { "kind": "number", "value": 0 }
+  },
+  "result": { "kind": "var", "id": "v.score", "scope": "script", "type": "number" },
+  "source": { "mappingId": "main.ke:3:1" }
+}
+```
+
+`sourceName` は debug 表示用 metadata であり、VM の変数解決には使わない。save/load と debug 表示で安定して参照する識別子は `id` と `scope` の組である。同名変数が異なる scope に存在する場合、compiler は異なる `id` または `scopeId` を割り当てて衝突を解消する。
+
+### execution state reference と save/load 境界
+
+_Requirements: 3.3, 3.4_
+
+`.k` は save data ではない。runtime の save data は、`.k` document 本体や命令列を複製せず、次の安定識別子を参照することで実行状態を復元できる形式にする。
+
+| 参照 | 仕様 |
+|------|------|
+| `scriptId` | manifest の script entry と `.k` の `module.scriptId` に一致する安定 ID。 |
+| `instructionIndex` | `.k` document 内の現在または再開対象 instruction index。`scriptId` と組で実行位置を一意に表す。 |
+| `callState` | script/module 呼び出しを導入する opcode がある場合の call frame 識別情報。少なくとも呼び出し元 `scriptId`、戻り先 `instructionIndex`、引数/戻り値 target を参照できること。 |
+| `continuationState` | `select`、runtime input wait、非同期 runtime call など、VM が一時停止して再開する位置の識別情報。待機中 opcode の `scriptId`、`instructionIndex`、pending result target を参照する。 |
+| `variableState` | 保存対象 scope に属する variable identifier と値の集合。temporary は原則として保存対象に含めない。 |
+| `branchReturnPosition` | branch、case、call、runtime wait から戻る位置が必要な場合の `scriptId` と instruction index。label name ではなく解決済み index を使う。 |
+
+VM/runtime は load 時に、save data が参照する `scriptId` が manifest と `.k` に存在し、`instructionIndex` が対象 `.k` の有効範囲内にあることを検証する。参照先が存在しない場合は save/load integration error として扱い、runtime が近い label name や source path から推測して復元してはならない。
+
+branch return position と call/continuation state は、将来 opcode が追加されても `.k` 上の安定位置参照として `scriptId` と instruction index を使う。source mapping は debug fallback に使えるが、save/load の正規復元キーではない。
+
+### compile-time と runtime の境界
+
+_Requirements: 3.4_
+
+次の情報は compile-time に解決済みであることを `.k` の前提とする。
+
+- variable、label、actor、tag、command、syscall、type の名前解決。
+- jump/select/case の制御先 instruction index。
+- actor/tag/asset/locale key の参照 ID/key。
+- `var.def`、`assign`、`eval`、`__systemcall__` 引数と戻り値の型。
+
+次の情報は runtime dynamic value として残してよい。
+
+- user input、select の選択結果、runtime UI/音声/入力待ちの結果。
+- `__systemcall__` または runtime call の戻り値。
+- platform state、保存済み variable state、runtime が所有する asset/locale の実体。
+
+この境界により、`.k` は build 時に検証できる名前、型、タグ、参照を VM 実行用 ID へ正規化し、実行時にしか確定しない値だけを runtime dynamic value として残す。VM/runtime は `.k` load 後に compiler の名前解決を再実行しない。
 
 ## 対象読者
 
