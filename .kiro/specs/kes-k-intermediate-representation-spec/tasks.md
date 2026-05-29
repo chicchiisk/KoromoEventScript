@@ -23,7 +23,7 @@
   - _Requirements: 1.2, 2.5, 5.1, 5.2_
   - _Boundary: KIntermediateRepresentationSpec_
 
-- [ ] 2.2 instruction schema と主要 opcode 群を定義する
+- [x] 2.2 instruction schema と主要 opcode 群を定義する
   - 命令列、instruction index、opcode、引数、戻り値、実行順序の共通 schema を定義する。
   - `say`、`nar`、通常命令、式評価、変数定義、代入を VM が解釈できる形で表現する opcode 方針を定義する。
   - `label`、`jump`、`select`、`case` の制御フローと、解決済みジャンプ先を instruction index で扱う方針を定義する。

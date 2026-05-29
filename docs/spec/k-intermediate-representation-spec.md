@@ -7,7 +7,7 @@
 `.k` は CLI が `.ke` を解析・検証した後に生成し、VM と runtime がイベント実行時に参照する中間表現である。
 本仕様は、CLI、VM、runtime、debug tooling の実装者とレビュー担当者が、`.k` の責務境界と隣接仕様との関係を同じ前提で確認できるようにする。
 
-この文書は段階的に拡張する。現時点では、`.k` 中間表現仕様が扱う範囲、扱わない範囲、参照すべき隣接仕様、現行用語と旧称の関係に加えて、基本 file format と compatibility policy を定義する。instruction schema、value model、source mapping、manifest 参照契約の詳細は後続タスクでこの文書へ追記する。
+この文書は段階的に拡張する。現時点では、`.k` 中間表現仕様が扱う範囲、扱わない範囲、参照すべき隣接仕様、現行用語と旧称の関係に加えて、基本 file format、compatibility policy、document/module/import、instruction schema、主要 opcode 群を定義する。value model、source mapping、manifest 参照契約の詳細は後続タスクでこの文書へ追記する。
 
 ## 基本ファイル形式
 
@@ -116,6 +116,175 @@ manifest entry から VM 実行単位への解決順序は次の通りである�
 6. VM は `scriptId` と instruction index の組を実行開始位置として扱う。
 
 この契約により、単一 `.ke` project では 1 つの `scriptId` と 1 つの `.k` artifact だけで実行単位を説明できる。複数ファイル project では、manifest の scripts 一覧が複数の `.k` artifact を列挙し、各 `.k` の `imports` が import 先 `scriptId` を参照することで、import 済み module と VM 実行単位の関係を説明できる。
+
+## instruction schema と主要 opcode
+
+_Requirements: 2.1, 2.2, 2.3, 2.4_
+
+`.k` document の `instructions` は、VM が実行する instruction sequence である。`instructions` は配列で表し、配列順が基本の実行順序である。各 instruction は `index` を持ち、`index` は `instructions` 内で 0 から始まる連続した整数でなければならない。VM は通常、現在の instruction を実行した後、明示的に制御を移す opcode でない限り `index + 1` へ進む。
+
+instruction index は `.k` document 内で局所的に安定した位置識別子である。save/debug/manifest entry は `scriptId` と instruction index の組で実行位置を参照する。compiler は `.k` 出力時点で `index` を確定し、VM/runtime は load 時に重複、欠番、配列位置との不一致を instruction schema violation として扱う。
+
+### instruction 共通 schema
+
+_Requirements: 2.1_
+
+各 instruction は次の共通 field を持つ。
+
+| Field | 必須 | 仕様 |
+|-------|------|------|
+| `index` | 必須 | 0 から始まる連続整数。`instructions[index]` の配列位置と一致しなければならない。 |
+| `op` | 必須 | opcode を表す安定文字列。VM は未知 opcode を load error として拒否する。 |
+| `args` | 必須 | opcode ごとの operand。名前付き object を正規形とする。operand がない opcode では空 object `{}` を使う。 |
+| `result` | 必須 | instruction が値を生成または書き込む先。戻り値を持たない opcode では `null` を使う。 |
+| `source` | 必須 | source mapping 参照。詳細 field は source mapping task が定義するが、instruction schema 上は `null` または source 参照 object を許容する。 |
+| `flags` | 任意 | VM が opcode semantics を変えずに参照できる補助 metadata。未知 flag は load 時 validation の対象にしてよい。 |
+
+`args` と `result` は opcode contract の一部である。`args` には入力 operand、literal、参照、解決済み target index を置く。`result` には一時値、変数、または runtime call の戻り値利用先を置く。戻り値を破棄する場合も `result: null` として明示する。
+
+```json
+{
+  "index": 0,
+  "op": "say",
+  "args": {
+    "speaker": { "kind": "actorRef", "id": "hero" },
+    "text": { "kind": "string", "value": "こんにちは" }
+  },
+  "result": null,
+  "source": { "mappingId": "main.ke:1:1" }
+}
+```
+
+VM の dispatch は `op` で行う。compiler は `.ke` の高水準構文を、VM が直接解釈できる opcode と operand に正規化する。VM は `.ke` の構文解析、名前解決、label 文字列探索、syscall signature 推測を実行時に行ってはならない。
+
+### 基本実行順序
+
+_Requirements: 2.1, 2.3_
+
+VM は次の規則で program counter を更新する。
+
+| opcode 種別 | 次の実行位置 |
+|-------------|--------------|
+| 通常 opcode | `index + 1`。次の index が存在しない場合は `.k` document の実行完了。 |
+| `jump` | `args.targetIndex`。 |
+| `select` | runtime/user input の選択結果に対応する `args.cases[].targetIndex`。 |
+| `case` | case body の開始 marker として扱い、通常は `index + 1`。 |
+| `return` 相当 | この task では opcode を固定しない。将来導入する場合は call/continuation state と戻り先 index を別途定義する。 |
+
+`label` は debug と entry 解決のための marker opcode として出力してよいが、VM の jump 解決は `labels` mapping または `jump` / `select` operand 内の instruction index で完了していなければならない。runtime は未解決 label name を実行時に探索しない。
+
+### text opcode: `say` と `nar`
+
+_Requirements: 2.2_
+
+`say` は話者付き台詞を表す。`nar` は話者を持たない narration を表す。どちらも VM が text progression を runtime へ渡すための instruction であり、表示、音声、入力待ちの具体実装は runtime 仕様が所有する。
+
+| opcode | `args` | `result` | 実行契約 |
+|--------|--------|----------|----------|
+| `say` | `speaker`、`text`、任意の `voice` / `tags` / `style` | `null` | `speaker` は compile-time 解決済み actor reference または `null`。`text` は string literal または locale key reference。VM は runtime に話者付き text event を発行し、通常は完了後 `index + 1` へ進む。 |
+| `nar` | `text`、任意の `voice` / `tags` / `style` | `null` | narration text event を runtime へ発行する。話者欄を表示するかどうかは runtime に委譲するが、`.k` 上では speaker を持たない opcode として扱う。 |
+
+`say` / `nar` の本文が locale key に置換される場合、`.k` は key 参照を operand に保持し、実際の locale dictionary 本体は manifest または隣接成果物が所有する。文字列を直接持つ場合も、VM は文字列連結や式展開が必要な状態を残さず、compiler が必要な `eval` instruction と text operand に分解しておく。
+
+### command、式、変数、代入 opcode
+
+_Requirements: 2.2_
+
+通常 command は `.ke` の command 構文を VM が実行できる runtime action に正規化した instruction である。command 名の解決、引数数、型検査は compile-time に完了している前提とする。VM は `command` opcode の `args.commandId` と typed args を runtime または VM 内 command dispatcher へ渡す。
+
+| opcode | `args` | `result` | 実行契約 |
+|--------|--------|----------|----------|
+| `command` | `commandId`、`typedArgs`、任意の `target` | `null` または戻り値 target | 通常命令を表す。戻り値を使う command の場合は `result` に temporary または variable target を置く。戻り値を破棄する場合は `null`。 |
+| `eval` | `exprId`、`kind`、`operands` | temporary target | 式評価を表す。`kind` は演算子、literal load、変数読み取り、配列構築などの評価種別を表す。型検査済み operand を読み、`result` に値を置く。 |
+| `var.def` | `variable`、`scope`、`type`、`initializer` | variable target | 変数定義を表す。`initializer` は literal、temporary、または `null`。初期値が式の場合は先行する `eval` の `result` を参照する。 |
+| `assign` | `target`、`value`、任意の `operator` | variable target または `null` | 代入を表す。`target` は compile-time 解決済み variable reference。`value` は literal、temporary、variable reference。複合代入の場合は `operator` に正規化済み演算子を持つ。 |
+
+temporary target は instruction sequence 内の後続 instruction が参照できる一時値である。temporary の lifetime、型表現、保存対象かどうかの詳細は value/variable/execution state task で定義する。ただし本 task の範囲では、値を生成する opcode は `result` に生成先を明示し、値を消費する opcode は `args` からその生成先を参照することを必須契約とする。
+
+式が副作用を持つ runtime call を含む場合、compiler は副作用境界が分かるように `__systemcall__` または `runtime.call` instruction と `eval` instruction を分離する。VM は `eval` を純粋な値計算として扱い、runtime interaction は runtime call opcode に集約する。
+
+### control-flow opcode: `label`、`jump`、`select`、`case`
+
+_Requirements: 2.3_
+
+control-flow opcode は、`.ke` の label、jump、select/case を VM が instruction index で実行できるように正規化する。compiler は `.k` 出力時点ですべての jump target を同一 `.k` document 内の instruction index、または cross-module 参照が許可される場合は `scriptId` と instruction index の組へ解決する。
+
+| opcode | `args` | `result` | 実行契約 |
+|--------|--------|----------|----------|
+| `label` | `name`、任意の `public` | `null` | label marker。`labels[name]` はこの instruction の `index` または label 直後の実行可能 instruction index を指す。どちらを採用するかは `.k` emitter が一貫させ、`labels` の値を正とする。 |
+| `jump` | `targetIndex`、任意の `targetScriptId`、任意の `label` | `null` | 無条件 jump。`targetIndex` は解決済み instruction index。`label` は debug metadata として残してよいが、VM は `targetIndex` を実行先として使う。 |
+| `select` | `prompt`、`cases`、任意の `defaultCase` | `null` または selection temporary | 選択肢開始。`cases` は case ID、表示 text または locale key、条件、`targetIndex` を持つ配列。runtime/user input の結果で対応 target へ進む。 |
+| `case` | `caseId`、任意の `selectIndex`、任意の `endIndex` | `null` | case body の marker。`select` の `cases[].targetIndex` は対応する `case` または case body 先頭 instruction index を指す。case body 終了後の合流は明示的な `jump` または通常順序で表す。 |
+
+`select` の各 case は、選択肢 text と制御先を分離して持つ。case 表示条件がある場合、条件式は先行する `eval` result または `cases[].condition` の typed operand として表し、VM は条件が false の case を runtime へ提示しない。`select` の解決先はすべて load 時に検証し、存在しない instruction index、範囲外 index、case ID 重複は instruction schema violation とする。
+
+```json
+[
+  {
+    "index": 10,
+    "op": "select",
+    "args": {
+      "prompt": { "kind": "string", "value": "どちらへ行く？" },
+      "cases": [
+        { "caseId": "town", "text": { "kind": "string", "value": "街" }, "targetIndex": 11 },
+        { "caseId": "forest", "text": { "kind": "string", "value": "森" }, "targetIndex": 20 }
+      ]
+    },
+    "result": { "kind": "temp", "id": "$choice0" },
+    "source": { "mappingId": "main.ke:12:1" }
+  },
+  {
+    "index": 11,
+    "op": "case",
+    "args": { "caseId": "town", "selectIndex": 10, "endIndex": 30 },
+    "result": null,
+    "source": { "mappingId": "main.ke:13:3" }
+  }
+]
+```
+
+### runtime call opcode: `__systemcall__`
+
+_Requirements: 2.4_
+
+STL や runtime 機能への呼び出しは、`.ke` 上の `__systemcall__` または同等の runtime call を `.k` 上の runtime call instruction として表す。正規 opcode 名は `__systemcall__` とし、将来別名を導入する場合も同じ field 契約を満たす runtime-call equivalent として扱う。
+
+| Field | 仕様 |
+|-------|------|
+| `op` | `__systemcall__`。 |
+| `args.syscallId` | compile-time に解決済みの syscall ID。人間向け名ではなく、STL/runtime contract 上の安定 ID を使う。 |
+| `args.typedArgs` | typed arg の配列。各要素は `name`、`type`、`value` または `ref` を持つ。引数順が意味を持つ syscall では配列順を正とする。 |
+| `args.effects` | 任意。表示、音声、asset load、state read/write など、VM が load validation または debug に使える効果分類。 |
+| `result` | 戻り値を使う場合は temporary または variable target。戻り値を破棄する場合は `null`。複数戻り値が必要な syscall は `result` に tuple/array temporary を置くか、将来の opcode 拡張で定義する。 |
+
+`__systemcall__` は runtime interaction の境界である。compiler は syscall ID、引数数、引数型、戻り値型を `.k` 生成前に検証する。VM/runtime は load 時に `syscallId` が対応 runtime で利用可能か、`typedArgs` が syscall signature と一致するかを検証し、未対応 syscall または型不一致を load error または compatibility error として扱う。
+
+```json
+{
+  "index": 42,
+  "op": "__systemcall__",
+  "args": {
+    "syscallId": "runtime.audio.playBgm",
+    "typedArgs": [
+      {
+        "name": "asset",
+        "type": "assetRef",
+        "value": { "kind": "assetRef", "id": "bgm.opening" }
+      },
+      {
+        "name": "fadeSeconds",
+        "type": "number",
+        "value": { "kind": "number", "value": 1.5 }
+      }
+    ],
+    "effects": ["audio"]
+  },
+  "result": null,
+  "source": { "mappingId": "main.ke:20:1" }
+}
+```
+
+戻り値を式で使う場合、`__systemcall__` の `result` に temporary target を置き、後続の `eval`、`assign`、`command` がその temporary を `args` から参照する。これにより、VM 実装者は runtime call の戻り値利用を instruction と operand の依存関係として読み取れる。
 
 ## 対象読者
 
