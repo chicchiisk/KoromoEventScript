@@ -41,7 +41,7 @@
   - _Requirements: 3.1, 3.2, 3.3, 3.4_
   - _Boundary: KIntermediateRepresentationSpec_
 
-- [ ] 2.4 source mapping と debug metadata の方針を定義する
+- [x] 2.4 source mapping と debug metadata の方針を定義する
   - 各命令または関連命令群から元 `.ke` の file、line、column を参照できる source mapping 情報を定義する。
   - LESS、`say` / `nar` 本文、`select` / `case` など、1 つの構文が複数命令へ展開される場合の primary source と related source の方針を定義する。
   - runtime error と debug 表示で参照する module/file 名、instruction position、fallback 表示を定義する。

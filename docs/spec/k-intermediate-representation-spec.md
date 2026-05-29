@@ -7,7 +7,7 @@
 `.k` は CLI が `.ke` を解析・検証した後に生成し、VM と runtime がイベント実行時に参照する中間表現である。
 本仕様は、CLI、VM、runtime、debug tooling の実装者とレビュー担当者が、`.k` の責務境界と隣接仕様との関係を同じ前提で確認できるようにする。
 
-この文書は段階的に拡張する。現時点では、`.k` 中間表現仕様が扱う範囲、扱わない範囲、参照すべき隣接仕様、現行用語と旧称の関係に加えて、基本 file format、compatibility policy、document/module/import、instruction schema、主要 opcode 群、value model、variable/scope、execution state reference を定義する。source mapping と manifest 参照契約の詳細は後続タスクでこの文書へ追記する。
+この文書は段階的に拡張する。現時点では、`.k` 中間表現仕様が扱う範囲、扱わない範囲、参照すべき隣接仕様、現行用語と旧称の関係に加えて、基本 file format、compatibility policy、document/module/import、instruction schema、主要 opcode 群、value model、variable/scope、execution state reference、source mapping と debug metadata を定義する。manifest 参照契約の詳細は後続タスクでこの文書へ追記する。
 
 ## 基本ファイル形式
 
@@ -137,7 +137,7 @@ _Requirements: 2.1_
 | `op` | 必須 | opcode を表す安定文字列。VM は未知 opcode を load error として拒否する。 |
 | `args` | 必須 | opcode ごとの operand。名前付き object を正規形とする。operand がない opcode では空 object `{}` を使う。 |
 | `result` | 必須 | instruction が値を生成または書き込む先。戻り値を持たない opcode では `null` を使う。 |
-| `source` | 必須 | source mapping 参照。詳細 field は source mapping task が定義するが、instruction schema 上は `null` または source 参照 object を許容する。 |
+| `source` | 必須 | source mapping 参照。`null` または `source mapping と debug metadata` 節で定義する source 参照 object を許容する。 |
 | `flags` | 任意 | VM が opcode semantics を変えずに参照できる補助 metadata。未知 flag は load 時 validation の対象にしてよい。 |
 
 `args` と `result` は opcode contract の一部である。`args` には入力 operand、literal、参照、解決済み target index を置く。`result` には一時値、変数、または runtime call の戻り値利用先を置く。戻り値を破棄する場合も `result: null` として明示する。
@@ -392,6 +392,103 @@ _Requirements: 3.3, 3.4_
 VM/runtime は load 時に、save data が参照する `scriptId` が manifest と `.k` に存在し、`instructionIndex` が対象 `.k` の有効範囲内にあることを検証する。参照先が存在しない場合は save/load integration error として扱い、runtime が近い label name や source path から推測して復元してはならない。
 
 branch return position と call/continuation state は、将来 opcode が追加されても `.k` 上の安定位置参照として `scriptId` と instruction index を使う。source mapping は debug fallback に使えるが、save/load の正規復元キーではない。
+
+## source mapping と debug metadata
+
+_Requirements: 4.1, 4.2, 4.3, 4.4_
+
+source mapping は、`.k` の instruction または instruction group を生成元 `.ke` の file、line、column へ戻すための補助情報である。runtime error、debug 表示、golden test、仕様レビューの可読性に使うが、VM の opcode dispatch、operand 評価、program counter 更新、save/load 復元キー、分岐先解決の実行意味を変えてはならない。
+
+### source mapping schema
+
+`.k` document は top-level `debug` field を持ってよい。`debug.sourceMappings` は mapping ID から source range への辞書であり、各 instruction の `source` はその mapping を参照する。
+
+| Field | 必須 | 仕様 |
+|-------|------|------|
+| `debug.moduleDisplayName` | 任意 | debug 表示で使う module 名。省略時は `module.moduleId` を使う。 |
+| `debug.fileDisplayName` | 任意 | debug 表示で使う file 名。省略時は `module.sourcePath` の末尾要素を使う。 |
+| `debug.sourceMappings` | 任意 | mapping ID から source range object への辞書。存在する場合、instruction の `source.mappingId` はこの辞書内の key を参照する。 |
+
+source range object は次の field を持つ。
+
+| Field | 必須 | 仕様 |
+|-------|------|------|
+| `file` | 必須 | project root から見た生成元 `.ke` の正規化 path。主 module では原則として `module.sourcePath` と一致する。 |
+| `line` | 必須 | 1 始まりの行番号。行を特定できない synthetic instruction では `null` を許容する。 |
+| `column` | 必須 | 1 始まりの列番号。列を特定できない場合は `null` を許容する。 |
+| `endLine` | 任意 | source range の終端行。省略時は単一点または compiler が range を保持していないことを表す。 |
+| `endColumn` | 任意 | source range の終端列。省略時は単一点または compiler が range を保持していないことを表す。 |
+| `kind` | 任意 | `statement`、`expression`、`textBody`、`selectCase`、`lessExpansion`、`synthetic` など、debug tooling が表示を補助する分類。 |
+| `displayText` | 任意 | runtime error/debug 表示で短く示す source 断片。VM 実行意味には使わない。 |
+
+各 instruction の `source` は `null` または次の source 参照 object とする。
+
+| Field | 必須 | 仕様 |
+|-------|------|------|
+| `mappingId` | 必須 | `debug.sourceMappings` 内の primary source mapping ID。`debug.sourceMappings` を省略する小規模 document では、互換性のために `file`、`line`、`column` を直接持つ inline object を許容する。 |
+| `related` | 任意 | 関連 source mapping ID の配列。1 つの source construct が複数 instruction へ展開された場合や、instruction が複数 source range の結果である場合に使う。 |
+| `generatedBy` | 任意 | `less`、`textSplit`、`selectCaseLowering`、`expressionLowering` など、compiler が行った展開分類。debug metadata であり VM は実行判断に使わない。 |
+
+`source: null` は、compiler が source position を持たない synthetic instruction、互換性維持のため source mapping を省略した instruction、または生成元 `.ke` 位置が存在しない metadata-only instruction に限って許容する。source mapping が欠落しても VM は同じ opcode と operand を同じ順序で実行する。
+
+```json
+{
+  "debug": {
+    "moduleDisplayName": "main",
+    "fileDisplayName": "main.ke",
+    "sourceMappings": {
+      "main.ke:12:1": {
+        "file": "events/main.ke",
+        "line": 12,
+        "column": 1,
+        "kind": "statement"
+      },
+      "main.ke:12:5-12:18": {
+        "file": "events/main.ke",
+        "line": 12,
+        "column": 5,
+        "endLine": 12,
+        "endColumn": 18,
+        "kind": "textBody"
+      }
+    }
+  }
+}
+```
+
+### primary source と related source
+
+primary source は、runtime error や debug step 表示で最初に示す生成元位置である。related source は、同じ instruction の理解に必要な追加位置、または同じ source construct から派生した別 range を表す。debug tooling は primary source を主表示にし、related source は展開詳細、hover、trace、golden test 差分などの補助表示に使う。
+
+1 つの source construct が複数 instruction へ展開される場合、compiler は次の方針で source を割り当てる。
+
+| source construct | primary source | related source |
+|------------------|----------------|----------------|
+| LESS 展開 | 展開元 LESS 構文の開始位置。生成された各 instruction は同じ primary source を共有してよい。 | 展開後 instruction が対応する式、引数、tag、text などの詳細 range。展開元全体と詳細 range の両方が必要な場合は詳細 range を related に含める。 |
+| `say` / `nar` 本文 | 表示 text event を発生させる `say` / `nar` instruction は本文 range を primary source とする。speaker や style の解析で生成された補助 instruction は、その token range を primary source にしてよい。 | speaker token、locale key、文字列補間式、style/tag range。本文を式分解した `eval` instruction は本文全体または該当補間式を related に含める。 |
+| `select` / `case` | `select` instruction は `select` 構文または prompt の開始位置を primary source とする。各 `case` instruction は対応する case label または選択肢 text の開始位置を primary source とする。 | `select` 全体、各 case の条件式、選択肢 text、case body 先頭 range。`select` から case target へ進む debug 表示では `select` と選ばれた `case` の両方を related に含めてよい。 |
+| 式分解 | 生成された `eval` instruction は、該当する最小式 range を primary source とする。 | 親 statement、operand token、元の複合式 range。 |
+| compiler generated marker | 生成元が明確な marker は元 statement を primary source とする。生成元がない marker は `source: null` とする。 | 生成理由を示す元 construct、隣接する label/case/select range。 |
+
+primary source と related source は VM の実行順序を決める情報ではない。複数 instruction が同じ primary source を共有しても、VM は `instructions[].index` と opcode contract だけで実行順序を決める。
+
+### runtime error と debug 表示
+
+runtime error、debug step、breakpoint、trace、golden test の位置表示は、実行位置を `scriptId` と `instructionIndex` で特定し、表示用に source mapping を重ねる。
+
+| 表示要素 | 優先順 |
+|----------|--------|
+| module 名 | `debug.moduleDisplayName`、`module.moduleId`、`module.scriptId`。 |
+| file 名 | primary source の `file`、`debug.fileDisplayName`、`module.sourcePath`、`module.scriptId`。 |
+| line / column | primary source の `line` / `column`。欠落時は表示しない。 |
+| instruction position | `scriptId:instructionIndex` を常に表示可能な fallback とする。 |
+| source 断片 | primary source の `displayText`、related source の `displayText`。欠落時は表示しない。 |
+
+source mapping が有効な場合の推奨表示は `file:line:column (module moduleDisplayName, scriptId:instructionIndex)` である。line または column が欠落する場合は、存在する要素だけを使い、少なくとも `scriptId:instructionIndex` を表示する。file も解決できない場合の fallback 表示は `scriptId:<scriptId> instruction:<instructionIndex>` とする。
+
+breakpoint や trace filter が source position を入力として受ける場合でも、VM 実行時の正規位置は `scriptId` と instruction index である。debug tooling は source position から候補 instruction を逆引きしてよいが、VM/runtime は source path や line/column から実行位置を推測して save/load を復元してはならない。
+
+debug metadata の不備は、`.k` の opcode、operand、result、control-flow target が valid である限り load error にしてはならない。`source.mappingId` が `debug.sourceMappings` に存在しない、line/column が `null`、related source が欠落しているなどの問題は warning または fallback 表示で扱う。ただし schema validator が strict debug validation mode を持つ場合は、golden test や compiler 品質検証として別途失敗扱いにしてよい。
 
 ### compile-time と runtime の境界
 
