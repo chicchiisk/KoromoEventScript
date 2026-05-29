@@ -8,7 +8,7 @@
   - _Requirements: 6.1, 6.2, 6.3, 6.4_
   - _Boundary: KIntermediateRepresentationSpec_
 
-- [ ] 1.2 `.k` の基本ファイル形式と互換性ポリシーを定義する
+- [x] 1.2 `.k` の基本ファイル形式と互換性ポリシーを定義する
   - `.k` の目的、拡張子、文字エンコーディング、改行、top-level document の識別情報を定義する。
   - `version` と `features` に基づく互換性判定を定義し、未知 major version と unsupported feature の期待動作を明記する。
   - 完了時には、VM/runtime が読み込み前に確認すべき version、feature、形式エラーの扱いを仕様文書上で追跡できる。

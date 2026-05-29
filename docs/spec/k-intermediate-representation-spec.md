@@ -7,7 +7,52 @@
 `.k` は CLI が `.ke` を解析・検証した後に生成し、VM と runtime がイベント実行時に参照する中間表現である。
 本仕様は、CLI、VM、runtime、debug tooling の実装者とレビュー担当者が、`.k` の責務境界と隣接仕様との関係を同じ前提で確認できるようにする。
 
-この文書の初期骨格では、`.k` 中間表現仕様が扱う範囲、扱わない範囲、参照すべき隣接仕様、現行用語と旧称の関係を定義する。具体的な file format、instruction schema、value model、source mapping、manifest 参照契約は後続タスクでこの文書へ追記する。
+この文書は段階的に拡張する。現時点では、`.k` 中間表現仕様が扱う範囲、扱わない範囲、参照すべき隣接仕様、現行用語と旧称の関係に加えて、基本 file format と compatibility policy を定義する。instruction schema、value model、source mapping、manifest 参照契約の詳細は後続タスクでこの文書へ追記する。
+
+## 基本ファイル形式
+
+_Requirements: 1.1, 1.3_
+
+`.k` は、`.ke` から生成される VM 実行用の中間表現ファイルである。拡張子は `.k` とし、runtime package や build output の中では `manifest.json` などの隣接成果物から参照される script artifact として扱う。
+
+`.k` の基本ファイル形式は次の通りである。
+
+| 項目 | 仕様 |
+|------|------|
+| 目的 | CLI / compiler が検証済み `.ke` を VM/runtime が読み込める実行契約へ正規化する。 |
+| 拡張子 | `.k`。旧称 `.klib` は新規仕様では使用しない。 |
+| 文字エンコーディング | UTF-8。BOM なしを正規形とする。VM/runtime は UTF-8 として復号できない `.k` を format load error として読み込み失敗にする。 |
+| 改行 | LF を正規形とする。CRLF は読み込み時に LF と同等に扱ってよいが、golden test や正規化出力では LF を用いる。 |
+| top-level document identification | top-level object の `format` に固定値 `koromo.k` を持つ。VM/runtime は `format` が存在しない、文字列でない、または `koromo.k` でない場合、format load error として読み込み失敗にする。 |
+
+`.k` document は top-level object として識別される。少なくとも compatibility 判定に必要な `format`、`version`、`features` を持つ。
+
+```json
+{
+  "format": "koromo.k",
+  "version": { "major": 1, "minor": 0, "patch": 0 },
+  "features": []
+}
+```
+
+`version` は `.k` document contract の互換性判定情報であり、`major`、`minor`、`patch` を非負整数として表す。`features` は、この `.k` を正しく読み込み、実行前検証するために VM/runtime が対応している必要がある feature identifier の配列である。feature identifier は ASCII の安定した文字列とし、具体的な feature 名は各 feature を導入する仕様更新で定義する。
+
+## 互換性ポリシー
+
+_Requirements: 1.1, 1.3_
+
+VM/runtime は `.k` の命令実行を開始する前に、少なくとも `format`、`version`、`features` を検証する。この pre-load check に失敗した `.k` は実行してはならない。
+
+| 検証対象 | 読み込み側の期待動作 |
+|----------|----------------------|
+| `format` | `koromo.k` 以外、欠落、型不一致、top-level object でない document は format load error として読み込み失敗にする。 |
+| `version.major` | VM/runtime が対応する major version と一致しない未知 major version は compatibility load error として読み込み失敗にする。 |
+| `version.minor` / `version.patch` | 対応 major の範囲内では後方互換を前提とする。ただし、読み込み側が必要な minor/patch 契約を満たせない場合は compatibility load error として読み込み失敗にし、必要 version を診断へ含める。 |
+| `features` | 配列内に未対応 feature が 1 つでも含まれる場合、unsupported feature の compatibility load error として読み込み失敗にする。診断には未対応 feature identifier を含める。 |
+
+未知 major version は、同名 field が存在しても意味論、命令 schema、値表現、source mapping、manifest 参照契約が互換とは限らないため、VM/runtime は推測して実行してはならない。unsupported feature も、読み込み側が該当 feature の検証規則または実行前提を保証できないことを意味するため、feature を無視して実行してはならない。
+
+Format errors と compatibility errors はどちらも load error であり、VM/runtime の命令実行前に発生する。Format errors は `.k` document として識別または復号できない問題、compatibility errors は document は識別できるが `version` または `features` の契約を読み込み側が満たせない問題として区別する。
 
 ## 対象読者
 
