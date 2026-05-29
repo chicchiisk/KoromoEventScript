@@ -54,6 +54,69 @@ VM/runtime は `.k` の命令実行を開始する前に、少なくとも `form
 
 Format errors と compatibility errors はどちらも load error であり、VM/runtime の命令実行前に発生する。Format errors は `.k` document として識別または復号できない問題、compatibility errors は document は識別できるが `version` または `features` の契約を読み込み側が満たせない問題として区別する。
 
+## document、module、import、実行単位
+
+_Requirements: 1.2, 2.5, 5.1, 5.2_
+
+`.k` document は 1 つの VM 実行単位を表す。基本方針として、1 つの `.k` document は 1 つの `.ke` 入力から生成され、その `.ke` を主 module として持つ。複数ファイル project では、import された `.ke` は主 module と同じ `.k` document に埋め込まれるのではなく、各 import 元 `.ke` から生成された別の `.k` document として扱う。VM/runtime は `manifest.json` が列挙する script 情報と `.k` document 内の module/import 情報を照合し、実行開始前に必要な module 群を解決する。
+
+### 単一 `.ke` 入力
+
+単一ファイル project では、`.k` document の `module` は生成元 `.ke` と 1 対 1 に対応する。
+
+| 項目 | 仕様 |
+|------|------|
+| `module.moduleId` | `.k` document 内で主 module を識別する安定 ID。compiler が生成し、同一 build 内で一意でなければならない。 |
+| `module.scriptId` | manifest の scripts 一覧が `.k` artifact を参照するための ID。VM/runtime は manifest 側の script entry と `.k` 側の `module.scriptId` が一致することを確認する。 |
+| `module.sourcePath` | project root から見た生成元 `.ke` の正規化 path。表示、diagnostic、manifest 照合に使う。 |
+| `module.entryLabel` | `.kel` entry または chapter がこの `.k` を開始する場合の既定 label。entry を持たない通常 module では `null` を許容する。 |
+| `imports` | import 先がない場合は空配列。省略せず空配列を正規形とする。 |
+| `labels` | この `.k` document 内で実行開始点または jump 先になり得る label から instruction index への解決済み mapping。 |
+
+単一ファイル project の VM 実行開始位置は、manifest の entry が参照する `scriptId` と任意の `entryLabel` を `.k` の `module.scriptId`、`labels` に照合して決定する。manifest entry/chapter が明示的な `entryLabel` を指定する場合、`labels[entryLabel]` は有効な instruction index を指さなければならない。manifest entry/chapter が label を指定しない場合、既定開始位置は参照先 `scriptId` の `.k` document における instruction index `0` とする。`module.entryLabel` は entry を持たない通常 module のために `null` を許容するが、manifest が明示した label の解決失敗を隠す fallback として使ってはならない。
+
+### 複数ファイル project と import
+
+複数ファイル project では、各 `.ke` 入力ごとに 1 つの `.k` document を生成する。import された `.ke` は import 元 `.k` の命令列へ暗黙に連結されず、`imports` によって別 module として参照される。これにより、VM の instruction index は `.k` document ごとに局所的に安定し、save/debug/manifest 照合は `scriptId` と instruction index の組で実行位置を特定できる。
+
+`imports` の各要素は次の情報を持つ。
+
+| 項目 | 仕様 |
+|------|------|
+| `moduleId` | import 先 module の安定 ID。import 元 `.k` の `module.moduleId` と異なる値でなければならない。 |
+| `scriptId` | import 先 module を含む `.k` artifact を manifest から解決するための ID。 |
+| `sourcePath` | import 宣言が解決した `.ke` の正規化 path。 |
+| `importPath` | `.ke` 内の import 宣言で使われた path または module specifier。正規化前の読者向け情報として保持してよい。 |
+| `entryLabel` | import 先を VM が直接開始できる場合の label。単なる共有定義 module では `null` を許容する。 |
+
+compiler は `.k` 生成前に import graph を解決し、循環 import、未解決 path、重複 module ID などの compile error を処理する。VM/runtime は import 解決をやり直さず、`.k` の `imports[].scriptId` が manifest に存在し、該当 `.k` の `module.moduleId` と `module.scriptId` が `imports` の参照と一致することだけを検証する。
+
+import 先 module の label を参照する実行開始や cross-module jump が許可される場合、その参照は `scriptId` と `label` の組で表す。runtime は manifest から `scriptId` に対応する `.k` artifact を読み込み、その `.k` の `labels[label]` を instruction index へ解決する。未解決 label name を runtime が探索したり、source path 文字列だけで module を推測したりしてはならない。
+
+### manifest と VM が共有する識別子
+
+`manifest.json` は build output に含まれる `.k` artifact の列挙、entry/chapter、asset、locale、runtime metadata を所有する。一方 `.k` は VM 実行に必要な module、imports、labels、instruction index を所有する。両者の共有点は ID/key/path の参照に限定し、同じ metadata を重複して完全複製しない。
+
+| 識別子 | 所有元 | `.k` での扱い | manifest との関係 |
+|--------|--------|---------------|-------------------|
+| `moduleId` | `.k` | `.k` document 内の主 module と import 先 module の識別に使う。 | manifest が module 単位の表示や診断情報を持つ場合は同じ値を参照してよい。 |
+| `scriptId` | manifest | `.k` の `module.scriptId` と `imports[].scriptId` として参照する。 | manifest の scripts 一覧が `.k` artifact path と entry/chapter の参照先として所有する。 |
+| `sourcePath` | compiler / `.k` | 生成元 `.ke` または import 解決後 `.ke` の正規化 path。 | manifest の script path と照合できるが、artifact 配置 path の所有元は manifest とする。 |
+| `entryLabel` | `.kel` / manifest | `.k` の `module.entryLabel` または `imports[].entryLabel` として開始 label を示す。`null` の場合は label なしの module を表す。 | manifest の entry/chapter は `scriptId` と任意の `entryLabel` の組で VM 開始位置を参照する。label が省略された場合は instruction index `0` から開始する。 |
+| `imports` | `.k` | import graph の解決済み参照を保持する。 | manifest は `imports[].scriptId` の `.k` artifact を列挙していなければならない。 |
+| `labels` | `.k` | label name から instruction index への mapping を保持する。 | manifest は label の命令位置を複製せず、entry/chapter から label name を参照する。 |
+
+manifest entry から VM 実行単位への解決順序は次の通りである。
+
+1. runtime は manifest の entry/chapter から `scriptId` と任意の `entryLabel` を読む。
+2. runtime は manifest の scripts 一覧から `scriptId` に対応する `.k` artifact を読み込む。
+3. VM/runtime は `.k` の `module.scriptId` が manifest の `scriptId` と一致することを検証する。
+4. manifest entry/chapter が明示的な `entryLabel` を持つ場合、VM/runtime はその `entryLabel` が `.k` の `labels` に存在し、有効な instruction index を指すことを検証する。明示された `entryLabel` が `labels` に存在しない場合は manifest integration error として実行開始前に失敗する。
+5. manifest entry/chapter が `entryLabel` を指定しない場合、VM/runtime は instruction index `0` を開始位置として使う。
+6. VM は `scriptId` と instruction index の組を実行開始位置として扱う。
+
+この契約により、単一 `.ke` project では 1 つの `scriptId` と 1 つの `.k` artifact だけで実行単位を説明できる。複数ファイル project では、manifest の scripts 一覧が複数の `.k` artifact を列挙し、各 `.k` の `imports` が import 先 `scriptId` を参照することで、import 済み module と VM 実行単位の関係を説明できる。
+
 ## 対象読者
 
 - `.ke` から `.k` を生成する CLI / compiler 関連機能の設計者と実装者。

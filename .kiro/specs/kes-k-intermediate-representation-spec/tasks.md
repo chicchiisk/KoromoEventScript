@@ -16,7 +16,7 @@
   - _Boundary: KIntermediateRepresentationSpec_
 
 - [ ] 2. Core: VM execution contract を `.k` 仕様として定義する
-- [ ] 2.1 `.k` document、module、import、実行単位の表現を定義する
+- [x] 2.1 `.k` document、module、import、実行単位の表現を定義する
   - `.k` が単一 `.ke` 入力に対応する基本方針と、複数ファイル project で import 済み `.ke` が実行単位へ反映される方針を定義する。
   - module id、script id、source path、entry label、imports、labels など、VM と manifest が共通で参照する識別情報を整理する。
   - 完了時には、単一ファイルと複数ファイル project のどちらでも `.k` と import 済み module の関係を説明できる。
