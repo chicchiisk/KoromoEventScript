@@ -7,7 +7,7 @@
 `.k` は CLI が `.ke` を解析・検証した後に生成し、VM と runtime がイベント実行時に参照する中間表現である。
 本仕様は、CLI、VM、runtime、debug tooling の実装者とレビュー担当者が、`.k` の責務境界と隣接仕様との関係を同じ前提で確認できるようにする。
 
-この文書は段階的に拡張する。現時点では、`.k` 中間表現仕様が扱う範囲、扱わない範囲、参照すべき隣接仕様、現行用語と旧称の関係に加えて、基本 file format、compatibility policy、document/module/import、instruction schema、主要 opcode 群、value model、variable/scope、execution state reference、source mapping と debug metadata を定義する。manifest 参照契約の詳細は後続タスクでこの文書へ追記する。
+この文書は段階的に拡張する。現時点では、`.k` 中間表現仕様が扱う範囲、扱わない範囲、参照すべき隣接仕様、現行用語と旧称の関係に加えて、基本 file format、compatibility policy、document/module/import、instruction schema、主要 opcode 群、value model、variable/scope、execution state reference、source mapping と debug metadata、manifest 参照契約、最小正規化例を定義する。
 
 ## 基本ファイル形式
 
@@ -508,6 +508,121 @@ _Requirements: 3.4_
 - platform state、保存済み variable state、runtime が所有する asset/locale の実体。
 
 この境界により、`.k` は build 時に検証できる名前、型、タグ、参照を VM 実行用 ID へ正規化し、実行時にしか確定しない値だけを runtime dynamic value として残す。VM/runtime は `.k` load 後に compiler の名前解決を再実行しない。
+
+## manifest 参照契約と最小正規化例
+
+_Requirements: 1.4, 5.1, 5.2, 5.3, 5.4_
+
+`manifest.json` は runtime package の目録であり、entry、scripts、assets、locale、runtime metadata、build metadata を所有する。`.k` は VM が実行する document であり、instruction、labels、module/import、source mapping、operand に含まれる参照 ID/key を所有する。`.k` は manifest の詳細 schema を複製せず、`manifestRefs` と operand reference によって、manifest が所有する実体を安定 ID/key/path で指す。
+
+| manifest が所有する情報 | `.k` が所有する情報 | 参照契約 |
+|--------------------------|--------------------|----------|
+| `entry` / `chapters` | `module.scriptId`、`labels`、instruction index | manifest は開始対象の `scriptId` と任意の `entryLabel` を持つ。VM/runtime は `.k` の `module.scriptId` と `labels[entryLabel]` を照合し、開始位置を `scriptId` と instruction index に正規化する。 |
+| `scripts` | `module.sourcePath`、`module.scriptId`、`imports[].scriptId` | manifest は script ID、生成元 `.ke` の script path、`.k` artifact path、hash などの配布 metadata を所有する。`.k` は `module.scriptId` と `module.sourcePath` を持ち、artifact path や hash を所有しない。 |
+| `assets` | `assetRef` operand、`manifestRefs.assets[]` | manifest は asset ID、実ファイル path、hash、platform variant、preload 方針を所有する。`.k` は asset ID だけを参照し、asset path や variant 選択を複製しない。 |
+| `locale` | `localeKey` operand、`manifestRefs.localeKeys[]` | manifest または locale dictionary は locale key と翻訳文字列、fallback、利用可能 locale を所有する。`.k` は locale key を参照し、表示文字列本体を必須契約として複製しない。 |
+| `runtime` metadata | `__systemcall__`、`runtimeDynamic`、runtime call operand | manifest は対象 runtime、platform、runtime package version、capability などを所有する。`.k` は syscall ID、typed args、runtime dynamic value の境界を持ち、runtime package metadata を所有しない。 |
+| `build` metadata | `format`、`version`、`features`、`debug` | manifest は build ID、compiler version、target、artifact hash、生成時刻などを所有する。`.k` は VM load に必要な format/version/features と debug metadata を持つが、build provenance 全体は所有しない。 |
+
+`manifestRefs` は human review、strict validation、将来の golden test で manifest との照合対象を読みやすくするための top-level field である。正規形では、`.k` が参照する script、asset、locale key の集合を重複なしの配列として持つ。VM 実行意味は各 instruction の operand と `module` / `imports` / `labels` から決まるため、`manifestRefs` は参照一覧であり、asset path、locale text、runtime/build metadata の実体を含めてはならない。
+
+| Field | 必須 | 仕様 |
+|-------|------|------|
+| `manifestRefs.entry` | 任意 | この `.k` が manifest entry/chapter から直接開始される場合の `scriptId` と任意の `entryLabel`。entry を持たない library-like module では `null` を許容する。 |
+| `manifestRefs.scripts` | 必須 | `.k` が直接照合する script 参照の配列。少なくとも自身の `module.scriptId` を含め、import がある場合は `imports[].scriptId` も含める。 |
+| `manifestRefs.assets` | 必須 | operand に現れる asset ID の重複なし配列。asset を参照しない場合は空配列を正規形とする。 |
+| `manifestRefs.localeKeys` | 必須 | operand に現れる locale key の重複なし配列。locale key を参照しない場合は空配列を正規形とする。 |
+| `manifestRefs.runtime` | 任意 | runtime capability や syscall namespace の照合に必要な最小参照。runtime package の完全 metadata は manifest が所有する。 |
+
+`.k` 内の script path、asset ID、locale key は次のように manifest と対応する。
+
+- `.k` の `module.sourcePath` と `imports[].sourcePath` は、manifest の scripts entry が持つ生成元 script path と照合する。`.k` artifact の出力 path は manifest の scripts entry が所有するため、`.k` は artifact path を正規契約として持たない。
+- `.k` の `module.scriptId`、`imports[].scriptId`、cross-module target の `targetScriptId` は、manifest の scripts entry ID と一致しなければならない。存在しない `scriptId` は manifest integration error として実行開始前に失敗する。
+- `.k` の `{ "kind": "assetRef", "id": "..." }` と `manifestRefs.assets[]` は、manifest の assets entry ID と一致しなければならない。runtime は asset ID から path、variant、load policy を manifest 側で解決する。
+- `.k` の `{ "kind": "localeKey", "key": "..." }` と `manifestRefs.localeKeys[]` は、manifest または locale dictionary が所有する locale key と一致しなければならない。runtime は locale key から表示文字列を解決し、`.k` 内の debug text を fallback 実行意味として使ってはならない。
+
+次は human review と将来の golden test に使える最小の正規化 `.k` 例である。field order は `format`、`version`、`features`、`module`、`imports`、`instructions`、`labels`、`manifestRefs`、`debug` を正規形とし、空の `imports`、`manifestRefs.assets` は省略しない。
+
+```json
+{
+  "format": "koromo.k",
+  "version": { "major": 1, "minor": 0, "patch": 0 },
+  "features": [],
+  "module": {
+    "moduleId": "module.main",
+    "scriptId": "script.main",
+    "sourcePath": "events/main.ke",
+    "entryLabel": "start"
+  },
+  "imports": [],
+  "instructions": [
+    {
+      "index": 0,
+      "op": "label",
+      "args": { "name": "start", "public": true },
+      "result": null,
+      "source": { "mappingId": "events/main.ke:1:1" }
+    },
+    {
+      "index": 1,
+      "op": "say",
+      "args": {
+        "speaker": { "kind": "actorRef", "id": "actor.hero" },
+        "text": { "kind": "localeKey", "key": "main.opening.hello" },
+        "voice": { "kind": "assetRef", "id": "voice.hero.hello" }
+      },
+      "result": null,
+      "source": { "mappingId": "events/main.ke:2:1" }
+    }
+  ],
+  "labels": {
+    "start": 0
+  },
+  "manifestRefs": {
+    "entry": {
+      "scriptId": "script.main",
+      "entryLabel": "start"
+    },
+    "scripts": [
+      {
+        "scriptId": "script.main",
+        "sourcePath": "events/main.ke"
+      }
+    ],
+    "assets": [
+      "voice.hero.hello"
+    ],
+    "localeKeys": [
+      "main.opening.hello"
+    ],
+    "runtime": {
+      "requiredCapabilities": []
+    }
+  },
+  "debug": {
+    "moduleDisplayName": "main",
+    "fileDisplayName": "main.ke",
+    "sourceMappings": {
+      "events/main.ke:1:1": {
+        "file": "events/main.ke",
+        "line": 1,
+        "column": 1,
+        "kind": "statement",
+        "displayText": "label start"
+      },
+      "events/main.ke:2:1": {
+        "file": "events/main.ke",
+        "line": 2,
+        "column": 1,
+        "kind": "textBody",
+        "displayText": "hero: main.opening.hello"
+      }
+    }
+  }
+}
+```
+
+この例では、manifest の scripts entry が `script.main`、`events/main.ke`、`.k` artifact path、hash を所有する。`.k` は `script.main` と `events/main.ke` を照合用に持つだけで、artifact path と hash を複製しない。同様に、`voice.hero.hello` のファイル path や platform variant、`main.opening.hello` の翻訳文字列、runtime/build metadata の詳細は manifest または隣接成果物が所有する。
 
 ## 対象読者
 

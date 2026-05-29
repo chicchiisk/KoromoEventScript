@@ -49,7 +49,7 @@
   - _Requirements: 4.1, 4.2, 4.3, 4.4_
   - _Boundary: KIntermediateRepresentationSpec_
 
-- [ ] 2.5 manifest 参照契約と最小正規化例を追加する
+- [x] 2.5 manifest 参照契約と最小正規化例を追加する
   - manifest が所有する entry、scripts、assets、locale、runtime、build metadata と、`.k` が所有する VM execution contract の境界を定義する。
   - `.k` 内の script path、asset ID、locale key が manifest 上の情報へどのように対応するかを定義する。
   - `format`、`version`、`features`、`module`、`instructions`、`labels`、`manifestRefs`、`debug` を含む最小の正規化例を追加する。
