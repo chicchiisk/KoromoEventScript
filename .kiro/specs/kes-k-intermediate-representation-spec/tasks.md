@@ -75,7 +75,7 @@
   - _Requirements: 3.3, 5.1, 5.2, 5.3, 5.4, 6.1, 6.2, 6.4_
   - _Boundary: RuntimeSpecTerminologyNote_
 
-- [ ] 3.3 (P) overview から `.k` 仕様と現行用語へ到達できるようにする
+- [x] 3.3 (P) overview から `.k` 仕様と現行用語へ到達できるようにする
   - `docs/spec/overview.md` の workflow または仕様一覧に `.k` 中間表現仕様を追加する。
   - overview に残る `.kc` / `.klib` 表記について、現行仕様では `.ke` / `.k` を正とする注記を追加する。
   - 完了時には、overview を起点に `.ke` / `.k` の現行用語と `.k` 詳細仕様の場所を確認できる。
