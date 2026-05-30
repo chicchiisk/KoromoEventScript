@@ -26,7 +26,7 @@
 - `kes build --check-only` の warning diagnostics 出力 contract。
 - CLI option `--warnings-as-errors` と `kes.xml` の `Build.WarningsAsErrors` を検証設定へ反映する contract。
 - warning-only 結果を `CliExitCode.WarningsAsErrors` へ昇格する policy。
-- 最小 warning producer として、空の `.ke` ドキュメントを `KES4001` warning として報告する semantic warning stage。
+- 最小 warning producer として、空の `.kc` ドキュメントを `KES4001` warning として報告する semantic warning stage。
 
 ### Out of Boundary
 
@@ -56,7 +56,7 @@
 
 ### Existing Architecture Analysis
 
-`CliApplication` は build 引数を parse し、`BuildCheckOnlyCommand.Execute` の結果 diagnostics を `DiagnosticSink` で標準エラーへ出力する。`BuildCheckOnlyCommand` は project root、`kes.xml`、`.kel` / `.ke` parse、semantic analysis の順に検証し、最初に失敗した stage の exit code を返す。
+`CliApplication` は build 引数を parse し、`BuildCheckOnlyCommand.Execute` の結果 diagnostics を `DiagnosticSink` で標準エラーへ出力する。`BuildCheckOnlyCommand` は project root、`kes.xml`、`.kel` / `.kc` parse、semantic analysis の順に検証し、最初に失敗した stage の exit code を返す。
 
 warning 表示自体は formatter / sink に存在するが、build flow に warning-only を成功または warning-as-error として集約する policy がない。また、`CliExitCode` は公開仕様上の `9` をまだ持たない。
 
@@ -140,7 +140,7 @@ tests/KoromoEventScript.Cli.Tests/
 ### Created Files
 
 - `source/cli/KoromoEventScript.Cli/Commands/Build/WarningPolicy.cs` — diagnostics、現在の exit code、warnings-as-errors flag から最終 exit code を決める。
-- `source/cli/KoromoEventScript.Cli/Semantics/WarningAnalyzer.cs` — 空 `.ke` ドキュメントに `KES4001` warning を生成する。
+- `source/cli/KoromoEventScript.Cli/Semantics/WarningAnalyzer.cs` — 空 `.kc` ドキュメントに `KES4001` warning を生成する。
 - `tests/KoromoEventScript.Cli.Tests/Commands/WarningPolicyTests.cs` — warning-only 昇格と既存 error 優先を検証する。
 - `tests/KoromoEventScript.Cli.Tests/Semantics/WarningAnalyzerTests.cs` — `KES4001` warning の生成条件を検証する。
 
@@ -259,7 +259,7 @@ public sealed class WarningPolicy
 **Responsibilities & Constraints**
 
 - import、definition、name、type checking が成功した後に実行する。
-- 空の `.ke` ドキュメントを `KES4001` warning として報告する。
+- 空の `.kc` ドキュメントを `KES4001` warning として報告する。
 - 警告だけを持つ場合、semantic result の exit code は `Success` のままにする。
 - compile error の代替として warning を出さない。
 
@@ -283,7 +283,7 @@ public sealed record WarningAnalysisResult(IReadOnlyList<Diagnostic> Diagnostics
 ```
 
 - Preconditions: `graph` は null でない。
-- Postconditions: 空 `.ke` document には `DiagnosticLevel.Warning`, `KES4001` が返る。
+- Postconditions: 空 `.kc` document には `DiagnosticLevel.Warning`, `KES4001` が返る。
 - Invariants: warning diagnostics は `CliExitCode` を直接持たない。
 
 ### CLI / ProjectSystem
@@ -353,7 +353,7 @@ public sealed record WarningAnalysisResult(IReadOnlyList<Diagnostic> Diagnostics
 - `WarningPolicyTests`: warning-only + warnings-as-errors false は `Success` を返す。
 - `WarningPolicyTests`: warning-only + warnings-as-errors true は `WarningsAsErrors` を返す。
 - `WarningPolicyTests`: `SyntaxError`, `CompileError`, `FileOrDirectoryError` は warning と flag に関係なく維持する。
-- `WarningAnalyzerTests`: 空 `.ke` document で `KES4001`, `DiagnosticLevel.Warning`, file/line/column/message を返す。
+- `WarningAnalyzerTests`: 空 `.kc` document で `KES4001`, `DiagnosticLevel.Warning`, file/line/column/message を返す。
 - `ProjectConfigLoaderTests`: `Build.WarningsAsErrors` true / false / omitted の読み取りを固定する。
 
 ### Integration Tests

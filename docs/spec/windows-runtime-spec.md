@@ -13,9 +13,9 @@ KoromoEventScript Runtime は、Windows 11 上で KoromoEventScript のビルド
 - 配布用プレイヤーとして、一般ユーザーが `kes publish --target windows` の成果物を起動して遊べることを優先する。
 - 開発時には `kes run` から起動され、ビルド成果物の確認にも利用できる。
 - ランタイムは `.kc` / `.kel` の生ソースを直接実行しない。
-- ランタイムは CLI が生成した `.k`、`manifest.json`、素材、ローカライズ辞書を読み込み、VM を通じてイベントを実行する。
-- `.k` は現行の VM 実行用中間表現であり、ファイル形式、instruction schema、manifest 参照契約は [`.k` 中間表現仕様](k-intermediate-representation-spec.md)に従う。
-- `.klib` は旧称または移行前の表記として扱い、新規仕様と新規成果物では `.k` を正とする。
+- ランタイムは CLI が生成した `.klib`、`manifest.json`、素材、ローカライズ辞書を読み込み、VM を通じてイベントを実行する。
+- `.klib` は現行の VM 実行用中間表現であり、ファイル形式、instruction schema、manifest 参照契約は [`.klib` 中間表現仕様](k-intermediate-representation-spec.md)に従う。
+- `.klib` は旧称または移行前の表記として扱い、新規仕様と新規成果物では `.klib` を正とする。
 
 ## 用語
 
@@ -23,10 +23,10 @@ KoromoEventScript Runtime は、Windows 11 上で KoromoEventScript のビルド
 |---|---|
 | Windows ランタイム | Windows 11 向けの KoromoEventScript 単体実行基盤 |
 | プレイヤー | 配布物内の実行アプリケーション |
-| VM | `.k` ファイルを読み取り、イベントスクリプトを実行する仮想マシン |
-| `.k` | CLI が生成する VM 実行用中間表現。詳細は [`.k` 中間表現仕様](k-intermediate-representation-spec.md)で定義する |
-| `.klib` | `.k` の旧称または移行前表記。現行仕様では `.k` を正とする |
-| manifest | CLI が生成する `manifest.json`。入力ファイル、`.k`、素材、ローカライズ情報を含む |
+| VM | `.klib` ファイルを読み取り、イベントスクリプトを実行する仮想マシン |
+| `.klib` | CLI が生成する VM 実行用中間表現。詳細は [`.klib` 中間表現仕様](k-intermediate-representation-spec.md)で定義する |
+| `.klib` | `.klib` の旧称または移行前表記。現行仕様では `.klib` を正とする |
+| manifest | CLI が生成する `manifest.json`。入力ファイル、`.klib`、素材、ローカライズ情報を含む |
 | 制作座標系 | シナリオ演出と UI 配置の基準となる論理座標 |
 | 表示座標系 | 実際のウィンドウまたはフルスクリーン上の物理表示領域 |
 | 画面状態 | 背景、立ち絵、UI、選択肢、トランジション状態など、表示を復元するための状態 |
@@ -51,7 +51,7 @@ Windows ランタイムは、次の責務を持つモジュールから構成す
 | モジュール | 役割 |
 |---|---|
 | 起動制御 | コマンドライン引数、設定、manifest を読み込み、ランタイムを初期化する |
-| VM 実行 | `.k` を読み込み、命令列を実行する |
+| VM 実行 | `.klib` を読み込み、命令列を実行する |
 | リソース管理 | manifest に基づいて画像、音声、ローカライズ辞書を解決する |
 | 描画 | Win2D により背景、actor、トランジション、UI を描画する |
 | 音声 | BGM、SE、Voice の再生、停止、音量制御を行う |
@@ -92,8 +92,8 @@ Windows ランタイムは、次のファイルを入力として扱う。
 
 | ファイル | 用途 |
 |---|---|
-| `manifest.json` | 実行に必要な `.k`、素材、ローカライズ辞書、メタ情報を定義する |
-| `.k` | VM が実行する中間表現 |
+| `manifest.json` | 実行に必要な `.klib`、素材、ローカライズ辞書、メタ情報を定義する |
+| `.klib` | VM が実行する中間表現 |
 | 画像素材 | 背景、actor、UI 部品、トランジション素材 |
 | 音声素材 | BGM、SE、Voice |
 | ローカライズ辞書 | 表示テキスト、UI 文言、ロケール差分 |
@@ -110,15 +110,15 @@ Windows ランタイムは、次のファイルを入力として扱う。
 |---|---|
 | project | プロジェクト名、バージョン |
 | entry | エントリポイントとなる `.kel` または VM 実行情報 |
-| scripts | 実行対象の `.k` 一覧。各 script は `.k` の `module.scriptId`、script path、entry label と対応する |
+| scripts | 実行対象の `.klib` 一覧。各 script は `.klib` の `module.scriptId`、script path、entry label と対応する |
 | assets | 素材 ID、種別、相対パス、メタ情報 |
 | locale | 利用可能なロケール、既定ロケール、辞書パス |
 | runtime | ウィンドウ初期値、制作座標系、起動設定 |
 | build | CLI バージョン、ビルド日時、ターゲット |
 
 manifest 内の相対パスは、manifest が置かれたディレクトリを基準に解決する。
-manifest は `.k` を列挙または参照し、`.k` 内の script path、asset ID、locale key を配布物内の script path、素材パス、ローカライズ辞書へ解決する。
-`.k` 側は VM 実行契約と安定識別子を持ち、manifest 側は配布パス、asset metadata、locale metadata を所有する。
+manifest は `.klib` を列挙または参照し、`.klib` 内の script path、asset ID、locale key を配布物内の script path、素材パス、ローカライズ辞書へ解決する。
+`.klib` 側は VM 実行契約と安定識別子を持ち、manifest 側は配布パス、asset metadata、locale metadata を所有する。
 
 ## 画面と描画
 
@@ -271,7 +271,7 @@ v1 では、通常セーブ、ロード、オートセーブ、既読情報、�
 
 | 項目 | 内容 |
 |---|---|
-| VM 状態 | 実行中の `.k` の script id、instruction index、コールスタック、変数 |
+| VM 状態 | 実行中の `.klib` の script id、instruction index、コールスタック、変数 |
 | 制御状態 | 選択履歴、ジャンプ履歴、現在のロケール |
 | 画面状態 | 背景、actor、表情、位置、表示中テキスト、選択肢 |
 | 音声状態 | BGM、必要に応じた Voice の再開情報 |
@@ -279,7 +279,7 @@ v1 では、通常セーブ、ロード、オートセーブ、既読情報、�
 | メタ情報 | セーブ日時、表示名、サムネイル、ランタイムバージョン |
 
 ロード直後は、ユーザーがセーブした時点と同じ画面へ戻ることを基本とする。
-セーブデータが保持する VM 位置は、配布物上のファイルパスだけに依存せず、`.k` 上の script id と instruction index を安定参照として扱う。
+セーブデータが保持する VM 位置は、配布物上のファイルパスだけに依存せず、`.klib` 上の script id と instruction index を安定参照として扱う。
 タグ、選択肢復帰位置、分岐復帰位置も、ビルド時に解決された label と instruction index を基準に復元する。
 
 ### セーブ保存先
@@ -324,14 +324,14 @@ v1 では、通常セーブ、ロード、オートセーブ、既読情報、�
 | 項目 | 内容 |
 |---|---|
 | FPS | 描画フレームレート |
-| VM 位置 | 実行中の `.k` の script id、instruction index、タグ |
+| VM 位置 | 実行中の `.klib` の script id、instruction index、タグ |
 | リソース | 読み込み済み素材、未解決素材 |
 | 音声 | 再生中チャンネル、音量 |
 | 入力 | 直近の入力イベント |
 | ログ | 実行時警告、エラー、プロファイル情報 |
 
 `--profile` が指定された場合は、描画時間、VM 実行時間、素材読み込み時間などの計測情報を収集する。
-デバッグ表示やログで元 `.ke` の file、line、column を示す場合は、`.k` の source mapping を参照する。
+デバッグ表示やログで元 `.kc` の file、line、column を示す場合は、`.klib` の source mapping を参照する。
 source mapping が存在しない場合は、script id と instruction index を fallback 表示として扱う。
 
 ## エラーと終了コード
@@ -348,7 +348,7 @@ Windows ランタイムは、終了時に CLI の終了コード体系と整合�
 | `7` | ランタイム起動エラー |
 
 manifest が存在しない、または読み込めない場合は起動エラーとする。
-manifest に記載された必須 `.k` が存在しない場合は入出力エラーとする。
+manifest に記載された必須 `.klib` が存在しない場合は入出力エラーとする。
 命令実行中に素材が読み込めない場合は、命令の重要度に応じて警告または実行時エラーとする。
 
 ## 配布成果物
@@ -363,7 +363,7 @@ dist/
             data/
                 manifest.json
                 events/
-                    chapter001.k
+                    chapter001.klib
                 assets/
                 locale/
             licenses/
@@ -374,7 +374,7 @@ dist/
 |---|---|
 | `MyProject.exe` | 配布用プレイヤー |
 | `data/manifest.json` | ランタイム入力 manifest |
-| `data/events/` | `.k` ファイル |
+| `data/events/` | `.klib` ファイル |
 | `data/assets/` | 画像、音声、UI 素材 |
 | `data/locale/` | ローカライズ辞書 |
 | `licenses/` | ランタイム、ライブラリ、素材のライセンス情報 |

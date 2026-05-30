@@ -18,7 +18,7 @@ Issue: https://github.com/chicchiisk/KoromoEventScript/issues/21
 
 ## Scope
 - **In**: 未定義の変数、actor、label、関数参照の診断、参照箇所を指す位置情報、既存 CLI 診断出力と `kes build --check-only` への統合、import 済み定義を含む既存定義情報の利用。
-- **Out**: 型検査、式評価、オーバーロード解決、IR / `.k` 生成、runtime 起動、VS Code Language Server 実装、新しい参照構文の追加、import 解決ルールの変更、重複定義診断の仕様変更。
+- **Out**: 型検査、式評価、オーバーロード解決、IR / `.klib` 生成、runtime 起動、VS Code Language Server 実装、新しい参照構文の追加、import 解決ルールの変更、重複定義診断の仕様変更。
 
 ## Boundary Candidates
 - 定義収集結果を読む参照解決レイヤーと、定義収集そのものの責務を分ける。
@@ -33,7 +33,7 @@ Issue: https://github.com/chicchiisk/KoromoEventScript/issues/21
 - 構文エラーや import エラーが先に発生する場合の stage ordering は既存仕様に従い、この仕様では変更しない。
 
 ## Upstream / Downstream
-- **Upstream**: `.ke` 構文解析、`kes-definition-collection` のスコープ付き定義情報、`kes-import-resolution` の import 依存関係と import 済み定義、既存 CLI 診断基盤。
+- **Upstream**: `.kc` 構文解析、`kes-definition-collection` のスコープ付き定義情報、`kes-import-resolution` の import 依存関係と import 済み定義、既存 CLI 診断基盤。
 - **Downstream**: 型検査、関数呼び出し検査、Language Server の参照診断、将来の補完や go-to-definition。
 
 ## Existing Spec Touchpoints

@@ -8,16 +8,16 @@
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 3.5, 5.3, 5.4, 5.5_
 
 - [x] 1.2 import 成功、未存在、あいまい、循環、構文エラー、名前解決失敗を表すテストプロジェクトを追加する
-  - `.ke` を正規入力として含め、既存互換の `.kc` 入力も検証できる fixture を用意する
+  - `.kc` を正規入力として含め、既存互換の `.kc` 入力も検証できる fixture を用意する
   - 複数ディレクトリ、同名ファイル、複数 import 経路、未 import 定義参照を再現できる構成にする
   - 完了時には、単体テストと build check-only 統合テストが同じ fixture を読み込み、各失敗分類を再現できる
   - _Requirements: 1.2, 1.3, 1.5, 2.2, 2.3, 3.1, 3.3, 3.4, 4.3, 4.5, 5.1, 5.4_
 
 - [ ] 2. Core: import 対象解決と依存関係構築を実装する
 - [x] 2.1 (P) プロジェクト基準で import モジュール名から入力ファイルを特定する
-  - `Paths.Events` 配下の `.ke` と既存互換 `.kc` を走査し、拡張子なしファイル名をモジュールキーとして扱う
+  - `Paths.Events` 配下の `.kc` と既存互換 `.kc` を走査し、拡張子なしファイル名をモジュールキーとして扱う
   - 一致なし、単一一致、複数一致を区別し、複数一致では project-relative path を診断材料として保持する
-  - 完了時には、異なるディレクトリの import 先が project root 基準で解決され、同名 `.ke` / `.kc` はあいまいとして検出される
+  - 完了時には、異なるディレクトリの import 先が project root 基準で解決され、同名 `.kc` / `.kc` はあいまいとして検出される
   - _Requirements: 1.1, 1.2, 1.3, 1.5_
   - _Boundary: ModuleFileIndex_
 
@@ -31,7 +31,7 @@
 - [x] 2.3 import 文をたどって未解析ファイルを読み込み、import グラフまたは import 診断を返す
   - 構文解析済み root から import 文を走査し、未解析の import 先だけを読み込む
   - 未存在、あいまい、読み取り不可、import 先構文エラー、循環を既存診断形式へ分類する
-  - 完了時には、複数の import 診断が検査順序に従って返り、`.k`、manifest、runtime 成果物がなくても解析が完了する
+  - 完了時には、複数の import 診断が検査順序に従って返り、`.klib`、manifest、runtime 成果物がなくても解析が完了する
   - _Requirements: 1.1, 1.4, 1.5, 2.1, 2.2, 2.3, 2.4, 2.5, 3.1, 3.2, 3.3, 3.4, 3.5_
   - _Depends: 2.1, 2.2_
 
@@ -74,7 +74,7 @@
 
 - [x] 4.3 import なし既存プロジェクトと既存 `.kc` fixture の互換性を維持する
   - import 文を持たない最小プロジェクトでは意味解析追加後も成功終了する
-  - `.ke` を正規として扱いつつ、現行 testdata の `.kc` script も build check-only 入力として扱える状態を保つ
+  - `.kc` を正規として扱いつつ、現行 testdata の `.kc` script も build check-only 入力として扱える状態を保つ
   - 完了時には、既存の minimal project と既存 parser/CLI fixture が import 成果物なしで成功する
   - _Requirements: 1.2, 2.5, 5.2_
   - _Depends: 4.1_

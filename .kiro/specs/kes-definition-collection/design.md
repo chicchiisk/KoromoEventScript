@@ -16,7 +16,7 @@
 ### Non-Goals
 
 - 完全な型検査、式評価、オーバーロード解決、enum member 型検査。
-- IR / `.k` 生成、manifest 生成、runtime 起動。
+- IR / `.klib` 生成、manifest 生成、runtime 起動。
 - STL 組み込み定義の完全登録。
 - VS Code Language Server の定義ジャンプ、補完、診断実装。
 - import モジュール探索、循環 import、タグ制御フロー検査の仕様変更。

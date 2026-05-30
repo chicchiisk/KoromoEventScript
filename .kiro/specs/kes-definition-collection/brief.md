@@ -19,7 +19,7 @@ CLI 利用者とコンパイラ開発者は、`actor`、`fn`、`class`、`enum`�
 ## Scope
 
 - **In**: `actor`、`fn`、`class`、`enum`、`var` の定義収集、モジュール/クラス/関数またはメソッド/ブロックに対応するスコープモデル、同一スコープ重複とシャドーイング検出のための情報保持、後続参照解決へ渡す semantic model。
-- **Out**: 完全な型検査、式評価、IR / `.k` 生成、runtime 起動、STL 組み込み定義の完全登録、VS Code Language Server 実装。
+- **Out**: 完全な型検査、式評価、IR / `.klib` 生成、runtime 起動、STL 組み込み定義の完全登録、VS Code Language Server 実装。
 
 ## Boundary Candidates
 
@@ -36,7 +36,7 @@ CLI 利用者とコンパイラ開発者は、`actor`、`fn`、`class`、`enum`�
 
 ## Upstream / Downstream
 
-- **Upstream**: 既存 `.ke` lexer/parser、`kes-import-resolution` の `ScriptDocument`、`ImportGraph`、`SemanticAnalyzer`、診断/終了コード契約、`docs/spec/kes-language-spec.md` の定義構文とスコープ規則。
+- **Upstream**: 既存 `.kc` lexer/parser、`kes-import-resolution` の `ScriptDocument`、`ImportGraph`、`SemanticAnalyzer`、診断/終了コード契約、`docs/spec/kes-language-spec.md` の定義構文とスコープ規則。
 - **Downstream**: 本格的な参照解決、型検査、STL 組み込み定義、IR 生成、VS Code の定義ジャンプ/補完/診断。
 
 ## Existing Spec Touchpoints

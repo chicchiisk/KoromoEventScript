@@ -2,13 +2,13 @@
 
 ## Introduction
 
-KoromoEventScript のCLI利用者とコンパイラ開発者は、現在 `.ke` / `.kel` を入力にした意味解析で `import` が解決されないため、複数ファイルに分割した定義を後続の名前解決で利用できない。Issue #17 では、import されたファイルをプロジェクト基準で解決し、循環や未存在ファイルを診断し、import 済み定義を名前解決に渡せるようにする。
+KoromoEventScript のCLI利用者とコンパイラ開発者は、現在 `.kc` / `.kel` を入力にした意味解析で `import` が解決されないため、複数ファイルに分割した定義を後続の名前解決で利用できない。Issue #17 では、import されたファイルをプロジェクト基準で解決し、循環や未存在ファイルを診断し、import 済み定義を名前解決に渡せるようにする。
 
 ## Boundary Context
 
 - **In scope**: プロジェクト基準の import 解決、import 依存関係の構築、未存在ファイルと循環 import の診断、import 済み定義を後続の名前解決で利用できる状態にすること。
-- **Out of scope**: 新しい import 構文の追加、`.kel` の新しい構文拡張、型検査全体の完成、IR / `.k` 生成、manifest 生成、runtime 起動。
-- **Adjacent expectations**: 既存の `.ke` import 構文、`.kel` を起点にした入力解決、CLI診断形式、終了コード、既存の構文解析結果に従う。
+- **Out of scope**: 新しい import 構文の追加、`.kel` の新しい構文拡張、型検査全体の完成、IR / `.klib` 生成、manifest 生成、runtime 起動。
+- **Adjacent expectations**: 既存の `.kc` import 構文、`.kel` を起点にした入力解決、CLI診断形式、終了コード、既存の構文解析結果に従う。
 
 ## Requirements
 
@@ -19,7 +19,7 @@ KoromoEventScript のCLI利用者とコンパイラ開発者は、現在 `.ke` /
 #### Acceptance Criteria
 
 1. When 意味解析が import 文を含む入力ファイルを処理する, the KES compiler shall import モジュール名をプロジェクト内の対応する入力ファイルとして解決する。
-2. When import モジュール名が拡張子なしのファイル名として指定される, the KES compiler shall documented import 規則に従って対応する `.ke` 入力を特定する。
+2. When import モジュール名が拡張子なしのファイル名として指定される, the KES compiler shall documented import 規則に従って対応する `.kc` 入力を特定する。
 3. When import 元ファイルと import 先ファイルが異なるディレクトリにある, the KES compiler shall プロジェクト基準の解決規則を優先して import 先を特定する。
 4. If import モジュール名に対応する入力ファイルがプロジェクト内に存在しない, the KES compiler shall import 元のファイル位置を示す診断を報告する。
 5. If import モジュール名が複数の入力ファイルに一致する, the KES compiler shall あいまいな import として診断を報告する。
@@ -34,7 +34,7 @@ KoromoEventScript のCLI利用者とコンパイラ開発者は、現在 `.ke` /
 2. When import 先ファイルがさらに import を持つ, the KES compiler shall transitive import 依存関係を検査対象に含める。
 3. When 同じファイルが複数経路から import される, the KES compiler shall そのファイルを重複しない1つの依存関係として扱う。
 4. When import 依存関係が構築される, the KES compiler shall import 元から到達可能なファイルの検査順序を安定して保持する。
-5. While import 解決が実行されている, the KES compiler shall `.k`、manifest、runtime成果物の存在を要求しない。
+5. While import 解決が実行されている, the KES compiler shall `.klib`、manifest、runtime成果物の存在を要求しない。
 
 ### Requirement 3: Import エラー診断
 

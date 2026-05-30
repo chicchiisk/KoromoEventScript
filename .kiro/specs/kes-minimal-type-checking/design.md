@@ -15,7 +15,7 @@
 ### Non-Goals
 
 - 完全な型システム、暗黙型変換、オーバーロード解決、enum 詳細検査、ユーザー定義クラスのメンバーアクセス完全解決。
-- 素材、manifest、actor の cast 済み状態、runtime 状態、IR / `.k` 生成の検証。
+- 素材、manifest、actor の cast 済み状態、runtime 状態、IR / `.klib` 生成の検証。
 - VS Code Language Server 連携、新しい公開構文、STL 完全登録、`__systemcall__` 内部検査。
 
 ## Boundary Commitments

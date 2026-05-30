@@ -9,12 +9,12 @@ The implementation extends the existing `KoromoEventScript.Cli` project. Existin
 ### Goals
 
 - Provide a testable `kes build --check-only` command path.
-- Reuse existing `.ke` / `.kel` parser and diagnostic formatter contracts.
+- Reuse existing `.kc` / `.kel` parser and diagnostic formatter contracts.
 - Preserve the strict no-artifact and no-runtime boundary for check-only validation.
 
 ### Non-Goals
 
-- `.k` intermediate representation generation.
+- `.klib` intermediate representation generation.
 - Manifest generation.
 - Runtime startup.
 - Full Phase 2 semantic analysis such as import resolution, tag resolution, type checking, resource validation, or locale emission.
@@ -33,7 +33,7 @@ The implementation extends the existing `KoromoEventScript.Cli` project. Existin
 
 ### Out of Boundary
 
-- Artifact writers for `.k`, diagnostics files, manifest files, build directories, or distribution directories.
+- Artifact writers for `.klib`, diagnostics files, manifest files, build directories, or distribution directories.
 - Runtime process startup or runtime input preparation.
 - Meaning analysis beyond syntax parsing and minimal script reference discovery.
 - Changes to existing parser grammar unless required to expose already-supported diagnostics.
@@ -42,7 +42,7 @@ The implementation extends the existing `KoromoEventScript.Cli` project. Existin
 ### Allowed Dependencies
 
 - Existing `KoromoEventScript.Cli.Diagnostics` types for diagnostic data and formatting.
-- Existing `KoromoEventScript.Cli.Lexing` and `KoromoEventScript.Cli.Parsing` types for `.ke` / `.kel` syntax validation.
+- Existing `KoromoEventScript.Cli.Lexing` and `KoromoEventScript.Cli.Parsing` types for `.kc` / `.kel` syntax validation.
 - .NET standard library APIs for filesystem, XML loading, console I/O, and process exit.
 - Existing repository docs under `docs/spec/` as the public behavior contract.
 
@@ -87,7 +87,7 @@ Dependency direction: `Program` -> `CliApplication` -> command models -> service
 | Layer | Choice / Version | Role in Feature | Notes |
 |-------|------------------|-----------------|-------|
 | CLI | .NET `net10.0` project | Entrypoint, argument routing, console output | Existing target framework |
-| Parsing | Existing KES lexer/parser | `.ke` / `.kel` syntax validation | No parser dependency inversion required |
+| Parsing | Existing KES lexer/parser | `.kc` / `.kel` syntax validation | No parser dependency inversion required |
 | Config | `System.Xml.Linq` | Minimal `kes.xml` read | No external XML package |
 | Tests | NUnit 4.x | Unit and integration validation | Existing test stack |
 
@@ -181,7 +181,7 @@ Key decision: file/config failures stop later parsing because subsequent inputs 
 | 2.3 | Invalid config diagnostic | `ProjectConfigLoader`, `DiagnosticSink` | `ProjectConfigLoadResult` | Error strategy |
 | 2.4 | Use config entry | `ProjectConfig`, `BuildCheckOnlyCommand` | `ProjectConfig.EntryPath` | Main sequence |
 | 3.1 | Parse entry `.kel` | `SourceFileParser`, existing `KelParser` | `ParseKel(path)` | Main sequence |
-| 3.2 | Parse referenced `.ke` files | `KelScriptReferenceResolver`, `SourceFileParser`, existing `KeParser` | `ResolveScripts(document)` | Main sequence |
+| 3.2 | Parse referenced `.kc` files | `KelScriptReferenceResolver`, `SourceFileParser`, existing `KeParser` | `ResolveScripts(document)` | Main sequence |
 | 3.3 | Missing input returns 6 | `SourceFileParser`, `DiagnosticSink` | file parse result | Error strategy |
 | 3.4 | Syntax diagnostics return 3 | `SourceFileParser`, existing parser exceptions | diagnostic propagation | Error strategy |
 | 3.5 | No artifact prerequisites | `BuildCheckOnlyCommand` | execution invariant | Boundary |
@@ -195,7 +195,7 @@ Key decision: file/config failures stop later parsing because subsequent inputs 
 | 5.3 | Syntax exit code 3 | `BuildCheckOnlyCommand` | `CliExitCode.SyntaxError` | Error strategy |
 | 5.4 | I/O exit code 6 | `ProjectRootResolver`, `ProjectConfigLoader`, `SourceFileParser` | `CliExitCode.FileOrDirectoryError` | Error strategy |
 | 5.5 | Earliest stage wins | `BuildCheckOnlyCommand` | stage ordered result | Error strategy |
-| 6.1 | No `.k` files | `BuildCheckOnlyCommand` | execution invariant | Boundary |
+| 6.1 | No `.klib` files | `BuildCheckOnlyCommand` | execution invariant | Boundary |
 | 6.2 | No manifest files | `BuildCheckOnlyCommand` | execution invariant | Boundary |
 | 6.3 | No runtime startup | `BuildCheckOnlyCommand` | execution invariant | Boundary |
 | 6.4 | Existing artifacts unchanged | `BuildCheckOnlyCommand` | read-only file policy | Boundary |
@@ -211,7 +211,7 @@ Key decision: file/config failures stop later parsing because subsequent inputs 
 | `ProjectRootResolver` | ProjectSystem | Locate project root and `kes.xml` | 1.2, 1.3, 2.2, 5.4 | filesystem P0 | Service |
 | `ProjectConfigLoader` | ProjectSystem | Load minimal project config | 2.1, 2.3, 2.4 | XML API P0 | Service |
 | `KelScriptReferenceResolver` | Build | Discover script paths from parsed `.kel` | 3.2 | `KelDocumentSyntax` P0 | Service |
-| `SourceFileParser` | Build | Read and parse `.kel` / `.ke` files | 3.1-3.4 | existing parsers P0 | Service |
+| `SourceFileParser` | Build | Read and parse `.kel` / `.kc` files | 3.1-3.4 | existing parsers P0 | Service |
 | `DiagnosticSink` | Diagnostics | Emit ordered diagnostics in selected format | 4.1-4.4 | `DiagnosticFormatter` P0 | Service |
 
 ### CLI Layer
@@ -260,7 +260,7 @@ public sealed class CliApplication
 - Resolve project root, load config, parse entry `.kel`, resolve referenced scripts, and parse scripts.
 - Accumulate diagnostics in processing order.
 - Return the exit code for the earliest failed stage: command-line, project/config I/O, syntax.
-- Never write build, dist, `.k`, manifest, or runtime files.
+- Never write build, dist, `.klib`, manifest, or runtime files.
 
 **Dependencies**
 - Outbound: `ProjectRootResolver` — project discovery (P0)
@@ -534,7 +534,7 @@ No telemetry or persistent logging is introduced. Console diagnostic output is t
 
 ### Integration Tests
 
-- `BuildCheckOnlyCommandTests` verifies a minimal project parses successfully and returns exit code `0` without creating `.k`, manifest, build, or dist artifacts.
+- `BuildCheckOnlyCommandTests` verifies a minimal project parses successfully and returns exit code `0` without creating `.klib`, manifest, build, or dist artifacts.
 - `BuildCheckOnlyCommandTests` verifies a missing entry `.kel` returns exit code `6` and emits a file diagnostic.
 - `BuildCheckOnlyCommandTests` verifies a malformed `.kel` or referenced script syntax error returns exit code `3`.
 - `BuildCheckOnlyCommandTests` verifies JSON Lines output preserves diagnostic order and fields.

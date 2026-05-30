@@ -13,7 +13,7 @@ Issue: https://github.com/chicchiisk/KoromoEventScript/issues/21
 ## Boundary Context
 
 - **In scope**: 未定義の変数参照、actor 参照、label 参照、関数参照の診断、参照箇所の位置情報、`kes build --check-only` の compile diagnostic としての表面化、import 済み定義を含む参照可否の扱い。
-- **Out of scope**: 型検査、式評価、オーバーロード解決、関数引数数検査、actor のロード済み状態検査、素材や manifest の検証、IR / `.k` 生成、runtime 起動、VS Code Language Server 実装、新しい参照構文の追加、import 解決ルールの変更、重複定義診断の仕様変更。
+- **Out of scope**: 型検査、式評価、オーバーロード解決、関数引数数検査、actor のロード済み状態検査、素材や manifest の検証、IR / `.klib` 生成、runtime 起動、VS Code Language Server 実装、新しい参照構文の追加、import 解決ルールの変更、重複定義診断の仕様変更。
 - **Adjacent expectations**: 既存の構文解析、定義収集、import 解決、重複定義診断、CLI 診断形式、JSON Lines 出力、終了コード分類と整合する。構文エラー、import エラー、重複定義、シャドーイングのような前段診断がある場合は、既存の stage ordering を変更しない。
 
 ## Requirements
@@ -24,7 +24,7 @@ Issue: https://github.com/chicchiisk/KoromoEventScript/issues/21
 
 #### Acceptance Criteria
 
-1. When `.ke` script contains an identifier expression that is used as a variable reference and no visible variable, parameter, local variable, member, or imported definition can satisfy that reference, the KES compiler shall report a compile diagnostic for the undefined variable reference.
+1. When `.kc` script contains an identifier expression that is used as a variable reference and no visible variable, parameter, local variable, member, or imported definition can satisfy that reference, the KES compiler shall report a compile diagnostic for the undefined variable reference.
 2. When a variable reference resolves to a visible local, parameter, member, module-scope, or imported definition, the KES compiler shall not report an undefined variable diagnostic for that reference.
 3. When a variable reference uses the same spelling as a definition that is not visible from the reference location, the KES compiler shall report the reference as undefined.
 4. When a variable reference is undefined, the KES compiler shall include the referenced name in the diagnostic message.
@@ -36,8 +36,8 @@ Issue: https://github.com/chicchiisk/KoromoEventScript/issues/21
 
 #### Acceptance Criteria
 
-1. When `.ke` script contains an actor position such as `say <actor_identifier>:` and the referenced actor name has no visible actor definition, the KES compiler shall report a compile diagnostic for the undefined actor reference.
-2. When `.ke` script contains a command or expression argument that is resolved as an actor reference and no visible actor definition can satisfy that reference, the KES compiler shall report a compile diagnostic for the undefined actor reference.
+1. When `.kc` script contains an actor position such as `say <actor_identifier>:` and the referenced actor name has no visible actor definition, the KES compiler shall report a compile diagnostic for the undefined actor reference.
+2. When `.kc` script contains a command or expression argument that is resolved as an actor reference and no visible actor definition can satisfy that reference, the KES compiler shall report a compile diagnostic for the undefined actor reference.
 3. When an actor reference resolves to a visible local or imported actor definition, the KES compiler shall not report an undefined actor diagnostic for that reference.
 4. If an actor name exists only in a file that is not reachable through the active import graph, then the KES compiler shall report references to that actor as undefined.
 5. When an actor reference is undefined, the KES compiler shall point the diagnostic location at the actor identifier token used by the reference.
@@ -48,8 +48,8 @@ Issue: https://github.com/chicchiisk/KoromoEventScript/issues/21
 
 #### Acceptance Criteria
 
-1. When `.ke` script contains `jump #tag` and the same document has no jump target matching `#tag`, the KES compiler shall report a compile diagnostic for the undefined label reference.
-2. When `.ke` script contains `case "..." #tag` and the same document has no jump target matching `#tag`, the KES compiler shall report a compile diagnostic for the undefined label reference.
+1. When `.kc` script contains `jump #tag` and the same document has no jump target matching `#tag`, the KES compiler shall report a compile diagnostic for the undefined label reference.
+2. When `.kc` script contains `case "..." #tag` and the same document has no jump target matching `#tag`, the KES compiler shall report a compile diagnostic for the undefined label reference.
 3. When a `jump` or `case` tag resolves to a `label #tag`, tagged `say`, or tagged `nar` jump target in the same document, the KES compiler shall not report an undefined label diagnostic for that reference.
 4. If a matching tag exists only in an imported document, then the KES compiler shall report the local `jump` or `case` reference as undefined.
 5. When a label reference is undefined, the KES compiler shall point the diagnostic location at the referenced tag token.
@@ -60,9 +60,9 @@ Issue: https://github.com/chicchiisk/KoromoEventScript/issues/21
 
 #### Acceptance Criteria
 
-1. When `.ke` script contains a normal command call and no visible function or callable built-in definition can satisfy the command name, the KES compiler shall report a compile diagnostic for the undefined function reference.
-2. When `.ke` script contains a LESS call and no visible function or callable built-in definition can satisfy the LESS call name, the KES compiler shall report a compile diagnostic for the undefined function reference.
-3. When `.ke` script contains a function call expression and no visible function or callable built-in definition can satisfy the function name, the KES compiler shall report a compile diagnostic for the undefined function reference.
+1. When `.kc` script contains a normal command call and no visible function or callable built-in definition can satisfy the command name, the KES compiler shall report a compile diagnostic for the undefined function reference.
+2. When `.kc` script contains a LESS call and no visible function or callable built-in definition can satisfy the LESS call name, the KES compiler shall report a compile diagnostic for the undefined function reference.
+3. When `.kc` script contains a function call expression and no visible function or callable built-in definition can satisfy the function name, the KES compiler shall report a compile diagnostic for the undefined function reference.
 4. When a function reference resolves to a visible local module, imported module, or built-in callable definition, the KES compiler shall not report an undefined function diagnostic for that reference.
 5. When a function reference is undefined, the KES compiler shall point the diagnostic location at the function name token.
 

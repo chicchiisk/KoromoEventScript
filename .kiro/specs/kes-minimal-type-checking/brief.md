@@ -20,7 +20,7 @@ Issue: https://github.com/chicchiisk/KoromoEventScript/issues/22
 
 ## Scope
 - **In**: 変数定義の型注釈と初期値の整合、代入先と代入値の整合、算術・比較・論理演算の基本型検査、配列リテラルと配列要素アクセスの最小検査、`say` 話者と actor 系命令引数の `Actor` 検査、通常命令 / LESS / 関数呼び出しの MVP シグネチャ検査、`if` / `while` 条件の `bool` 検査、既存 CLI 診断出力と `kes build --check-only` への統合。
-- **Out**: 完全な型システム、ジェネリック関数の一般実装、オーバーロード解決、ユーザー定義クラスのメンバーアクセス完全解決、enum の詳細検査、制御フローに基づく戻り値網羅検査、初期化済み状態検査、素材・manifest・runtime 状態検証、IR / `.k` 生成、VS Code Language Server 実装、新しい構文の追加。
+- **Out**: 完全な型システム、ジェネリック関数の一般実装、オーバーロード解決、ユーザー定義クラスのメンバーアクセス完全解決、enum の詳細検査、制御フローに基づく戻り値網羅検査、初期化済み状態検査、素材・manifest・runtime 状態検証、IR / `.klib` 生成、VS Code Language Server 実装、新しい構文の追加。
 
 ## Boundary Candidates
 - 型検査は、定義収集や名前解決の責務を変更せず、解決済み定義の種別と型注釈を読む後段として実装する。
@@ -38,8 +38,8 @@ Issue: https://github.com/chicchiisk/KoromoEventScript/issues/22
 - Lint 的な未使用定義、未使用 import、冗長な型注釈診断は扱わない。
 
 ## Upstream / Downstream
-- **Upstream**: `.ke` 構文解析、`kes-definition-collection` のスコープ付き定義情報、`kes-import-resolution` の import 依存関係、`kes-undefined-reference-diagnostics` の参照分類と stage ordering、既存 CLI 診断基盤、`docs/spec/kes-language-spec.md`、`docs/spec/kes-language-stl-spec.md`。
-- **Downstream**: IR / `.k` 生成、runtime 連携、STL 組み込み定義の完全登録、`__systemcall__` 検査、Language Server の型診断、補完や hover 表示。
+- **Upstream**: `.kc` 構文解析、`kes-definition-collection` のスコープ付き定義情報、`kes-import-resolution` の import 依存関係、`kes-undefined-reference-diagnostics` の参照分類と stage ordering、既存 CLI 診断基盤、`docs/spec/kes-language-spec.md`、`docs/spec/kes-language-stl-spec.md`。
+- **Downstream**: IR / `.klib` 生成、runtime 連携、STL 組み込み定義の完全登録、`__systemcall__` 検査、Language Server の型診断、補完や hover 表示。
 
 ## Existing Spec Touchpoints
 - **Extends**: なし。新しい最小型検査仕様として扱う。

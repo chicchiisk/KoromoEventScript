@@ -7,7 +7,7 @@ KoromoEventScript CLI Tool (`kes.exe`) は、KoromoEventScript プロジェク�
 ## 基本方針
 
 - CLI は開発時の標準入口として機能する。
-- `.ke` ファイルと `.kel` ファイルを入力として扱う。
+- `.kc` ファイルと `.kel` ファイルを入力として扱う。
 - プロジェクト単位の操作を基本とする。
 - 実行環境に依存する処理は、CLI から各ランタイムへ明示的に委譲する。
 - 標準出力には通常ログ、標準エラー出力には警告・エラーを出力する。
@@ -18,11 +18,11 @@ KoromoEventScript CLI Tool (`kes.exe`) は、KoromoEventScript プロジェク�
 | 用語 | 意味 |
 |---|---|
 | プロジェクトルート | `kes.xml` が置かれているディレクトリ |
-| イベントスクリプトファイル | KoromoEventScript 言語で記述された `.ke` ファイル |
+| イベントスクリプトファイル | KoromoEventScript 言語で記述された `.kc` ファイル |
 | イベントマスタファイル | イベントの一覧・遷移・エントリポイントを定義する `.kel` ファイル |
-| 中間表現ファイル | `.ke` をコンパイルして生成する VM 実行用の `.k` ファイル |
-| VM | `.k` ファイルを読み取り、イベントスクリプトを実行する仮想マシン |
-| ビルド成果物 | CLI が生成する `.k`、検証結果、ローカライズ辞書、ランタイム用出力 |
+| 中間表現ファイル | `.kc` をコンパイルして生成する VM 実行用の `.klib` ファイル |
+| VM | `.klib` ファイルを読み取り、イベントスクリプトを実行する仮想マシン |
+| ビルド成果物 | CLI が生成する `.klib`、検証結果、ローカライズ辞書、ランタイム用出力 |
 | パッケージ成果物 | `publish` が生成する配布用ディレクトリまたはアーカイブ |
 
 ## コマンド体系
@@ -44,7 +44,7 @@ kes publish [PROJECT_DIR] [options]
 | コマンド | 概要 |
 |---|---|
 | `init` | 新しい KES プロジェクトを作成する |
-| `build` | プロジェクト内の `.ke` / `.kel` を解析・検証し、`.ke` を VM 向け `.k` にコンパイルする |
+| `build` | プロジェクト内の `.kc` / `.kel` を解析・検証し、`.kc` を VM 向け `.klib` にコンパイルする |
 | `clean` | ビルド成果物と一時ファイルを削除する |
 | `run` | `.kel` を起点に、単体実行ランタイムでイベントを実行する |
 | `publish` | 配布用成果物を生成する |
@@ -73,7 +73,7 @@ MyProject/
     kes.xml
     events/
         main.kel
-        chapter001.ke
+        chapter001.kc
     assets/
         bg/
         actor/
@@ -88,7 +88,7 @@ MyProject/
 | パス | 用途 |
 |---|---|
 | `kes.xml` | アプリケーション設定 |
-| `events/` | `.ke` / `.kel` の標準配置先 |
+| `events/` | `.kc` / `.kel` の標準配置先 |
 | `assets/` | 画像、音声などの素材配置先 |
 | `locale/` | ローカライズ辞書の配置先 |
 | `build/` | ビルド成果物の出力先 |
@@ -151,7 +151,7 @@ CLI は構文エラー、コンパイルエラー、実行時エラー、警告�
 テキスト形式の例:
 
 ```txt
-events/chapter001.ke:12:5 error KES1001: 未定義の識別子 'Noaa'
+events/chapter001.kc:12:5 error KES1001: 未定義の識別子 'Noaa'
 ```
 
 JSON 形式の例:
@@ -160,7 +160,7 @@ JSON 形式の例:
 {
     "level":"error",
     "code":"KES1001",
-    "file":"events/chapter001.ke",
+    "file":"events/chapter001.kc",
     "line":12,
     "column":5,
     "message":"未定義の識別子 'Noaa'"
@@ -211,14 +211,14 @@ kes init [PROJECT_DIR] [options]
 | `--name <NAME>` | プロジェクト名を指定する |
 | `--template <basic\|empty>` | 生成テンプレートを指定する。既定値は `basic` |
 | `--force` | 既存ファイルの上書きを許可する |
-| `--no-sample` | サンプル `.ke` / `.kel` を生成しない |
+| `--no-sample` | サンプル `.kc` / `.kel` を生成しない |
 
 ### 挙動
 
 1. `PROJECT_DIR` を作成する。
 2. `kes.xml` を生成する。
 3. 標準ディレクトリを生成する。
-4. `--template basic` の場合は、最小構成の `events/main.kel` と `events/chapter001.ke` を生成する。
+4. `--template basic` の場合は、最小構成の `events/main.kel` と `events/chapter001.kc` を生成する。
 5. 既存ファイルがあり `--force` が指定されていない場合はエラーとする。
 
 ### 例
@@ -230,11 +230,11 @@ kes init . --template empty
 
 ## `kes build`
 
-プロジェクト内の `.ke` / `.kel` を解析・検証し、`.ke` ファイルを VM が解釈しやすい中間表現 `.k` ファイルへコンパイルする。
+プロジェクト内の `.kc` / `.kel` を解析・検証し、`.kc` ファイルを VM が解釈しやすい中間表現 `.klib` ファイルへコンパイルする。
 
-`.k` は VM 実行用の中間表現ファイルである。
-中間表現の命令体系、instruction schema、データ構造、バイナリ形式またはテキスト形式の詳細は、[`.k` 中間表現仕様](k-intermediate-representation-spec.md)で定義する。
-本仕様書では、`kes build` が `.k` を生成し、ランタイムは `.k` を VM で読み取って実行する方式であることを定義する。
+`.klib` は VM 実行用の中間表現ファイルである。
+中間表現の命令体系、instruction schema、データ構造、バイナリ形式またはテキスト形式の詳細は、[`.klib` 中間表現仕様](k-intermediate-representation-spec.md)で定義する。
+本仕様書では、`kes build` が `.klib` を生成し、ランタイムは `.klib` を VM で読み取って実行する方式であることを定義する。
 
 ```txt
 kes build [PROJECT_DIR] [options]
@@ -258,13 +258,13 @@ kes build [PROJECT_DIR] [options]
 ### 挙動
 
 1. `kes.xml` を読み込む。
-2. `.kel` から参照される `.ke` ファイルを解決する。
+2. `.kel` から参照される `.kc` ファイルを解決する。
 3. `import` を解決し、依存関係を構築する。
 4. 字句解析、構文解析、型検査、名前解決を行う。
 5. ボイスID、画像ID、音声IDなどのリソース参照を検証する。
-6. `.ke` ごとに VM 向けの中間表現へ変換する。
+6. `.kc` ごとに VM 向けの中間表現へ変換する。
 7. 必要に応じてローカライズ辞書を生成する。
-8. `--check-only` が指定されていない場合、`.k` ファイル、診断結果、マニフェストをビルド成果物として出力する。
+8. `--check-only` が指定されていない場合、`.klib` ファイル、診断結果、マニフェストをビルド成果物として出力する。
 
 ### 成果物
 
@@ -274,18 +274,18 @@ kes build [PROJECT_DIR] [options]
 build/
     windows/
         events/
-            chapter001.k
+            chapter001.klib
         diagnostics.json
         manifest.json
 ```
 
-`.k` のファイル名は、原則として入力 `.ke` のベース名を引き継ぐ。
-たとえば `events/chapter001.ke` は `build/<target>/events/chapter001.k` に出力する。
+`.klib` のファイル名は、原則として入力 `.kc` のベース名を引き継ぐ。
+たとえば `events/chapter001.kc` は `build/<target>/events/chapter001.klib` に出力する。
 
-`manifest.json` には、入力 `.ke` / `.kel`、生成された `.k`、素材参照、ローカライズ情報、CLI バージョンを含める。
-CLI は `.k` を生成し、`manifest.json` から `.k` を参照できる成果物構成を作る責務を持つ。
-`.k` ファイル内部の instruction schema、命令体系、source mapping、manifest 参照契約の詳細は [`.k` 中間表現仕様](k-intermediate-representation-spec.md)が所有する。
-ランタイムは `manifest.json` と `.k` を読み込み、VM に `.k` を渡してイベントを実行する。
+`manifest.json` には、入力 `.kc` / `.kel`、生成された `.klib`、素材参照、ローカライズ情報、CLI バージョンを含める。
+CLI は `.klib` を生成し、`manifest.json` から `.klib` を参照できる成果物構成を作る責務を持つ。
+`.klib` ファイル内部の instruction schema、命令体系、source mapping、manifest 参照契約の詳細は [`.klib` 中間表現仕様](k-intermediate-representation-spec.md)が所有する。
+ランタイムは `manifest.json` と `.klib` を読み込み、VM に `.klib` を渡してイベントを実行する。
 
 ### 例
 
@@ -356,12 +356,12 @@ kes run [PATH_TO_EVENT_LIST] [options] [-- runtime-arguments]
 1. `.kel` を解決する。
 2. `--build` が指定されている場合、実行前にビルドを行う。
 3. `--no-build` が指定されていない場合、ビルド成果物が存在しない、または入力ファイルより古ければ自動的にビルドする。
-4. 単体実行ランタイムを起動し、`manifest.json`、`.k` ファイル、実行オプションを渡す。
-5. ランタイム内の VM が `.k` ファイルを読み取り、イベントを実行する。
+4. 単体実行ランタイムを起動し、`manifest.json`、`.klib` ファイル、実行オプションを渡す。
+5. ランタイム内の VM が `.klib` ファイルを読み取り、イベントを実行する。
 6. ランタイムの終了コードを CLI の終了コードへ反映する。
 
-`kes run` が `--build` または自動ビルドで生成する `.k` は `kes build` と同じ成果物契約に従う。
-`.k` の読み取り時に VM が検証する instruction schema と manifest 参照契約は [`.k` 中間表現仕様](k-intermediate-representation-spec.md)を参照する。
+`kes run` が `--build` または自動ビルドで生成する `.klib` は `kes build` と同じ成果物契約に従う。
+`.klib` の読み取り時に VM が検証する instruction schema と manifest 参照契約は [`.klib` 中間表現仕様](k-intermediate-representation-spec.md)を参照する。
 
 `--` 以降の引数は CLI では解釈せず、ランタイムへそのまま渡す。
 
@@ -389,26 +389,26 @@ kes publish [PROJECT_DIR] [options]
 | `--configuration <debug\|release>` | 配布構成を指定する。既定値は `release` |
 | `--out-dir <DIR>` | 配布成果物の出力先を指定する |
 | `--archive <none\|zip>` | アーカイブ形式を指定する。既定値は `zip` |
-| `--include-source` | `.ke` / `.kel` を配布物に含める。`windows` 向けのみ有効 |
+| `--include-source` | `.kc` / `.kel` を配布物に含める。`windows` 向けのみ有効 |
 | `--locale <LOCALE>` | 配布対象ロケールを指定する |
 | `--clean` | publish 前に `clean` を実行する |
 
 ### 挙動
 
 1. 必要に応じて `clean` を実行する。
-2. `kes build` 相当の検証と `.k` 生成を行う。
+2. `kes build` 相当の検証と `.klib` 生成を行う。
 3. ターゲットに応じた配布用ファイルを収集する。
 4. `dist/<target>/` に配布用ディレクトリを生成する。
 5. `--archive zip` の場合は zip アーカイブを生成する。
 
-`--target windows` の場合は、単体実行ランタイム、`.k`、`manifest.json`、必要素材、ローカライズ辞書、ライセンス情報を収集する。
-配布物に含める `.k` は `kes build` が生成した VM 実行用中間表現であり、ファイル形式、instruction schema、命令体系、manifest 参照契約は [`.k` 中間表現仕様](k-intermediate-representation-spec.md)に従う。
+`--target windows` の場合は、単体実行ランタイム、`.klib`、`manifest.json`、必要素材、ローカライズ辞書、ライセンス情報を収集する。
+配布物に含める `.klib` は `kes build` が生成した VM 実行用中間表現であり、ファイル形式、instruction schema、命令体系、manifest 参照契約は [`.klib` 中間表現仕様](k-intermediate-representation-spec.md)に従う。
 
 `--target unity` または `--target unreal` の場合は、エンジン組み込み拡張から読み込むためのデータフォルダを生成する。
-このフォルダには、生成済みの `.k` ファイルと、イベントマスタファイル `.kel` のみを含める。
+このフォルダには、生成済みの `.klib` ファイルと、イベントマスタファイル `.kel` のみを含める。
 Unity / Unreal 側のランタイム、VM、素材管理、ローカライズ辞書、ライセンス情報は、それぞれのエンジン組み込み拡張またはプロジェクト側で管理する。
 
-Unity / Unreal 向け publish では `.ke` を含めない。
+Unity / Unreal 向け publish では `.kc` を含めない。
 `--target unity` または `--target unreal` と `--include-source` が同時に指定された場合はエラーとする。
 
 ### 成果物
@@ -433,7 +433,7 @@ dist/
         MyProject.kesdata/
             main.kel
             events/
-                chapter001.k
+                chapter001.klib
 ```
 
 Unreal Engine 向け成果物:
@@ -444,13 +444,13 @@ dist/
         MyProject.kesdata/
             main.kel
             events/
-                chapter001.k
+                chapter001.klib
 ```
 
 `.kesdata` ディレクトリ名は、エンジン組み込み拡張が読み込む KES データフォルダを表す。
 Unity / Unreal プロジェクトでは、このフォルダを任意のアセット配置先へ取り込み、エンジン側の KoromoEventScript 実行機構から `.kel` を起点に読み込む。
 
-Windows 向けで `--include-source` が指定されていない場合、配布物には `.ke` / `.kel` の生ファイルを含めない。
+Windows 向けで `--include-source` が指定されていない場合、配布物には `.kc` / `.kel` の生ファイルを含めない。
 
 ### 例
 
@@ -467,10 +467,10 @@ kes publish --out-dir releases --archive zip
 | コマンド | 主入力 | 補助入力 |
 |---|---|---|
 | `init` | なし | テンプレート |
-| `build` | `kes.xml`, `.kel` | `.ke`, 素材, ローカライズ辞書 |
+| `build` | `kes.xml`, `.kel` | `.kc`, 素材, ローカライズ辞書 |
 | `clean` | `kes.xml` | なし |
-| `run` | `.kel` | `.k`, `manifest.json`, 素材 |
-| `publish` | `kes.xml`, `.kel` | `.ke`, `.k`, `windows` 向け素材・ランタイム |
+| `run` | `.kel` | `.klib`, `manifest.json`, 素材 |
+| `publish` | `kes.xml`, `.kel` | `.kc`, `.klib`, `windows` 向け素材・ランタイム |
 
 ## パス解決
 

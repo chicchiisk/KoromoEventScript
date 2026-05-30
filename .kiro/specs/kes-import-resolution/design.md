@@ -4,7 +4,7 @@
 
 This feature adds semantic import resolution to the existing KES CLI validation flow. CLI users can split reusable definitions into imported script files, and compiler developers get a bounded semantic stage that resolves import dependencies before later name resolution.
 
-The implementation extends the current `KoromoEventScript.Cli` project. Existing lexer/parser types continue to own syntax only; import resolution runs after `.kel` chapter discovery and `.ke`/`.kc` parsing, then feeds imported definitions into a minimal name-resolution pass used by `kes build --check-only`.
+The implementation extends the current `KoromoEventScript.Cli` project. Existing lexer/parser types continue to own syntax only; import resolution runs after `.kel` chapter discovery and `.kc`/`.kc` parsing, then feeds imported definitions into a minimal name-resolution pass used by `kes build --check-only`.
 
 ### Goals
 
@@ -34,7 +34,7 @@ The implementation extends the current `KoromoEventScript.Cli` project. Existing
 
 - Parser ownership of import semantics.
 - `.kel` key semantics beyond providing script entry references already used by build validation.
-- Type checking, resource validation, code generation, `.k` output, manifest output, and runtime launch.
+- Type checking, resource validation, code generation, `.klib` output, manifest output, and runtime launch.
 - New project configuration fields or external package dependencies.
 
 ### Allowed Dependencies
@@ -233,7 +233,7 @@ public sealed record SemanticAnalysisResult(
 | Requirements | 1.2, 1.3, 1.5 |
 
 **Responsibilities & Constraints**
-- Scan the project event source root for `.ke` and current-compatible `.kc` files.
+- Scan the project event source root for `.kc` and current-compatible `.kc` files.
 - Use base filename without extension as the module key.
 - Treat duplicate module keys as ambiguous.
 - Return project-relative display paths for diagnostics.
@@ -414,7 +414,7 @@ No telemetry is added. Console diagnostics and test assertions are the observabl
 
 ### Unit Tests
 
-- `ModuleFileIndexTests` verifies `.ke` and `.kc` module discovery, missing module lookup, and ambiguous module lookup.
+- `ModuleFileIndexTests` verifies `.kc` and `.kc` module discovery, missing module lookup, and ambiguous module lookup.
 - `ImportResolverTests` verifies direct imports, transitive imports, duplicate import suppression, stable order, missing imports, cycles, and syntax-invalid imported files.
 - `DefinitionCollectorTests` verifies supported top-level definitions and duplicate definitions.
 - `NameResolverTests` verifies imported definition lookup, unimported unresolved names, local/import collisions, and ambiguous imported names.

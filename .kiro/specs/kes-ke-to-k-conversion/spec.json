@@ -1,0 +1,22 @@
+{
+  "feature_name": "kes-ke-to-k-conversion",
+  "created_at": "2026-05-30T23:01:35.5159073+09:00",
+  "updated_at": "2026-05-30T23:07:39.7300960+09:00",
+  "language": "ja",
+  "phase": "design-generated",
+  "approvals": {
+    "requirements": {
+      "generated": true,
+      "approved": true
+    },
+    "design": {
+      "generated": true,
+      "approved": false
+    },
+    "tasks": {
+      "generated": false,
+      "approved": false
+    }
+  },
+  "ready_for_implementation": false
+}

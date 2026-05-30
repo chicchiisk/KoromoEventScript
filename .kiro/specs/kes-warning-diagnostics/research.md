@@ -62,14 +62,14 @@
 - **Trade-offs**: CLI の戻り値だけを見た利用者には失敗として見えるが、診断本文は warning 表記のままになる。
 - **Follow-up**: JSON Lines と text の両方で `warning` が維持されることをテストする。
 
-### Decision: 最小の warning producer として空 `.ke` ドキュメント警告を追加する
+### Decision: 最小の warning producer として空 `.kc` ドキュメント警告を追加する
 
 - **Context**: build check-only 統合テストで warning-only path を観測するには、実際の semantic warning source が必要である。
 - **Alternatives Considered**:
   1. test 専用 fake diagnostic を build flow に注入する。
   2. 素材参照や未使用変数のような広い静的解析を実装する。
-  3. 空 `.ke` ドキュメントを warning とする最小 semantic analyzer を追加する。
-- **Selected Approach**: `WarningAnalyzer` が空の `.ke` ドキュメントに `KES4001` を出す。
+  3. 空 `.kc` ドキュメントを warning とする最小 semantic analyzer を追加する。
+- **Selected Approach**: `WarningAnalyzer` が空の `.kc` ドキュメントに `KES4001` を出す。
 - **Rationale**: 追加範囲が小さく、runtime / 素材 manifest / 完全な lint へ踏み込まず warning 出力を実証できる。
 - **Trade-offs**: 将来の lint rule と比べると限定的だが、Issue #23 の warning pipeline 検証には十分である。
 - **Follow-up**: 追加 warning が compile error を上書きしないことを確認する。
@@ -78,7 +78,7 @@
 
 - `CliExitCode` に `9` を追加すると数値順の「小さい exit code 優先」実装と相性が悪い — warning policy は既存 error を上書きせず、`Success` の場合だけ昇格する。
 - `Build.WarningsAsErrors` の XML 読み取りで既存 config 読み込みを壊す可能性がある — 未指定は `false` として扱い、既存 fixture の互換性を保つ。
-- warning producer が広がりすぎる可能性がある — この仕様では空 `.ke` ドキュメントの `KES4001` に限定する。
+- warning producer が広がりすぎる可能性がある — この仕様では空 `.kc` ドキュメントの `KES4001` に限定する。
 
 ## References
 

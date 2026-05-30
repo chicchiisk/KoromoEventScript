@@ -7,7 +7,7 @@
 - **Key Findings**:
   - 既存の `KeParser` は `ImportStatementSyntax` を生成し、import 文がファイル先頭にまとまる構文制約も既に検証している。
   - `kes build --check-only` は project/config/entry `.kel`/referenced script parsing の流れを持つため、import 解決は script parsing 後、終了コード決定前に差し込むのが最小変更になる。
-  - 仕様文書は `.ke` を入力拡張子として説明する一方、現行 testdata は `.kc` を使っているため、設計では `.ke` を正としつつ `.kc` を既存互換入力として扱う。
+  - 仕様文書は `.kc` を入力拡張子として説明する一方、現行 testdata は `.kc` を使っているため、設計では `.kc` を正としつつ `.kc` を既存互換入力として扱う。
 
 ## Research Log
 
@@ -30,7 +30,7 @@
   - パスは解決に含めないため、同名ファイルが複数ある状態は想定しない。
   - CLI build は import 解決、依存関係構築、名前解決を build 検証に含める。
   - `.kel` は key/value データ構文であり、キー意味論は後段処理の責務である。
-- **Implications**: import 解決は `.ke` 構文解析後の意味解析責務であり、`.kel` 構文拡張として設計しない。
+- **Implications**: import 解決は `.kc` 構文解析後の意味解析責務であり、`.kel` 構文拡張として設計しない。
 
 ### テストと互換性リスク
 
@@ -38,8 +38,8 @@
 - **Sources Consulted**: `testdata/projects/minimal/events/chapter001.kc`, `testdata/ke/valid/minimal.kc`, `docs/spec/kes-language-spec.md`
 - **Findings**:
   - 現行 testdata は `.kc` を使っている。
-  - requirement は `.ke` / `.kel` と書かれている。
-- **Implications**: Module file discovery は canonical `.ke` と current `.kc` の両方を認識する。ただし ambiguity 判定では拡張子違いの同名ファイルも衝突として扱う。
+  - requirement は `.kc` / `.kel` と書かれている。
+- **Implications**: Module file discovery は canonical `.kc` と current `.kc` の両方を認識する。ただし ambiguity 判定では拡張子違いの同名ファイルも衝突として扱う。
 
 ## Architecture Pattern Evaluation
 
@@ -70,14 +70,14 @@
   1. import 元ファイルと同じディレクトリだけを見る。
   2. `Paths.Events` 配下だけを走査する。
   3. プロジェクト内の script 入力候補を走査する。
-- **Selected Approach**: `Paths.Events` を主探索範囲とし、プロジェクト基準で `.ke` / `.kc` 入力候補を module name へ index する。
+- **Selected Approach**: `Paths.Events` を主探索範囲とし、プロジェクト基準で `.kc` / `.kc` 入力候補を module name へ index する。
 - **Rationale**: CLI仕様のプロジェクト基準解決と、標準構成の events 配置に合う。
 - **Trade-offs**: 既存の同名ファイルが複数ある場合は ambiguity diagnostic が必要。
 - **Follow-up**: 将来 `Paths.Events` 以外の script root が仕様化されたら index 範囲を再検証する。
 
 ## Risks & Mitigations
 
-- `.ke` と `.kc` の拡張子揺れ — resolver は両方を認識し、同名衝突を診断する。
+- `.kc` と `.kc` の拡張子揺れ — resolver は両方を認識し、同名衝突を診断する。
 - 名前解決の範囲が広がりすぎる — 現行 AST の top-level definitions と identifier references に限定し、型検査は扱わない。
 - 循環 import の診断が読みにくい — import path を保持した graph traversal result を返し、診断メッセージに経路を含める。
 

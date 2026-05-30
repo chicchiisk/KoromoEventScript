@@ -2,13 +2,13 @@
 
 ## Introduction
 
-GitHub Issue #16 は、`kes build --check-only` の最小骨組みをCLIに追加し、成果物生成やruntime起動を行わずにKoromoEventScriptプロジェクトの設定と入力スクリプトを検査できるようにする。CLI利用者および開発者は、プロジェクトルート解決、`kes.xml` 読み込み、`.kel` と `.ke` の解析、診断出力、終了コードを一連のCLI動作として確認できる必要がある。
+GitHub Issue #16 は、`kes build --check-only` の最小骨組みをCLIに追加し、成果物生成やruntime起動を行わずにKoromoEventScriptプロジェクトの設定と入力スクリプトを検査できるようにする。CLI利用者および開発者は、プロジェクトルート解決、`kes.xml` 読み込み、`.kel` と `.kc` の解析、診断出力、終了コードを一連のCLI動作として確認できる必要がある。
 
 ## Boundary Context
 
-- **In scope**: `kes build --check-only` のコマンド受付、プロジェクトルート解決、`kes.xml` 読み込み、エントリ `.kel` と参照される `.ke` の解析、診断出力、終了コード。
-- **Out of scope**: `.k` 生成、manifest 生成、runtime 起動、publish/clean/run コマンドの挙動変更、Phase 2以降の意味解析。
-- **Adjacent expectations**: 既存の `.ke` / `.kel` 構文、CLI診断形式、終了コード定義、標準プロジェクト構成に従う。
+- **In scope**: `kes build --check-only` のコマンド受付、プロジェクトルート解決、`kes.xml` 読み込み、エントリ `.kel` と参照される `.kc` の解析、診断出力、終了コード。
+- **Out of scope**: `.klib` 生成、manifest 生成、runtime 起動、publish/clean/run コマンドの挙動変更、Phase 2以降の意味解析。
+- **Adjacent expectations**: 既存の `.kc` / `.kel` 構文、CLI診断形式、終了コード定義、標準プロジェクト構成に従う。
 
 ## Requirements
 
@@ -34,17 +34,17 @@ GitHub Issue #16 は、`kes build --check-only` の最小骨組みをCLIに追�
 3. If `kes.xml` cannot be read or is not a valid project configuration, the CLI shall report a diagnostic that identifies the configuration problem and return a non-zero exit code.
 4. When no explicit entry is provided, the CLI shall use the project entry declared by `kes.xml` as the `.kel` entry point.
 
-### Requirement 3: `.kel` と `.ke` の解析
+### Requirement 3: `.kel` と `.kc` の解析
 
-**Objective:** As a CLI利用者, I want entry `.kel` and referenced `.ke` files to be parsed, so that syntax problems are found before generation or runtime execution
+**Objective:** As a CLI利用者, I want entry `.kel` and referenced `.kc` files to be parsed, so that syntax problems are found before generation or runtime execution
 
 #### Acceptance Criteria
 
 1. When the entry `.kel` file is resolved, the CLI shall parse the `.kel` file using the documented `.kel` syntax rules.
-2. When `.ke` files are referenced by the entry `.kel`, the CLI shall parse each referenced `.ke` file using the documented `.ke` syntax rules.
-3. If an input `.kel` or `.ke` file cannot be found or read, the CLI shall report a file diagnostic and return exit code `6`.
-4. If an input `.kel` or `.ke` file contains a syntax error, the CLI shall report a `KES1xxx` diagnostic for the file and return exit code `3`.
-5. While `--check-only` validation is running, the CLI shall not require `.k`, manifest, or runtime artifacts to already exist.
+2. When `.kc` files are referenced by the entry `.kel`, the CLI shall parse each referenced `.kc` file using the documented `.kc` syntax rules.
+3. If an input `.kel` or `.kc` file cannot be found or read, the CLI shall report a file diagnostic and return exit code `6`.
+4. If an input `.kel` or `.kc` file contains a syntax error, the CLI shall report a `KES1xxx` diagnostic for the file and return exit code `3`.
+5. While `--check-only` validation is running, the CLI shall not require `.klib`, manifest, or runtime artifacts to already exist.
 
 ### Requirement 4: 診断出力
 
@@ -76,7 +76,7 @@ GitHub Issue #16 は、`kes build --check-only` の最小骨組みをCLIに追�
 
 #### Acceptance Criteria
 
-1. While `--check-only` is active, the CLI shall not generate `.k` files.
+1. While `--check-only` is active, the CLI shall not generate `.klib` files.
 2. While `--check-only` is active, the CLI shall not generate manifest files.
 3. While `--check-only` is active, the CLI shall not start any runtime.
 4. When validation completes, the CLI shall leave existing build and distribution artifacts unchanged.

@@ -17,9 +17,9 @@
 
 - [x] 2. Core warning diagnostics: warning を生成し集約できる状態にする
 - [x] 2.1 (P) 最小 warning producer を追加する
-  - 空の `.ke` ドキュメントを warning level 診断として報告する semantic warning 検査を追加する。
+  - 空の `.kc` ドキュメントを warning level 診断として報告する semantic warning 検査を追加する。
   - warning diagnostic は `KES4xxx`、warning level、file、line、column、message を保持する。
-  - 完了時には、空 `.ke` 入力で `KES4001` warning が生成され、非空入力では不要な warning が出ないことを単体テストで確認できる。
+  - 完了時には、空 `.kc` 入力で `KES4001` warning が生成され、非空入力では不要な warning が出ないことを単体テストで確認できる。
   - _Requirements: 1.1, 1.4, 5.1_
   - _Boundary: WarningAnalyzer_
 

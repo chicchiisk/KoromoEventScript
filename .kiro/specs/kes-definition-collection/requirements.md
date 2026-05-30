@@ -9,8 +9,8 @@ KoromoEventScript の CLI 利用者とコンパイラ開発者は、`actor`、`f
 ## Boundary Context
 
 - **In scope**: `actor`、`fn`、`class`、`enum`、`var` の定義認識、モジュール/クラス/関数またはメソッド/ブロックのスコープ単位の定義収集、同一スコープ重複とシャドーイングの診断、import 済みモジュールを含む後続参照解決向けの定義情報提供。
-- **Out of scope**: 完全な型検査、式評価、IR / `.k` 生成、runtime 起動、STL 組み込み定義の完全登録、VS Code Language Server 実装、素材や manifest の検証。
-- **Adjacent expectations**: 既存の `.ke` 構文解析、import 解決、タグ解決、CLI 診断形式、終了コード分類と整合する。import モジュール探索、循環 import、`label` / `jump` / `case` の制御フロー検査は既存仕様の責務を変更しない。
+- **Out of scope**: 完全な型検査、式評価、IR / `.klib` 生成、runtime 起動、STL 組み込み定義の完全登録、VS Code Language Server 実装、素材や manifest の検証。
+- **Adjacent expectations**: 既存の `.kc` 構文解析、import 解決、タグ解決、CLI 診断形式、終了コード分類と整合する。import モジュール探索、循環 import、`label` / `jump` / `case` の制御フロー検査は既存仕様の責務を変更しない。
 
 ## Requirements
 
@@ -20,10 +20,10 @@ KoromoEventScript の CLI 利用者とコンパイラ開発者は、`actor`、`f
 
 #### Acceptance Criteria
 
-1. When `.ke` script contains top-level `actor`, `fn`, `class`, `enum`, or `var` definitions, the KES compiler shall recognize each definition name and source location as a semantic definition candidate.
-2. When `.ke` script contains class members declared by `var` or `fn`, the KES compiler shall recognize each member name and source location as a class-scope definition candidate.
-3. When `.ke` script contains function or method parameters, the KES compiler shall recognize each parameter name and source location as a function-or-method-scope definition candidate.
-4. When `.ke` script contains local `var` definitions inside function, method, or block bodies, the KES compiler shall recognize each local variable name and source location as a scoped definition candidate.
+1. When `.kc` script contains top-level `actor`, `fn`, `class`, `enum`, or `var` definitions, the KES compiler shall recognize each definition name and source location as a semantic definition candidate.
+2. When `.kc` script contains class members declared by `var` or `fn`, the KES compiler shall recognize each member name and source location as a class-scope definition candidate.
+3. When `.kc` script contains function or method parameters, the KES compiler shall recognize each parameter name and source location as a function-or-method-scope definition candidate.
+4. When `.kc` script contains local `var` definitions inside function, method, or block bodies, the KES compiler shall recognize each local variable name and source location as a scoped definition candidate.
 5. If a supported definition form is syntactically incomplete, the KES compiler shall report syntax diagnostics using the existing diagnostic contract instead of producing partial definition information for that form.
 
 ### Requirement 2: スコープ単位の定義収集

@@ -15,7 +15,7 @@
 ### Non-Goals
 
 - シャドーイング診断 `KES2014` の仕様変更。
-- 型検査、overload resolution、式評価、IR / `.k` 生成。
+- 型検査、overload resolution、式評価、IR / `.klib` 生成。
 - import 解決、module discovery、CLI exit code の変更。
 - VS Code Language Server 固有の診断表示。
 

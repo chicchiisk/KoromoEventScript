@@ -6,7 +6,7 @@
 - **Key Findings**:
   - `source/cli/KoromoEventScript.Cli` には lexer、parser、diagnostic formatter は存在するが、CLI entrypoint と build command orchestration は未実装である。
   - `docs/spec/cli-tool-spec.md` は `kes build [PROJECT_DIR] [options]`、`--check-only`、diagnostic layout、exit code、project root resolution を既に定義している。
-  - `.kel` parser は構文木を返すだけで、`chapter` などのキー意味論は parser の責務外であるため、このspecでは参照 `.ke` の最小抽出だけを build check-only 層で扱う。
+  - `.kel` parser は構文木を返すだけで、`chapter` などのキー意味論は parser の責務外であるため、このspecでは参照 `.kc` の最小抽出だけを build check-only 層で扱う。
 
 ## Research Log
 
@@ -19,7 +19,7 @@
   - diagnostic は text と JSON Lines が仕様化済みで、exit code は `0`, `2`, `3`, `6` が今回の最小範囲に直接関係する。
 - **Implications**:
   - design はCLI引数解析、project root resolution、config load、syntax parse、diagnostic emission、exit code mapping に限定する。
-  - `.k`、manifest、runtime は明示的に生成・起動しない。
+  - `.klib`、manifest、runtime は明示的に生成・起動しない。
 
 ### 既存CLIコードの拡張点
 - **Context**: 実装すべき場所と再利用すべき既存型を特定するため。
@@ -29,18 +29,18 @@
   - `DiagnosticFormatter` は text と JSON Lines の整形を既に提供している。
   - `Program.cs` や command routing は存在しない。
 - **Implications**:
-  - 新規componentはCLI entrypoint、argument parser、build check-only service、project config loader、entry `.ke` resolver に分ける。
+  - 新規componentはCLI entrypoint、argument parser、build check-only service、project config loader、entry `.kc` resolver に分ける。
   - parser/formatterは既存実装を変更最小で利用し、意味解析やIR生成は追加しない。
 
 ### Project config と `.kel` 参照解決
-- **Context**: `kes.xml` と entry `.kel` から `.ke` をどこまで解決するかを決める必要がある。
+- **Context**: `kes.xml` と entry `.kel` から `.kc` をどこまで解決するかを決める必要がある。
 - **Sources Consulted**: `docs/spec/kes-config.xsd`, `docs/spec/kel-file-spec.md`, `testdata/projects/minimal/kes.xml`, `testdata/projects/minimal/events/main.kel`
 - **Findings**:
   - `kes.xml` は `Project.Entry` と `Paths.*` を定義する。
   - `.kel` parser は key/value/objects を保持するが、キー意味論は消費側の責務である。
-  - 既存testdataでは chapter object の `chapter = "events/chapter001.kc"` が `.ke` 相当のスクリプト参照として使われている。
+  - 既存testdataでは chapter object の `chapter = "events/chapter001.kc"` が `.kc` 相当のスクリプト参照として使われている。
 - **Implications**:
-  - 最小骨組みでは `Project.Entry` の `.kel` を解析し、rootまたはnested object内の `chapter` string/identifier value を `.ke` 入力候補として扱う。
+  - 最小骨組みでは `Project.Entry` の `.kel` を解析し、rootまたはnested object内の `chapter` string/identifier value を `.kc` 入力候補として扱う。
   - 拡張子の完全な正規化や semantic validation は後続phaseに残す。
 
 ## Architecture Pattern Evaluation
@@ -74,18 +74,18 @@
 - **Follow-up**: 今回のparser contractを狭く保ち、将来のCLI spec拡張で差し替え可能にする。
 
 ### Decision: `.kel` chapter references are resolved as build-layer input discovery
-- **Context**: `.kel` parserはキー意味論を持たず、build check-onlyは参照 `.ke` を解析する必要がある。
+- **Context**: `.kel` parserはキー意味論を持たず、build check-onlyは参照 `.kc` を解析する必要がある。
 - **Alternatives Considered**:
   1. `.kel` parserに `chapter` 意味論を追加する。
   2. build層で `KelDocumentSyntax` を走査し、`chapter` valuesを入力候補として抽出する。
 - **Selected Approach**: build層の resolver が `chapter` key の string/identifier value をプロジェクトルート相対パスとして解決する。
-- **Rationale**: parser責務を維持しながらIssue #16の `.kel` と `.ke` 解析を満たせる。
+- **Rationale**: parser責務を維持しながらIssue #16の `.kel` と `.kc` 解析を満たせる。
 - **Trade-offs**: 完全な `.kel` semantic validation は行わない。
 - **Follow-up**: Phase 2以降で `entry` / `chapter` 意味論を正式化する場合はresolver contractを再検証する。
 
 ## Risks & Mitigations
 - `KES2001` など既存parser diagnosticsが `KES2xxx` で、requirementsのsyntax exit code `3` と分類がずれる可能性がある — check-only workflowでは lexer/parser例外を syntax-stage failure として扱い、exit code `3` にmapする。
-- testdataに `.kc` 拡張子が残っている一方でIssueは `.ke` を対象にしている — resolverはこのspecでは参照されたファイルをそのまま解析対象にし、拡張子強制は行わない。
+- testdataに `.kc` 拡張子が残っている一方でIssueは `.kc` を対象にしている — resolverはこのspecでは参照されたファイルをそのまま解析対象にし、拡張子強制は行わない。
 - `kes.xml` の完全XSD validationを実装するとscopeが膨らむ — 必須要素/属性の読込とXML parse error診断に限定し、完全schema validationは後続に残す。
 
 ## References

@@ -12,14 +12,14 @@ KoromoEventScriptは、中核をなすKoromoEventScript言語と、
 
 ### 関連リソース
 
-- イベントスクリプトファイル : KoromoEventScript(.ke)
+- イベントスクリプトファイル : KoromoEventScript(.kc)
   - KoromoEventScript言語で記述され、具体的なシナリオと演出が含まれます。
 - イベントマスタファイル : KoromoEventList(.kel)
   - イベント同士の関連を定義するファイルです。イベントの流れを設定し、ノベルゲームのストーリーを構成します。
-- VM実行用中間表現 : KoromoEventScript Intermediate Representation(.k)
-  - CLIが`.ke`をビルドして生成するVM向け成果物です。
+- VM実行用中間表現 : KoromoEventScript Intermediate Representation(.klib)
+  - CLIが`.kc`をビルドして生成するVM向け成果物です。
 
-現行仕様では、イベントスクリプトファイルは `.ke`、VM実行用中間表現は `.k` を正とします。
+現行仕様では、イベントスクリプトファイルは `.kc`、VM実行用中間表現は `.klib` を正とします。
 `.kc` と `.klib` は旧称または移行前表記として扱います。
 
 ### 関連ソフトウェア
@@ -44,20 +44,20 @@ KoromoEventScriptは、中核をなすKoromoEventScript言語と、
 5. 実行
     - 単体実行 : kes run main.kel でイベントマスタファイルを起点にゲームを起動する
     - Unity組み込み :
-      - `kes publish --target unity` で生成した `.k` / `.kel` フォルダを Assets 以下にインポート
+      - `kes publish --target unity` で生成した `.klib` / `.kel` フォルダを Assets 以下にインポート
       - シーンに KoromoEventScriptManager を配置して `.kel` ファイルを指定して実行する
     - UnrealEngine組み込み :
-      - `kes publish --target unreal` で生成した `.k` / `.kel` フォルダを Content 以下にインポート
+      - `kes publish --target unreal` で生成した `.klib` / `.kel` フォルダを Content 以下にインポート
       - シーンに KoromoEventScriptManager を配置して `.kel` ファイルを指定して実行する
 
-`.k` のファイル形式、instruction schema、VM実行契約、manifest参照契約は、[`.k` 中間表現仕様](k-intermediate-representation-spec.md)で定義します。
+`.klib` のファイル形式、instruction schema、VM実行契約、manifest参照契約は、[`.klib` 中間表現仕様](k-intermediate-representation-spec.md)で定義します。
 
 ## 詳細仕様書
 
 イベントスクリプトファイルの仕様書 : [[kes-language-spec]]
 イベントマスタファイルの仕様書 : [[kel-file-spec]]
 CLIツールの仕様書 : [[cli-tool-spec]]
-`.k` 中間表現仕様書 : [[k-intermediate-representation-spec]]
+`.klib` 中間表現仕様書 : [[k-intermediate-representation-spec]]
 VSCode言語サポート拡張の仕様書 : [[vscode-ext-spec]]
 単体実行基盤の仕様書 : [[windows-runtime-spec]]
 UnrealEngine組み込み拡張の仕様書 : [[unreal-runtime-spec]]

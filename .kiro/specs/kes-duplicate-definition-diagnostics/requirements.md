@@ -11,7 +11,7 @@ Issue: https://github.com/chicchiisk/KoromoEventScript/issues/20
 ## Boundary Context
 
 - **In scope**: 同一スコープ内の `actor`、`fn`、`class`、`enum`、`var` の重複定義診断、重複元と重複先の位置情報、`kes build --check-only` での compile diagnostic としての表面化。
-- **Out of scope**: シャドーイング診断の仕様変更、参照解決、型検査、式評価、IR / `.k` 生成、runtime 起動、VS Code Language Server 実装、import 解決ルールの変更。
+- **Out of scope**: シャドーイング診断の仕様変更、参照解決、型検査、式評価、IR / `.klib` 生成、runtime 起動、VS Code Language Server 実装、import 解決ルールの変更。
 - **Adjacent expectations**: 既存の構文解析、スコープ付き定義収集、CLI 診断形式、JSON Lines 出力、終了コード分類と整合する。異なるスコープに属する同名定義は、この仕様の重複定義診断対象にしない。
 
 ## Requirements

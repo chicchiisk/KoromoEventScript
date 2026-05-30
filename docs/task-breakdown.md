@@ -86,7 +86,7 @@ Parser、Diagnostic、CLI 統合テストで使う入力ファイルの置き場
 受け入れ条件:
 
 - `testdata/` 配下に入力種別ごとのディレクトリがある。
-- 最小の正常系 `.ke` と `.kel` がある。
+- 最小の正常系 `.kc` と `.kel` がある。
 - 最小プロジェクト例がある。
 
 ### 0-6. MVP 実装ロードマップを作成する
@@ -102,7 +102,7 @@ Parser、Diagnostic、CLI 統合テストで使う入力ファイルの置き場
 
 ## Phase 1: 言語処理系の最小核
 
-### 1-1. `.ke` Lexer を実装する
+### 1-1. `.kc` Lexer を実装する
 
 配置:
 `source/cli/`
@@ -131,7 +131,7 @@ Parser、Diagnostic、CLI 統合テストで使う入力ファイルの置き場
 - 閉じていないブロックコメント
 - タブインデント
 
-### 1-2. `.ke` Parser の最小構文を実装する
+### 1-2. `.kc` Parser の最小構文を実装する
 
 配置:
 `source/cli/`
@@ -164,7 +164,7 @@ Parser、Diagnostic、CLI 統合テストで使う入力ファイルの置き場
 対象:
 
 - エントリポイント
-- `.ke` ファイル参照
+- `.kc` ファイル参照
 - イベント ID
 
 詳細文法が未確定の間は、CLI と VS Code 拡張で必要な最小構文に限定する。
@@ -198,13 +198,13 @@ Parser、Diagnostic、CLI 統合テストで使う入力ファイルの置き場
 
 - プロジェクトルート解決
 - `kes.xml` 読み込み
-- `.kel` と `.ke` の解析
+- `.kel` と `.kc` の解析
 - 診断出力
 - 終了コード
 
 対象外:
 
-- `.k` 生成
+- `.klib` 生成
 - manifest 生成
 - runtime 起動
 
@@ -232,8 +232,8 @@ Parser、Diagnostic、CLI 統合テストで使う入力ファイルの置き場
   - `p`、`r`、`l`、`cm`、`vo`、`vf`、`wait_click` が text/audio syscall として発行されることを確認する。
   - `bgm`、`se`、`save`、`load`、`set_config` など runtime 連携命令の syscall 発行 golden test を追加する。
   - ユーザーコードからの `__systemcall__` 直接使用、未知の syscall ID、引数数/型不一致を診断するテストを追加する。
-- 中間表現 `.k` の仕様書を追加する。
-- `.ke` から `.k` への変換を実装する。
+- 中間表現 `.klib` の仕様書を追加する。
+- `.kc` から `.klib` への変換を実装する。
 - IR golden test を追加する。
 - VM のヘッドレス実行を実装する。
 - `say`、`nar`、`select`、`jump` の VM テストを追加する。
@@ -301,7 +301,7 @@ CLI が生成した `manifest.json` を読み込み、ランタイム入力と�
 
 - `project`、`entry`、`scripts`、`assets`、`locale`、`runtime`、`build` を読み込める。
 - manifest からの相対パスを manifest 所在ディレクトリ基準で解決できる。
-- manifest 不在、必須項目不足、必須 `.k` 不在を診断できる。
+- manifest 不在、必須項目不足、必須 `.klib` 不在を診断できる。
 - manifest 読み込みは UI に依存せず NUnit でテストできる。
 
 ### 5-4. リソース解決を実装する
@@ -483,8 +483,8 @@ Windows Runtime を含む自己完結フォルダと zip を生成し、展開�
 
 受け入れ条件:
 
-- `dist/windows/<ProjectName>/` に実行ファイル、`data/manifest.json`、`.k`、素材、ローカライズ辞書、ライセンスを配置できる。
-- `--include-source` なしでは `.ke` / `.kel` の生ファイルを含めない。
+- `dist/windows/<ProjectName>/` に実行ファイル、`data/manifest.json`、`.klib`、素材、ローカライズ辞書、ライセンスを配置できる。
+- `--include-source` なしでは `.kc` / `.kel` の生ファイルを含めない。
 - zip を展開し、実行ファイルからプレイを開始できる。
 - 配布物の smoke test 手順が PR に記載されている。
 
@@ -507,7 +507,7 @@ Windows Runtime を含む自己完結フォルダと zip を生成し、展開�
 
 1. 最小 KES プロジェクトを `kes init` で作成できる。
 2. `kes build --check-only` で構文エラーと未定義タグを検出できる。
-3. `kes build` で `.k` と `manifest.json` を生成できる。
+3. `kes build` で `.klib` と `manifest.json` を生成できる。
 4. ヘッドレス VM で `say`、`nar`、`select`、`jump` を実行できる。
 5. `kes run` から Windows Runtime を起動できる。
 6. Windows Runtime で背景、actor、テキスト、選択肢を表示し、クリック進行できる。

@@ -6,7 +6,7 @@ KoromoEventScript VS Code Extension は、VS Code 上で KoromoEventScript の�
 
 ## 基本方針
 
-- `.ke` と `.kel` を KoromoEventScript 関連ファイルとして扱う。
+- `.kc` と `.kel` を KoromoEventScript 関連ファイルとして扱う。
 - シナリオライターが本文を崩さず書けることを優先する。
 - 構文色分けなどの軽量機能は拡張単体で提供する。
 - 定義ジャンプ、補完、診断、フォーマットなど意味解析が必要な機能は Language Server で提供する。
@@ -18,7 +18,7 @@ KoromoEventScript VS Code Extension は、VS Code 上で KoromoEventScript の�
 
 | 拡張子 | 言語ID | 用途 |
 |---|---|---|
-| `.ke` | `koromo-event-script` | イベントスクリプトファイル |
+| `.kc` | `koromo-event-script` | イベントスクリプトファイル |
 | `.kel` | `koromo-event-list` | イベントマスタファイル |
 
 `kes.xml` は XML ファイルとして扱い、構成検証は `docs/spec/kes-config.xsd` に委ねる。
@@ -65,7 +65,7 @@ Language Server は LSP (Language Server Protocol) を用いる。
 }
 ```
 
-`.ke` または `.kel` を開いた時点で Language Server を起動する。
+`.kc` または `.kel` を開いた時点で Language Server を起動する。
 ワークスペースに `kes.xml` が存在する場合は、プロジェクト単位の解析を有効化する。
 
 ## シンタックスハイライト
@@ -73,7 +73,7 @@ Language Server は LSP (Language Server Protocol) を用いる。
 シンタックスハイライトは TextMate Grammar で提供する。
 意味解析を待たず、ファイルを開いた直後から色分けできることを必須とする。
 
-### `.ke` のハイライト対象
+### `.kc` のハイライト対象
 
 | 種別 | 対象 |
 |---|---|
@@ -122,11 +122,11 @@ VS Code 拡張は、少なくとも次の最小ハイライトを提供する。
 
 定義ジャンプは Language Server の `textDocument/definition` で提供する。
 
-### `.ke` でのジャンプ対象
+### `.kc` でのジャンプ対象
 
 | カーソル位置 | ジャンプ先 |
 |---|---|
-| `import Common` の `Common` | 解決された `Common.ke` |
+| `import Common` の `Common` | 解決された `Common.kc` |
 | 変数参照 | 対応する `var` 定義または代入可能な宣言 |
 | 関数呼び出し | `fn` 定義または組み込み命令の仕様定義 |
 | クラス名 | `class` 定義 |
@@ -154,7 +154,7 @@ VS Code 拡張は、少なくとも次の最小ハイライトを提供する。
 定義解決は次の順で行う。
 
 1. 現在のファイル内スコープ
-2. `import` された `.ke` ファイル
+2. `import` された `.kc` ファイル
 3. 同一プロジェクトの actor / class / enum / fn インデックス
 4. 組み込み命令・組み込み型
 5. `kes.xml` の `Paths.Assets` 配下の素材
@@ -172,7 +172,7 @@ VS Code 拡張は、少なくとも次の最小ハイライトを提供する。
 | 文脈 | 候補 |
 |---|---|
 | 行頭 | 予約語、組み込み構文、組み込み命令、ユーザー定義関数 |
-| `import` の後 | import 可能な `.ke` モジュール名 |
+| `import` の後 | import 可能な `.kc` モジュール名 |
 | `var` の後 | スニペット、型注釈候補 |
 | 型注釈位置 | `number`, `bool`, `string`, `Actor`, ユーザー定義 class / enum、配列型候補 |
 | `new` の後 | class 名 |
@@ -410,7 +410,7 @@ CLI が見つからない場合は、設定 `koromoEventScript.cli.path` を案�
 | `koromoEventScript.completion.enableSnippets` | boolean | `true` | スニペット補完を有効化する |
 | `koromoEventScript.trace.server` | string | `off` | Language Server 通信ログを出力する |
 
-VS Code 標準の `editor.formatOnSave` が有効な場合、`.ke` / `.kel` の保存時にフォーマットを実行する。
+VS Code 標準の `editor.formatOnSave` が有効な場合、`.kc` / `.kel` の保存時にフォーマットを実行する。
 
 ## プロジェクト解決
 
@@ -424,7 +424,7 @@ Language Server は、現在のファイルから親ディレクトリへ向か�
 
 プロジェクトモードでは、次の情報をインデックス化する。
 
-- `.ke` ファイル一覧
+- `.kc` ファイル一覧
 - `.kel` ファイル一覧
 - import 可能なモジュール名
 - `fn` 定義
@@ -453,7 +453,7 @@ Language Server は、現在のファイルから親ディレクトリへ向か�
 
 初期リリースでは、次を満たすことを必須とする。
 
-1. `.ke` を開くと予約語、コメント、文字列、タグ、`say` 本文、式埋め込みがハイライトされる。
+1. `.kc` を開くと予約語、コメント、文字列、タグ、`say` 本文、式埋め込みがハイライトされる。
 2. `jump #tag` と `case "..." #tag` から、同一ファイル内の `label #tag` またはタグ付き `say` へジャンプできる。
 3. 行頭で主要キーワードと組み込み命令が補完される。
 4. `say Actor:`、`select:`、`using ...:`、`if ...:` のスニペット補完が使える。
