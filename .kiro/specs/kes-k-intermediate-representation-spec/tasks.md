@@ -84,7 +84,7 @@
   - _Boundary: OverviewIndexUpdate_
 
 - [ ] 4. Validation: 仕様カバレッジと参照整合性を確認する
-- [ ] 4.1 要求 ID と設計コンポーネントのカバレッジを確認する
+- [x] 4.1 要求 ID と設計コンポーネントのカバレッジを確認する
   - `docs/spec/k-intermediate-representation-spec.md` が 1.1 から 6.4 までの全要求を節または表で満たすことを確認する。
   - KIntermediateRepresentationSpec、CliSpecReferenceUpdate、RuntimeSpecTerminologyNote、OverviewIndexUpdate の各境界に対応する成果物が存在することを確認する。
   - 完了時には、要求 ID の抜けがなく、各 design component の成果物が差分上で確認できる。
