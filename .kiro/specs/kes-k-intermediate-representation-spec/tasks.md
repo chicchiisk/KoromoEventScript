@@ -66,7 +66,7 @@
   - _Requirements: 5.1, 6.1, 6.4_
   - _Boundary: CliSpecReferenceUpdate_
 
-- [ ] 3.2 (P) Windows runtime 仕様の VM 成果物表記と save/debug 参照を整える
+- [x] 3.2 (P) Windows runtime 仕様の VM 成果物表記と save/debug 参照を整える
   - Windows runtime 仕様に `.k` 中間表現仕様への参照を追加し、`.klib` は旧称または移行前表記であることを注記する。
   - save/debug に必要な VM file、instruction position、tag、source mapping が `.k` 上の script id と instruction index を参照することを明確にする。
   - manifest が `.k` を列挙または参照し、asset ID、locale key、script path を解決する関係を runtime 仕様から追えるようにする。
