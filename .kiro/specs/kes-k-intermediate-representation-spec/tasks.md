@@ -92,7 +92,7 @@
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 2.1, 2.2, 2.3, 2.4, 2.5, 3.1, 3.2, 3.3, 3.4, 4.1, 4.2, 4.3, 4.4, 5.1, 5.2, 5.3, 5.4, 6.1, 6.2, 6.3, 6.4_
   - _Boundary: Regression Validation_
 
-- [ ] 4.2 参照リンク、旧称注記、正規化例を検索で検証する
+- [x] 4.2 参照リンク、旧称注記、正規化例を検索で検証する
   - `rg "k-intermediate-representation-spec" docs/spec` で CLI、runtime、overview から新仕様への参照が存在することを確認する。
   - `.kc` / `.klib` が今回触る既存仕様に残る場合、`.ke` / `.k` への互換性注記または移行注記があることを確認する。
   - 最小 `.k` サンプルに `format`、`version`、`features`、`module`、`instructions`、`labels`、`manifestRefs`、`debug` が含まれることを確認する。
