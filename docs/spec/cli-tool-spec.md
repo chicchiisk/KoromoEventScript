@@ -233,8 +233,9 @@ kes init . --template empty
 プロジェクト内の `.kc` / `.kel` を解析・検証し、`.kc` ファイルを VM が解釈しやすい中間表現 `.klib` ファイルへコンパイルする。
 
 `.klib` は VM 実行用の中間表現ファイルである。
-中間表現の命令体系、instruction schema、データ構造、バイナリ形式またはテキスト形式の詳細は、[`.klib` 中間表現仕様](k-intermediate-representation-spec.md)で定義する。
-本仕様書では、`kes build` が `.klib` を生成し、ランタイムは `.klib` を VM で読み取って実行する方式であることを定義する。
+`.klibtxt` は `.klib` の論理内容を人間可読な IL 風テキストへ射影した補助成果物であり、runtime 入力には使わない。
+中間表現の命令体系、instruction schema、データ構造、バイナリ形式および `.klibtxt` テキスト形式の詳細は、[`.klib` 中間表現仕様](k-intermediate-representation-spec.md)で定義する。
+本仕様書では、`kes build` が `.klib` を生成し、必要に応じて `.klibtxt` を併せて出力できること、およびランタイムは `.klib` を VM で読み取って実行する方式であることを定義する。
 
 ```txt
 kes build [PROJECT_DIR] [options]
@@ -253,7 +254,10 @@ kes build [PROJECT_DIR] [options]
 | `--warnings-as-errors` | 警告をエラーとして扱う |
 | `--no-incremental` | インクリメンタルビルドを無効化する |
 | `--emit-locale` | ローカライズ辞書を出力する |
+| `--txt-il` | `.klib` と同じ論理内容を人間可読な `.klibtxt` としても出力する |
 | `--check-only` | 成果物を生成せず検証のみ行う |
+
+`--txt-il` は成果物を出力するオプションであるため、`--check-only` と同時指定してはならない。
 
 ### 挙動
 
@@ -263,8 +267,9 @@ kes build [PROJECT_DIR] [options]
 4. 字句解析、構文解析、型検査、名前解決を行う。
 5. ボイスID、画像ID、音声IDなどのリソース参照を検証する。
 6. `.kc` ごとに VM 向けの中間表現へ変換する。
-7. 必要に応じてローカライズ辞書を生成する。
-8. `--check-only` が指定されていない場合、`.klib` ファイル、診断結果、マニフェストをビルド成果物として出力する。
+7. `--txt-il` が指定された場合、各 `.klib` と同じ論理内容を `.klibtxt` として整形出力する。
+8. 必要に応じてローカライズ辞書を生成する。
+9. `--check-only` が指定されていない場合、`.klib` ファイル、必要に応じて `.klibtxt`、診断結果、マニフェストをビルド成果物として出力する。
 
 ### 成果物
 
@@ -275,17 +280,19 @@ build/
     windows/
         events/
             chapter001.klib
+            chapter001.klibtxt
         diagnostics.json
         manifest.json
 ```
 
 `.klib` のファイル名は、原則として入力 `.kc` のベース名を引き継ぐ。
 たとえば `events/chapter001.kc` は `build/<target>/events/chapter001.klib` に出力する。
+`--txt-il` を指定した場合は、同じ場所に `build/<target>/events/chapter001.klibtxt` も出力する。
 
-`manifest.json` には、入力 `.kc` / `.kel`、生成された `.klib`、素材参照、ローカライズ情報、CLI バージョンを含める。
-CLI は `.klib` を生成し、`manifest.json` から `.klib` を参照できる成果物構成を作る責務を持つ。
-`.klib` ファイル内部の instruction schema、命令体系、source mapping、manifest 参照契約の詳細は [`.klib` 中間表現仕様](k-intermediate-representation-spec.md)が所有する。
-ランタイムは `manifest.json` と `.klib` を読み込み、VM に `.klib` を渡してイベントを実行する。
+`manifest.json` には、入力 `.kc` / `.kel`、生成された `.klib`、必要に応じて対応する `.klibtxt`、素材参照、ローカライズ情報、CLI バージョンを含める。
+CLI は `.klib` を生成し、必要に応じて `.klibtxt` を併置しつつ、`manifest.json` から `.klib` を参照できる成果物構成を作る責務を持つ。
+`.klib` / `.klibtxt` ファイル内部の instruction schema、命令体系、source mapping、manifest 参照契約の詳細は [`.klib` 中間表現仕様](k-intermediate-representation-spec.md)が所有する。
+ランタイムは `manifest.json` と `.klib` を読み込み、VM に `.klib` を渡してイベントを実行する。`.klibtxt` は人間向けの補助成果物であり、runtime は読み込まない。
 
 ### 例
 
@@ -293,6 +300,7 @@ CLI は `.klib` を生成し、`manifest.json` から `.klib` を参照できる
 kes build
 kes build --target windows --warnings-as-errors
 kes build --entry events/main.kel --emit-locale
+kes build --txt-il
 ```
 
 ## `kes clean`
