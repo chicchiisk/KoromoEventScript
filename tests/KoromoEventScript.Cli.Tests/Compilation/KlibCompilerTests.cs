@@ -9,9 +9,41 @@ namespace KoromoEventScript.Cli.Tests.Compilation;
 public class KlibCompilerTests
 {
     [Test]
-    public void BuildCommand_EmitsDeterministicTextForBroadLanguageSurface()
+    public void BuildCommand_MatchesBroadSurfaceIrSnapshot()
     {
-        using var fixture = TemporaryProject.Create();
+        using var fixture = CreateBroadSurfaceFixture();
+
+        var result = ExecuteBuild(fixture);
+        var actual = ReadGeneratedTextIr(fixture);
+        var expected = ReadIrSnapshot("broad-surface.klibtxt");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.ExitCode, Is.EqualTo(CliExitCode.Success));
+            Assert.That(NormalizeLineEndings(actual), Is.EqualTo(NormalizeLineEndings(expected)));
+        });
+    }
+
+    [Test]
+    public void BuildCommand_NormalizesLineEndingsBeforeComparingBroadSurfaceSnapshot()
+    {
+        using var fixture = CreateBroadSurfaceFixture();
+
+        var result = ExecuteBuild(fixture);
+        var actual = ReadGeneratedTextIr(fixture);
+        var expected = NormalizeLineEndings(ReadIrSnapshot("broad-surface.klibtxt"))
+            .Replace("\n", "\r\n", StringComparison.Ordinal);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.ExitCode, Is.EqualTo(CliExitCode.Success));
+            Assert.That(NormalizeLineEndings(actual), Is.EqualTo(NormalizeLineEndings(expected)));
+        });
+    }
+
+    private static TemporaryProject CreateBroadSurfaceFixture()
+    {
+        var fixture = TemporaryProject.Create();
         fixture.WriteConfig(entry: "events/main.kel");
         fixture.WriteFile("events/main.kel", """
 entry = intro
@@ -46,22 +78,32 @@ label #continue
 jump #end
 label #end
 """);
-
-        var result = new BuildCommand().Execute(
-            new BuildCommandOptions(fixture.Root, DiagnosticOutputFormat.Text, EmitTextIr: true),
-            TestContext.CurrentContext.WorkDirectory);
-
-        var actual = File.ReadAllText(Path.Combine(fixture.Root, "build", "windows", "events", "main.klibtxt"));
-        var expected = File.ReadAllText(GetSnapshotPath("broad-surface.klibtxt"));
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(result.ExitCode, Is.EqualTo(CliExitCode.Success));
-            Assert.That(actual.Replace("\r\n", "\n"), Is.EqualTo(expected.Replace("\r\n", "\n")));
-        });
+        return fixture;
     }
 
-    private static string GetSnapshotPath(string fileName)
+    private static BuildCommandResult ExecuteBuild(TemporaryProject fixture)
+    {
+        return new BuildCommand().Execute(
+            new BuildCommandOptions(fixture.Root, DiagnosticOutputFormat.Text, EmitTextIr: true),
+            TestContext.CurrentContext.WorkDirectory);
+    }
+
+    private static string ReadGeneratedTextIr(TemporaryProject fixture)
+    {
+        return File.ReadAllText(Path.Combine(fixture.Root, "build", "windows", "events", "main.klibtxt"));
+    }
+
+    private static string ReadIrSnapshot(string fileName)
+    {
+        return File.ReadAllText(GetIrSnapshotPath(fileName));
+    }
+
+    private static string NormalizeLineEndings(string text)
+    {
+        return text.Replace("\r\n", "\n", StringComparison.Ordinal);
+    }
+
+    private static string GetIrSnapshotPath(string fileName)
     {
         return Path.GetFullPath(Path.Combine(GetRepositoryRoot(), "testdata", "snapshots", "ir", fileName));
     }
