@@ -5,18 +5,20 @@ namespace KoromoEventScript.Cli.Commands;
 
 public sealed class CliApplication
 {
-    private readonly BuildCheckOnlyCommand _buildCheckOnlyCommand;
-    private readonly DiagnosticSink _diagnosticSink;
+    private readonly BuildCheckOnlyCommand buildCheckOnlyCommand;
+    private readonly BuildCommand buildCommand;
+    private readonly DiagnosticSink diagnosticSink;
 
     public CliApplication()
-        : this(new BuildCheckOnlyCommand(), new DiagnosticSink())
+        : this(new BuildCheckOnlyCommand(), new BuildCommand(), new DiagnosticSink())
     {
     }
 
-    public CliApplication(BuildCheckOnlyCommand buildCheckOnlyCommand, DiagnosticSink diagnosticSink)
+    public CliApplication(BuildCheckOnlyCommand buildCheckOnlyCommand, BuildCommand buildCommand, DiagnosticSink diagnosticSink)
     {
-        _buildCheckOnlyCommand = buildCheckOnlyCommand;
-        _diagnosticSink = diagnosticSink;
+        this.buildCheckOnlyCommand = buildCheckOnlyCommand;
+        this.buildCommand = buildCommand;
+        this.diagnosticSink = diagnosticSink;
     }
 
     public int Run(IReadOnlyList<string> args, TextWriter output, TextWriter error, string currentDirectory)
@@ -29,12 +31,19 @@ public sealed class CliApplication
         var parseResult = Parse(args);
         if (parseResult.Diagnostics.Count > 0 || parseResult.Options is null)
         {
-            _diagnosticSink.Write(parseResult.Diagnostics, parseResult.OutputFormat, error);
+            diagnosticSink.Write(parseResult.Diagnostics, parseResult.OutputFormat, error);
             return (int)CliExitCode.CommandLineError;
         }
 
-        var result = _buildCheckOnlyCommand.Execute(parseResult.Options, currentDirectory);
-        _diagnosticSink.Write(result.Diagnostics, parseResult.OutputFormat, error);
+        if (parseResult.Options.CheckOnly)
+        {
+            var checkOnlyResult = buildCheckOnlyCommand.Execute(parseResult.Options, currentDirectory);
+            diagnosticSink.Write(checkOnlyResult.Diagnostics, parseResult.OutputFormat, error);
+            return (int)checkOnlyResult.ExitCode;
+        }
+
+        var result = buildCommand.Execute(parseResult.Options, currentDirectory);
+        diagnosticSink.Write(result.Diagnostics, parseResult.OutputFormat, error);
         return (int)result.ExitCode;
     }
 
@@ -51,6 +60,8 @@ public sealed class CliApplication
         string? optionProject = null;
         var checkOnly = false;
         var warningsAsErrors = false;
+        var emitTextIr = false;
+        var target = "windows";
         var outputFormat = DiagnosticOutputFormat.Text;
         var diagnostics = new List<Diagnostic>();
 
@@ -65,6 +76,10 @@ public sealed class CliApplication
 
                 case "--warnings-as-errors":
                     warningsAsErrors = true;
+                    break;
+
+                case "--txt-il":
+                    emitTextIr = true;
                     break;
 
                 case "--project":
@@ -100,6 +115,21 @@ public sealed class CliApplication
 
                     break;
 
+                case "--target":
+                    if (++index >= args.Count)
+                    {
+                        diagnostics.Add(CommandLineDiagnostic("--target requires a value."));
+                        break;
+                    }
+
+                    target = args[index];
+                    if (!string.Equals(target, "windows", StringComparison.OrdinalIgnoreCase))
+                    {
+                        diagnostics.Add(CommandLineDiagnostic($"Unsupported --target value '{target}'. Expected 'windows'."));
+                    }
+
+                    break;
+
                 default:
                     if (arg.StartsWith("-", StringComparison.Ordinal))
                     {
@@ -118,11 +148,6 @@ public sealed class CliApplication
             }
         }
 
-        if (!checkOnly)
-        {
-            diagnostics.Add(CommandLineDiagnostic("The build command requires --check-only for this implementation."));
-        }
-
         if (positionalProject is not null && optionProject is not null)
         {
             diagnostics.Add(CommandLineDiagnostic("Specify the project directory either as PROJECT_DIR or --project, not both."));
@@ -133,7 +158,13 @@ public sealed class CliApplication
             return BuildCommandParseResult.Failure(outputFormat, diagnostics);
         }
 
-        return BuildCommandParseResult.Success(new BuildCommandOptions(optionProject ?? positionalProject, outputFormat, warningsAsErrors));
+        return BuildCommandParseResult.Success(new BuildCommandOptions(
+            optionProject ?? positionalProject,
+            outputFormat,
+            warningsAsErrors,
+            CheckOnly: checkOnly,
+            EmitTextIr: emitTextIr,
+            Target: target));
     }
 
     private static Diagnostic CommandLineDiagnostic(string message)

@@ -1,0 +1,211 @@
+.klibtxt 1.0
+.module "module.main"
+.script "events/main"
+.source "events/main.kc"
+.imports.count 0
+
+.imports
+{
+  // none
+}
+
+.constants
+{
+  [0] string "main"
+  [1] string "events/main.kc"
+  [2] string "main.kc"
+  [3] string "scenario.say"
+  [4] string "scenario.nar"
+  [5] string "v.main.actors.0"
+  [6] string "actors"
+  [7] string "actor.riku"
+  [8] actorref -> [7] "actor.riku"
+  [9] string "v.main.total.1"
+  [10] string "total"
+  [11] string "cast"
+  [12] string "__if_next_1"
+  [13] string "__if_end_0"
+  [14] string "__while_start_2"
+  [15] string "__while_end_3"
+  [16] string "v.main._for_iter_0.2"
+  [17] string "$for_iter_0"
+  [18] string "v.main._for_index_1.3"
+  [19] string "$for_index_1"
+  [20] string "v.main.actor.4"
+  [21] string "actor"
+  [22] string "__for_start_4"
+  [23] string "array_len"
+  [24] string "show"
+  [25] string "__for_end_5"
+  [26] string "#start"
+  [27] string "こんにちは"
+  [28] string "つづく"
+  [29] string "続ける"
+  [30] string "終わる"
+  [31] string "#continue"
+  [32] string "#end"
+}
+
+.variables
+{
+  [0] id=cp[5] name=cp[6] type=7:array scope=2:script scopeId=0
+  [1] id=cp[9] name=cp[10] type=1:number scope=2:script scopeId=1
+  [2] id=cp[16] name=cp[17] type=7:array scope=4:block scopeId=2
+  [3] id=cp[18] name=cp[19] type=1:number scope=4:block scopeId=3
+  [4] id=cp[20] name=cp[21] type=0:unknown scope=4:block scopeId=4
+}
+
+.instructions
+{
+  IL_0000: PUSHCONST 8 // events/main.kc:3:24
+  IL_0005: ARRAYNEW 1 // events/main.kc:3:23
+  IL_000A: DEFVAR 0 // events/main.kc:3:5
+  IL_000F: PUSHINT 1 // events/main.kc:4:21
+  IL_0014: DEFVAR 1 // events/main.kc:4:5
+  IL_0019: PUSHCONST 8 // events/main.kc:6:5
+  IL_001E: CALLVOID 11 1 // events/main.kc:5:1
+  IL_0027: PUSHTRUE // events/main.kc:7:4
+  IL_0028: JUMPFALSE 21 // events/main.kc:7:1
+  IL_002D: LOADVAR 1 // events/main.kc:8:13
+  IL_0032: PUSHINT 1 // events/main.kc:8:21
+  IL_0037: ADD // events/main.kc:8:19
+  IL_0038: STOREVAR 1 // events/main.kc:8:5
+  IL_003D: JUMP 25 // events/main.kc:7:1
+  IL_0042: LABEL 12 0 // events/main.kc:7:1
+  IL_004B: LOADVAR 1 // events/main.kc:10:13
+  IL_0050: PUSHINT 1 // events/main.kc:10:21
+  IL_0055: SUB // events/main.kc:10:19
+  IL_0056: STOREVAR 1 // events/main.kc:10:5
+  IL_005B: LABEL 13 0 // events/main.kc:7:1
+  IL_0064: LABEL 14 0 // events/main.kc:11:1
+  IL_006D: LOADVAR 1 // events/main.kc:11:7
+  IL_0072: PUSHINT 3 // events/main.kc:11:15
+  IL_0077: LT // events/main.kc:11:13
+  IL_0078: JUMPFALSE 21 // events/main.kc:11:1
+  IL_007D: LOADVAR 1 // events/main.kc:12:13
+  IL_0082: PUSHINT 1 // events/main.kc:12:21
+  IL_0087: ADD // events/main.kc:12:19
+  IL_0088: STOREVAR 1 // events/main.kc:12:5
+  IL_008D: JUMP -46 // events/main.kc:11:1
+  IL_0092: LABEL 15 0 // events/main.kc:11:1
+  IL_009B: LOADVAR 0 // events/main.kc:13:14
+  IL_00A0: DEFVAR 2 // events/main.kc:13:1
+  IL_00A5: PUSHINT 0 // events/main.kc:13:1
+  IL_00AA: DEFVAR 3 // events/main.kc:13:1
+  IL_00AF: LABEL 22 0 // events/main.kc:13:1
+  IL_00B8: LOADVAR 3 // events/main.kc:13:1
+  IL_00BD: LOADVAR 2 // events/main.kc:13:1
+  IL_00C2: CALL 23 1 // events/main.kc:13:1
+  IL_00CB: LT // events/main.kc:13:1
+  IL_00CC: JUMPFALSE 56 // events/main.kc:13:1
+  IL_00D1: LOADVAR 2 // events/main.kc:13:1
+  IL_00D6: LOADVAR 3 // events/main.kc:13:1
+  IL_00DB: ARRAYGET // events/main.kc:13:1
+  IL_00DC: STOREVAR 4 // events/main.kc:13:1
+  IL_00E1: LOADVAR 4 // events/main.kc:14:10
+  IL_00E6: PUSHINT 0 // events/main.kc:14:16
+  IL_00EB: CALLVOID 24 2 // events/main.kc:14:5
+  IL_00F4: LOADVAR 3 // events/main.kc:13:1
+  IL_00F9: PUSHINT 1 // events/main.kc:13:1
+  IL_00FE: ADD // events/main.kc:13:1
+  IL_00FF: STOREVAR 3 // events/main.kc:13:1
+  IL_0104: JUMP -90 // events/main.kc:13:1
+  IL_0109: LABEL 25 0 // events/main.kc:13:1
+  IL_0112: LABEL 26 1 // events/main.kc:15:7
+  IL_011B: PUSHCONST 8 // events/main.kc:16:5
+  IL_0120: PUSHCONST 27 // events/main.kc:16:5
+  IL_0125: SYSCALLVOID 3 2 // events/main.kc:16:5
+  IL_012E: PUSHCONST 28 // events/main.kc:1:1
+  IL_0133: SYSCALLVOID 4 1 // events/main.kc:1:1
+  IL_013C: PUSHNULL // events/main.kc:1:1
+  IL_013D: SELECT 2 [cp[29] => 0, cp[30] => 14] // events/main.kc:1:1
+  IL_0152: LABEL 31 1 // events/main.kc:23:7
+  IL_015B: JUMP 0 // events/main.kc:24:6
+  IL_0160: LABEL 32 1 // events/main.kc:25:7
+  IL_0169: END
+}
+
+.labels
+{
+  cp[12] => 66 flags=0
+  cp[13] => 91 flags=0
+  cp[14] => 100 flags=0
+  cp[15] => 146 flags=0
+  cp[22] => 175 flags=0
+  cp[25] => 265 flags=0
+  cp[26] => 274 flags=1
+  cp[31] => 338 flags=1
+  cp[32] => 352 flags=1
+}
+
+.debug
+{
+  .source-map
+  {
+    IL_0000 -> "events/main.kc":3:24
+    IL_0005 -> "events/main.kc":3:23
+    IL_000A -> "events/main.kc":3:5
+    IL_000F -> "events/main.kc":4:21
+    IL_0014 -> "events/main.kc":4:5
+    IL_0019 -> "events/main.kc":6:5
+    IL_001E -> "events/main.kc":5:1
+    IL_0027 -> "events/main.kc":7:4
+    IL_0028 -> "events/main.kc":7:1
+    IL_002D -> "events/main.kc":8:13
+    IL_0032 -> "events/main.kc":8:21
+    IL_0037 -> "events/main.kc":8:19
+    IL_0038 -> "events/main.kc":8:5
+    IL_003D -> "events/main.kc":7:1
+    IL_0042 -> "events/main.kc":7:1
+    IL_004B -> "events/main.kc":10:13
+    IL_0050 -> "events/main.kc":10:21
+    IL_0055 -> "events/main.kc":10:19
+    IL_0056 -> "events/main.kc":10:5
+    IL_005B -> "events/main.kc":7:1
+    IL_0064 -> "events/main.kc":11:1
+    IL_006D -> "events/main.kc":11:7
+    IL_0072 -> "events/main.kc":11:15
+    IL_0077 -> "events/main.kc":11:13
+    IL_0078 -> "events/main.kc":11:1
+    IL_007D -> "events/main.kc":12:13
+    IL_0082 -> "events/main.kc":12:21
+    IL_0087 -> "events/main.kc":12:19
+    IL_0088 -> "events/main.kc":12:5
+    IL_008D -> "events/main.kc":11:1
+    IL_0092 -> "events/main.kc":11:1
+    IL_009B -> "events/main.kc":13:14
+    IL_00A0 -> "events/main.kc":13:1
+    IL_00A5 -> "events/main.kc":13:1
+    IL_00AA -> "events/main.kc":13:1
+    IL_00AF -> "events/main.kc":13:1
+    IL_00B8 -> "events/main.kc":13:1
+    IL_00BD -> "events/main.kc":13:1
+    IL_00C2 -> "events/main.kc":13:1
+    IL_00CB -> "events/main.kc":13:1
+    IL_00CC -> "events/main.kc":13:1
+    IL_00D1 -> "events/main.kc":13:1
+    IL_00D6 -> "events/main.kc":13:1
+    IL_00DB -> "events/main.kc":13:1
+    IL_00DC -> "events/main.kc":13:1
+    IL_00E1 -> "events/main.kc":14:10
+    IL_00E6 -> "events/main.kc":14:16
+    IL_00EB -> "events/main.kc":14:5
+    IL_00F4 -> "events/main.kc":13:1
+    IL_00F9 -> "events/main.kc":13:1
+    IL_00FE -> "events/main.kc":13:1
+    IL_00FF -> "events/main.kc":13:1
+    IL_0104 -> "events/main.kc":13:1
+    IL_0109 -> "events/main.kc":13:1
+    IL_0112 -> "events/main.kc":15:7
+    IL_011B -> "events/main.kc":16:5
+    IL_0120 -> "events/main.kc":16:5
+    IL_0125 -> "events/main.kc":16:5
+    IL_012E -> "events/main.kc":1:1
+    IL_0133 -> "events/main.kc":1:1
+    IL_013C -> "events/main.kc":1:1
+    IL_013D -> "events/main.kc":1:1
+    IL_0152 -> "events/main.kc":23:7
+    IL_015B -> "events/main.kc":24:6
+    IL_0160 -> "events/main.kc":25:7
+  }
+}
