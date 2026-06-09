@@ -39,6 +39,49 @@ public sealed record HeadlessVmValueSnapshot(
     }
 }
 
+public enum HeadlessVmObjectSnapshotKind
+{
+    Array = 0,
+    Instance = 1,
+}
+
+public sealed record HeadlessVmObjectFieldSnapshot(
+    string FieldId,
+    HeadlessVmValueSnapshot Value);
+
+public sealed record HeadlessVmObjectSnapshot(
+    string ReferenceId,
+    HeadlessVmObjectSnapshotKind Kind,
+    IReadOnlyList<HeadlessVmValueSnapshot>? ArrayItems = null,
+    IReadOnlyList<HeadlessVmObjectFieldSnapshot>? Fields = null)
+{
+    public static HeadlessVmValueSnapshot ToSnapshotValue(HeadlessVmRuntimeValue value)
+    {
+        return value.Kind switch
+        {
+            HeadlessVmRuntimeValueKind.Null => new HeadlessVmValueSnapshot(HeadlessVmValueKind.Null),
+            HeadlessVmRuntimeValueKind.String => new HeadlessVmValueSnapshot(HeadlessVmValueKind.String, StringValue: value.StringValue),
+            HeadlessVmRuntimeValueKind.Number => new HeadlessVmValueSnapshot(HeadlessVmValueKind.Number, NumberValue: value.NumberValue),
+            HeadlessVmRuntimeValueKind.Bool => new HeadlessVmValueSnapshot(HeadlessVmValueKind.Bool, BoolValue: value.BoolValue),
+            HeadlessVmRuntimeValueKind.Reference => new HeadlessVmValueSnapshot(HeadlessVmValueKind.Reference, ReferenceId: value.ReferenceId),
+            _ => new HeadlessVmValueSnapshot(HeadlessVmValueKind.Unsupported),
+        };
+    }
+
+    public static HeadlessVmRuntimeValue ToRuntimeValue(HeadlessVmValueSnapshot snapshot)
+    {
+        return snapshot.Kind switch
+        {
+            HeadlessVmValueKind.Null => HeadlessVmRuntimeValue.Null(),
+            HeadlessVmValueKind.String => new HeadlessVmRuntimeValue(HeadlessVmRuntimeValueKind.String, StringValue: snapshot.StringValue),
+            HeadlessVmValueKind.Number => new HeadlessVmRuntimeValue(HeadlessVmRuntimeValueKind.Number, NumberValue: snapshot.NumberValue),
+            HeadlessVmValueKind.Bool => new HeadlessVmRuntimeValue(HeadlessVmRuntimeValueKind.Bool, BoolValue: snapshot.BoolValue),
+            HeadlessVmValueKind.Reference => new HeadlessVmRuntimeValue(HeadlessVmRuntimeValueKind.Reference, ReferenceId: snapshot.ReferenceId),
+            _ => HeadlessVmRuntimeValue.Null(),
+        };
+    }
+}
+
 public sealed record HeadlessVmExecutionPosition(string ScriptId, int InstructionOffset);
 
 public sealed record HeadlessVmVariableSnapshot(
@@ -97,8 +140,10 @@ public sealed record HeadlessVmSaveState(
     int SchemaVersion,
     HeadlessVmExecutionPosition Position,
     IReadOnlyList<HeadlessVmVariableSnapshot> VariableStates,
+    IReadOnlyList<HeadlessVmValueSnapshot> OperandStack,
     IReadOnlyList<HeadlessVmCallFrameSnapshot> CallFrames,
+    IReadOnlyList<HeadlessVmObjectSnapshot> Objects,
     HeadlessVmContinuationState Continuation)
 {
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
 }

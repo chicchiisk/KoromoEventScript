@@ -1,3 +1,4 @@
+using KoromoEventScript.Cli.Compilation;
 using KoromoEventScript.Cli.Execution;
 
 namespace KoromoEventScript.Cli.Tests.Execution;
@@ -71,12 +72,14 @@ intro = {
 
             Assert.Multiple(() =>
             {
-                Assert.That(snapshot.SchemaVersion, Is.EqualTo(1));
+                Assert.That(snapshot.SchemaVersion, Is.EqualTo(2));
                 Assert.That(snapshot.Position.ScriptId, Is.EqualTo(document.Module.ScriptId));
                 Assert.That(snapshot.Position.InstructionOffset, Is.EqualTo(session.State.InstructionOffset));
                 Assert.That(snapshot.Continuation.Kind, Is.EqualTo(HeadlessVmContinuationKind.WaitingForAdvance));
                 Assert.That(snapshot.VariableStates, Is.Empty);
+                Assert.That(snapshot.OperandStack, Is.Empty);
                 Assert.That(snapshot.CallFrames, Is.Empty);
+                Assert.That(snapshot.Objects, Is.Empty);
             });
         }
     }
@@ -233,5 +236,105 @@ intro = {
                 Assert.That(restoredSession.State.Fault!.Message, Does.Contain("offset"));
             });
         }
+    }
+
+    [Test]
+    public void ExportSaveState_WithArrayVariable_CapturesObjectSnapshots()
+    {
+        var session = HeadlessVmTestHelper.CreateSession(HeadlessVmTestHelper.CreateSyntheticDocument(
+            [
+                new KlibInstruction(0, 0, KlibOpCode.PushInt, [1], new KoromoEventScript.Cli.Parsing.SourceLocation(1, 1), KlibMappingKind.Statement),
+                new KlibInstruction(1, 5, KlibOpCode.PushInt, [2], new KoromoEventScript.Cli.Parsing.SourceLocation(1, 5), KlibMappingKind.Statement),
+                new KlibInstruction(2, 10, KlibOpCode.ArrayNew, [2], new KoromoEventScript.Cli.Parsing.SourceLocation(1, 10), KlibMappingKind.Statement),
+                new KlibInstruction(3, 15, KlibOpCode.DefVar, [0], new KoromoEventScript.Cli.Parsing.SourceLocation(1, 15), KlibMappingKind.Statement),
+                new KlibInstruction(4, 20, KlibOpCode.PushNull, [], new KoromoEventScript.Cli.Parsing.SourceLocation(2, 1), KlibMappingKind.Statement),
+                new KlibInstruction(5, 21, KlibOpCode.Select, [1], new KoromoEventScript.Cli.Parsing.SourceLocation(2, 5), KlibMappingKind.Statement, [new KlibSelectCase(0, 0)]),
+                new KlibInstruction(6, 34, KlibOpCode.End, [], new KoromoEventScript.Cli.Parsing.SourceLocation(3, 1), KlibMappingKind.Statement),
+            ],
+            [new KlibConstant(KlibConstantKind.String, StringValue: "続ける")],
+            [new KlibVariable(0, 0, KlibVariableType.Array, KlibScopeKind.Script, 0, null)]));
+
+        var snapshot = session.ExportSaveState();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(snapshot.VariableStates, Has.Count.EqualTo(1));
+            Assert.That(snapshot.VariableStates[0].Value.Kind, Is.EqualTo(HeadlessVmValueKind.Reference));
+            Assert.That(snapshot.Objects, Has.Count.EqualTo(1));
+            Assert.That(snapshot.Objects[0].Kind, Is.EqualTo(HeadlessVmObjectSnapshotKind.Array));
+            Assert.That(snapshot.Objects[0].ArrayItems?.Select(static item => item.NumberValue),
+                Is.EqualTo(new double?[] { 1d, 2d }));
+        });
+    }
+
+    [Test]
+    public void Restore_AfterWaitingForAdvance_PreservesOperandStackAndObjectStore()
+    {
+        var document = HeadlessVmTestHelper.CreateSyntheticDocument(
+            [
+                new KlibInstruction(0, 0, KlibOpCode.PushInt, [40], new KoromoEventScript.Cli.Parsing.SourceLocation(1, 1), KlibMappingKind.Statement),
+                new KlibInstruction(1, 5, KlibOpCode.PushInt, [2], new KoromoEventScript.Cli.Parsing.SourceLocation(1, 5), KlibMappingKind.Statement),
+                new KlibInstruction(2, 10, KlibOpCode.PushConst, [0], new KoromoEventScript.Cli.Parsing.SourceLocation(1, 10), KlibMappingKind.Statement),
+                new KlibInstruction(3, 15, KlibOpCode.SysCallVoid, [1, 1], new KoromoEventScript.Cli.Parsing.SourceLocation(1, 15), KlibMappingKind.Statement),
+                new KlibInstruction(4, 24, KlibOpCode.Add, [], new KoromoEventScript.Cli.Parsing.SourceLocation(2, 1), KlibMappingKind.Statement),
+                new KlibInstruction(5, 25, KlibOpCode.SysCallVoid, [1, 1], new KoromoEventScript.Cli.Parsing.SourceLocation(2, 5), KlibMappingKind.Statement),
+                new KlibInstruction(6, 34, KlibOpCode.End, [], new KoromoEventScript.Cli.Parsing.SourceLocation(3, 1), KlibMappingKind.Statement),
+            ],
+            [
+                new KlibConstant(KlibConstantKind.String, StringValue: "pause"),
+                new KlibConstant(KlibConstantKind.String, StringValue: "scenario.nar"),
+            ]);
+
+        var originalSession = HeadlessVmTestHelper.CreateSession(document);
+        var snapshot = originalSession.ExportSaveState();
+
+        var restoredSession = new HeadlessVmSession();
+        restoredSession.Restore(document, snapshot);
+        restoredSession.ResumeAdvance();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(restoredSession.State.Kind, Is.EqualTo(HeadlessVmStateKind.WaitingForAdvance));
+            Assert.That(restoredSession.Observation.Transcript.Select(static entry => entry.Text),
+                Is.EqualTo(new[] { "42" }));
+        });
+    }
+
+    [Test]
+    public void Restore_WaitingForSelection_PreservesArrayReferenceAcrossResume()
+    {
+        var document = HeadlessVmTestHelper.CreateSyntheticDocument(
+            [
+                new KlibInstruction(0, 0, KlibOpCode.PushInt, [1], new KoromoEventScript.Cli.Parsing.SourceLocation(1, 1), KlibMappingKind.Statement),
+                new KlibInstruction(1, 5, KlibOpCode.PushInt, [2], new KoromoEventScript.Cli.Parsing.SourceLocation(1, 5), KlibMappingKind.Statement),
+                new KlibInstruction(2, 10, KlibOpCode.ArrayNew, [2], new KoromoEventScript.Cli.Parsing.SourceLocation(1, 10), KlibMappingKind.Statement),
+                new KlibInstruction(3, 15, KlibOpCode.DefVar, [0], new KoromoEventScript.Cli.Parsing.SourceLocation(1, 15), KlibMappingKind.Statement),
+                new KlibInstruction(4, 20, KlibOpCode.PushNull, [], new KoromoEventScript.Cli.Parsing.SourceLocation(2, 1), KlibMappingKind.Statement),
+                new KlibInstruction(5, 21, KlibOpCode.Select, [1], new KoromoEventScript.Cli.Parsing.SourceLocation(2, 5), KlibMappingKind.Statement, [new KlibSelectCase(0, 0)]),
+                new KlibInstruction(6, 34, KlibOpCode.LoadVar, [0], new KoromoEventScript.Cli.Parsing.SourceLocation(3, 1), KlibMappingKind.Statement),
+                new KlibInstruction(7, 39, KlibOpCode.PushInt, [1], new KoromoEventScript.Cli.Parsing.SourceLocation(3, 5), KlibMappingKind.Statement),
+                new KlibInstruction(8, 44, KlibOpCode.ArrayGet, [], new KoromoEventScript.Cli.Parsing.SourceLocation(3, 10), KlibMappingKind.Statement),
+                new KlibInstruction(9, 45, KlibOpCode.SysCallVoid, [1, 1], new KoromoEventScript.Cli.Parsing.SourceLocation(3, 15), KlibMappingKind.Statement),
+                new KlibInstruction(10, 54, KlibOpCode.End, [], new KoromoEventScript.Cli.Parsing.SourceLocation(4, 1), KlibMappingKind.Statement),
+            ],
+            [
+                new KlibConstant(KlibConstantKind.String, StringValue: "続ける"),
+                new KlibConstant(KlibConstantKind.String, StringValue: "scenario.nar"),
+            ],
+            [new KlibVariable(0, 0, KlibVariableType.Array, KlibScopeKind.Script, 0, null)]);
+
+        var originalSession = HeadlessVmTestHelper.CreateSession(document);
+        var snapshot = originalSession.ExportSaveState();
+
+        var restoredSession = new HeadlessVmSession();
+        restoredSession.Restore(document, snapshot);
+        restoredSession.ResumeSelection(0);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(restoredSession.State.Kind, Is.EqualTo(HeadlessVmStateKind.WaitingForAdvance));
+            Assert.That(restoredSession.Observation.Transcript.Select(static entry => entry.Text),
+                Is.EqualTo(new[] { "2" }));
+        });
     }
 }

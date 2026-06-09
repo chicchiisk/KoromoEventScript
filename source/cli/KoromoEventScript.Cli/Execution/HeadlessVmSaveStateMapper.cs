@@ -2,15 +2,6 @@ using KoromoEventScript.Cli.Compilation;
 
 namespace KoromoEventScript.Cli.Execution;
 
-internal sealed class HeadlessVmRuntimeState
-{
-    public Dictionary<int, object?> VariableValues { get; } = [];
-
-    public List<HeadlessVmCallFrameSnapshot> CallFrames { get; } = [];
-
-    public Stack<object?> OperandStack { get; } = [];
-}
-
 public sealed class HeadlessVmSaveStateMapper
 {
     public HeadlessVmSaveState Export(HeadlessVmSession session)
@@ -29,7 +20,7 @@ public sealed class HeadlessVmSaveStateMapper
                 variable.StableIdIndex,
                 variable.ScopeKind,
                 variable.ScopeId,
-                HeadlessVmValueSnapshot.FromObject(session.RuntimeState.VariableValues[variable.StableIdIndex])))
+                ToSnapshotValue(session.RuntimeState.VariableValues[variable.StableIdIndex])))
             .ToArray();
 
         var continuation = session.State.Kind switch
@@ -48,7 +39,9 @@ public sealed class HeadlessVmSaveStateMapper
             HeadlessVmSaveState.CurrentSchemaVersion,
             new HeadlessVmExecutionPosition(document.Module.ScriptId, session.State.InstructionOffset),
             variableStates,
+            session.RuntimeState.ExportOperands().Select(ToSnapshotValue).ToArray(),
             session.RuntimeState.CallFrames.ToArray(),
+            session.RuntimeState.ObjectStore.ExportSnapshots(),
             continuation);
     }
 
@@ -92,22 +85,20 @@ public sealed class HeadlessVmSaveStateMapper
             runtimeState.VariableValues[variable.StableIdIndex] = ToRuntimeValue(variable.Value);
         }
 
+        runtimeState.RestoreOperands(snapshot.OperandStack.Select(ToRuntimeValue));
         runtimeState.CallFrames.AddRange(snapshot.CallFrames);
+        runtimeState.ObjectStore.RestoreSnapshots(snapshot.Objects);
         return runtimeState;
     }
 
-    private static object? ToRuntimeValue(HeadlessVmValueSnapshot snapshot)
+    private static HeadlessVmValueSnapshot ToSnapshotValue(HeadlessVmRuntimeValue value)
     {
-        return snapshot.Kind switch
-        {
-            HeadlessVmValueKind.Null => null,
-            HeadlessVmValueKind.String => snapshot.StringValue,
-            HeadlessVmValueKind.Number => snapshot.NumberValue,
-            HeadlessVmValueKind.Bool => snapshot.BoolValue,
-            HeadlessVmValueKind.Array => snapshot.ArrayItems?.Select(ToRuntimeValue).ToArray(),
-            HeadlessVmValueKind.Reference => snapshot.ReferenceId,
-            _ => null,
-        };
+        return HeadlessVmObjectSnapshot.ToSnapshotValue(value);
+    }
+
+    private static HeadlessVmRuntimeValue ToRuntimeValue(HeadlessVmValueSnapshot snapshot)
+    {
+        return HeadlessVmObjectSnapshot.ToRuntimeValue(snapshot);
     }
 
     private static bool IsKnownOffset(KlibDocument document, int offset)
