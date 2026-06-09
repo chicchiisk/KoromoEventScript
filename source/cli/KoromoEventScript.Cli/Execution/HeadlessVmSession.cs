@@ -5,16 +5,20 @@ namespace KoromoEventScript.Cli.Execution;
 public sealed class HeadlessVmSession
 {
     private readonly HeadlessVmExecutor executor;
+    private readonly HeadlessVmSaveStateMapper saveStateMapper;
     private KlibDocument? document;
+    private HeadlessVmRuntimeState runtimeState;
 
     public HeadlessVmSession()
-        : this(new HeadlessVmExecutor())
+        : this(new HeadlessVmExecutor(), new HeadlessVmSaveStateMapper())
     {
     }
 
-    public HeadlessVmSession(HeadlessVmExecutor executor)
+    public HeadlessVmSession(HeadlessVmExecutor executor, HeadlessVmSaveStateMapper saveStateMapper)
     {
         this.executor = executor;
+        this.saveStateMapper = saveStateMapper;
+        runtimeState = new HeadlessVmRuntimeState();
         State = HeadlessVmState.NotStarted();
         Observation = HeadlessVmObservationLog.Empty();
     }
@@ -23,16 +27,32 @@ public sealed class HeadlessVmSession
 
     public HeadlessVmObservationLog Observation { get; private set; }
 
+    internal KlibDocument? Document => document;
+
+    internal HeadlessVmRuntimeState RuntimeState => runtimeState;
+
     public void Start(KlibDocument document)
     {
         ArgumentNullException.ThrowIfNull(document);
 
         this.document = document;
+        runtimeState = new HeadlessVmRuntimeState();
         Observation = HeadlessVmObservationLog.Empty();
 
         var startOffset = document.Instructions.Count == 0 ? 0 : document.Instructions[0].Offset;
         State = HeadlessVmState.Running(document.Module.ScriptId, startOffset);
         ContinueFrom(startOffset);
+    }
+
+    public HeadlessVmSaveState ExportSaveState()
+    {
+        EnsureStarted();
+        return saveStateMapper.Export(this);
+    }
+
+    public void Restore(KlibDocument document, HeadlessVmSaveState snapshot)
+    {
+        saveStateMapper.Restore(this, document, snapshot);
     }
 
     public void ResumeAdvance()
@@ -71,9 +91,50 @@ public sealed class HeadlessVmSession
 
     private void ContinueFrom(int offset)
     {
-        var result = executor.RunToBoundary(document!, offset, Observation);
+        var result = executor.RunToBoundary(document!, runtimeState, offset, Observation);
         State = result.State;
         Observation = result.Observation;
+    }
+
+    internal void RestoreFault(string message, string scriptId, int instructionOffset)
+    {
+        State = HeadlessVmState.Faulted(new HeadlessVmFault(message, scriptId, instructionOffset));
+        Observation = HeadlessVmObservationLog.Empty();
+    }
+
+    internal void RestoreSession(KlibDocument document, HeadlessVmSaveState snapshot, HeadlessVmRuntimeState runtimeState)
+    {
+        this.document = document;
+        this.runtimeState = runtimeState;
+
+        Observation = HeadlessVmObservationLog.Empty();
+        State = snapshot.Continuation.Kind switch
+        {
+            HeadlessVmContinuationKind.Running => HeadlessVmState.Running(document.Module.ScriptId, snapshot.Position.InstructionOffset),
+            HeadlessVmContinuationKind.WaitingForAdvance => HeadlessVmState.WaitingForAdvance(document.Module.ScriptId, snapshot.Continuation.ResumeOffset),
+            HeadlessVmContinuationKind.WaitingForSelection => RestoreWaitingForSelection(document.Module.ScriptId, snapshot.Continuation),
+            HeadlessVmContinuationKind.Completed => HeadlessVmState.Completed(document.Module.ScriptId, snapshot.Position.InstructionOffset),
+            _ => HeadlessVmState.Faulted(new HeadlessVmFault(
+                $"Unsupported continuation kind '{snapshot.Continuation.Kind}'.",
+                document.Module.ScriptId,
+                snapshot.Position.InstructionOffset)),
+        };
+
+        if (snapshot.Continuation.Kind == HeadlessVmContinuationKind.WaitingForSelection &&
+            snapshot.Continuation.PendingChoices is not null)
+        {
+            Observation = Observation.ShowChoices(
+                snapshot.Continuation.Prompt,
+                snapshot.Continuation.PendingChoices
+                    .Select(static choice => new HeadlessVmChoice(choice.Text, choice.TargetOffset))
+                    .ToArray());
+        }
+    }
+
+    private static HeadlessVmState RestoreWaitingForSelection(string scriptId, HeadlessVmContinuationState continuation)
+    {
+        var pendingChoices = continuation.PendingChoices?.Select(static choice => new HeadlessVmChoice(choice.Text, choice.TargetOffset)).ToArray() ?? [];
+        return HeadlessVmState.WaitingForSelection(scriptId, continuation.ResumeOffset, pendingChoices);
     }
 
     private void EnsureStarted()

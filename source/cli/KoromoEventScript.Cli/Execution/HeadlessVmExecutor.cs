@@ -4,9 +4,14 @@ namespace KoromoEventScript.Cli.Execution;
 
 public sealed class HeadlessVmExecutor
 {
-    public HeadlessVmExecutionResult RunToBoundary(KlibDocument document, int startOffset, HeadlessVmObservationLog observation)
+    internal HeadlessVmExecutionResult RunToBoundary(
+        KlibDocument document,
+        HeadlessVmRuntimeState runtimeState,
+        int startOffset,
+        HeadlessVmObservationLog observation)
     {
         ArgumentNullException.ThrowIfNull(document);
+        ArgumentNullException.ThrowIfNull(runtimeState);
         ArgumentNullException.ThrowIfNull(observation);
 
         if (document.Instructions.Count == 0)
@@ -17,7 +22,7 @@ public sealed class HeadlessVmExecutor
         }
 
         var instructionsByOffset = document.Instructions.ToDictionary(static instruction => instruction.Offset);
-        var stack = new Stack<object?>();
+        var stack = runtimeState.OperandStack;
         var offset = startOffset;
         var currentObservation = observation;
 
