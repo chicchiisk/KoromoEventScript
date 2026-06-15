@@ -1,0 +1,65 @@
+# Implementation Plan
+
+- [x] 1. `kes init` の基盤コマンド契約を追加する
+- [x] 1.1 `kes init` 用の typed option と result model を定義する
+  - `PROJECT_DIR`、`--name`、`--template`、`--force`、`--no-sample`、`--log-format` を保持できる init 用 option model を追加する。
+  - init 実行結果、writer 実行結果、template 種別、成功メッセージに必要な state を分離して定義する。
+  - 完了時には、`CliApplication` と `InitCommand` が共有できる init 用契約型がそろい、未定義の引数状態を後続で持ち回らなくなる。
+  - _Requirements: 1.2, 2.1, 2.3, 2.4, 2.5, 2.6, 6.1, 6.2_
+- [x] 1.2 `CliApplication` に `kes init` の引数解釈と dispatch 入口を追加する
+  - `init` を top-level command として受け付け、`PROJECT_DIR` 省略時は current directory を対象にする。
+  - `--template` の値検証、値必須オプションの欠落、重複または不正な引数を command-line diagnostic として扱う。
+  - 既存の `build` ルートと `--log-format` の挙動を維持しながら、`InitCommand` へ解釈済み options を渡せるようにする。
+  - 完了時には、`kes init` の不正入力が filesystem 変更前に exit code `2` で止まり、既存 `build` 呼び出しはそのまま動作する。
+  - _Requirements: 1.1, 1.2, 1.4, 2.4, 6.3_
+
+- [x] 2. 標準 scaffold の生成ロジックを実装する
+- [x] 2.1 `basic` / `empty` テンプレートから生成内容を決定する scaffold factory を実装する
+  - 公開仕様どおりの `kes.xml`、`events/`、`assets/`、`locale/`、`build/`、`dist/` と、`assets` 配下サブディレクトリを deterministic に組み立てる。
+  - `--name` 指定時の project name 反映、未指定時の既定 project name 決定、`--no-sample` による sample 抑止を factory 側で解決する。
+  - `basic` では `events/main.kel` と `events/chapter001.kc` を生成し、`kes.xml` と `.kel` の参照パスを整合させる。
+  - 完了時には、1 回の factory 呼び出しだけで final scaffold tree が決まり、`basic` / `empty` / `--no-sample` の差分が model 上で確認できる。
+  - _Requirements: 1.3, 2.1, 2.2, 2.3, 2.5, 3.1, 3.2, 3.3, 3.4, 3.5, 4.1, 4.2_
+- [x] 2.2 scaffold writer で衝突判定と `--force` 付き書き込みを実装する
+  - scaffold directory の作成、managed file の書き込み、directory/file path conflict の検出を 1 つの writer にまとめる。
+  - `--force` なしでは既存 managed path の衝突で止め、`--force` ありでは managed file のみ上書きし、未知ファイル削除は行わない。
+  - file または directory の作成失敗時は、標準診断へ流せる error result と exit code `6` 相当の失敗情報を返す。
+  - 完了時には、同じ scaffold に対して force あり/なしで observable に異なる apply 結果が得られ、未知ファイルは保持される。
+  - _Requirements: 2.6, 5.1, 5.2, 5.3_
+
+- [x] 3. `kes init` の実行フローを組み立てる
+- [x] 3.1 `InitCommand` で scaffold 生成・適用・結果分類を orchestrate する
+  - 解決済み project root を基準に scaffold factory と writer を呼び出し、成功時だけ project root を含む success message を返す。
+  - writer failure は success として報告せず、diagnostics をそのまま CLI 出力経路へ渡せる result に変換する。
+  - `PROJECT_DIR` 相対指定と current directory 基準の path 解決を command 層で統一する。
+  - 完了時には、`kes init` 実行 1 回で success path と failure path のどちらも `InitCommandResult` だけで判定できる。
+  - _Depends: 1.1, 2.1, 2.2_
+  - _Requirements: 1.1, 1.3, 5.4, 6.1, 6.2, 6.3_
+- [x] 3.2 `CliApplication` と `InitCommand` を結線し、既存 CLI 契約へ統合する
+  - `InitCommand` の成功時は標準出力へ成功メッセージを出し、失敗時は既存 `DiagnosticSink` で text / JSON diagnostics を出力する。
+  - init 追加後も `build` の既存 routing、終了コード、diagnostic 出力経路を維持する。
+  - 完了時には、`CliApplication.Run(...)` だけで `init` の成功/失敗を既存 CLI と同じ I/O 契約で扱える。
+  - _Depends: 1.2, 3.1_
+  - _Requirements: 1.1, 1.4, 6.1, 6.2, 6.3_
+
+- [x] 4. `kes init` の検証と回帰テストを追加する
+- [x] 4.1 (P) scaffold factory の単体テストを追加する
+  - `basic` 既定、`empty`、`--no-sample`、`--name` 指定/省略で生成される directories、files、`kes.xml` 内容を直接検証する。
+  - `events/main.kel` が `chapter001.kc` を参照し、`kes.xml` が `events/main.kel` を参照することを fixture 依存なしで確認する。
+  - 完了時には、factory の出力 model だけを見て template 差分と path 整合を判定できる。
+  - _Requirements: 2.1, 2.2, 2.3, 2.5, 3.1, 3.2, 3.3, 3.4, 3.5, 4.1, 4.2_
+  - _Boundary: ProjectScaffoldFactory_
+- [x] 4.2 (P) scaffold writer の単体テストを追加する
+  - force なし conflict、directory path conflict、force overwrite success、未知ファイル保持、write failure を個別に再現する。
+  - diagnostics の有無と filesystem snapshot の変化を見て、writer の安全側挙動を固定する。
+  - 完了時には、同じ scaffold に対する apply 結果が force 条件と衝突条件に応じて自動テストで区別できる。
+  - _Depends: 2.2_
+  - _Requirements: 2.6, 5.1, 5.2, 5.3_
+  - _Boundary: ProjectScaffoldWriter_
+- [x] 4.3 `InitCommand` と CLI の統合テストを追加する
+  - `kes init .`、`kes init <dir> --template empty`、不正引数、JSON diagnostics を `CliApplication` 経由で検証する。
+  - `basic` テンプレート生成後に `kes build --check-only` が正常完了することを既存 build 経路で確認する。
+  - init 追加後も既存 `build` route が非退行であることを代表ケースで再確認する。
+  - 完了時には、利用者視点の `kes init` 実行から `build --check-only` 成功までが自動テストで再現される。
+  - _Depends: 3.2, 4.1, 4.2_
+  - _Requirements: 1.2, 1.4, 4.3, 5.4, 6.1, 6.2, 6.3_

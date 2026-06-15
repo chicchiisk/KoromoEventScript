@@ -1,4 +1,5 @@
 using KoromoEventScript.Cli.Commands.Build;
+using KoromoEventScript.Cli.Commands.Init;
 using KoromoEventScript.Cli.Diagnostics;
 
 namespace KoromoEventScript.Cli.Commands;
@@ -7,17 +8,23 @@ public sealed class CliApplication
 {
     private readonly BuildCheckOnlyCommand buildCheckOnlyCommand;
     private readonly BuildCommand buildCommand;
+    private readonly InitCommand initCommand;
     private readonly DiagnosticSink diagnosticSink;
 
     public CliApplication()
-        : this(new BuildCheckOnlyCommand(), new BuildCommand(), new DiagnosticSink())
+        : this(new BuildCheckOnlyCommand(), new BuildCommand(), new InitCommand(), new DiagnosticSink())
     {
     }
 
-    public CliApplication(BuildCheckOnlyCommand buildCheckOnlyCommand, BuildCommand buildCommand, DiagnosticSink diagnosticSink)
+    public CliApplication(
+        BuildCheckOnlyCommand buildCheckOnlyCommand,
+        BuildCommand buildCommand,
+        InitCommand initCommand,
+        DiagnosticSink diagnosticSink)
     {
         this.buildCheckOnlyCommand = buildCheckOnlyCommand;
         this.buildCommand = buildCommand;
+        this.initCommand = initCommand;
         this.diagnosticSink = diagnosticSink;
     }
 
@@ -29,32 +36,57 @@ public sealed class CliApplication
         ArgumentNullException.ThrowIfNull(currentDirectory);
 
         var parseResult = Parse(args);
-        if (parseResult.Diagnostics.Count > 0 || parseResult.Options is null)
+        if (parseResult.Diagnostics.Count > 0 || (parseResult.BuildOptions is null && parseResult.InitOptions is null))
         {
             diagnosticSink.Write(parseResult.Diagnostics, parseResult.OutputFormat, error);
             return (int)CliExitCode.CommandLineError;
         }
 
-        if (parseResult.Options.CheckOnly)
+        if (parseResult.InitOptions is not null)
         {
-            var checkOnlyResult = buildCheckOnlyCommand.Execute(parseResult.Options, currentDirectory);
+            var initResult = initCommand.Execute(parseResult.InitOptions, currentDirectory);
+            diagnosticSink.Write(initResult.Diagnostics, parseResult.OutputFormat, error);
+            if (!string.IsNullOrWhiteSpace(initResult.SuccessMessage))
+            {
+                output.WriteLine(initResult.SuccessMessage);
+            }
+
+            return (int)initResult.ExitCode;
+        }
+
+        if (parseResult.BuildOptions!.CheckOnly)
+        {
+            var checkOnlyResult = buildCheckOnlyCommand.Execute(parseResult.BuildOptions, currentDirectory);
             diagnosticSink.Write(checkOnlyResult.Diagnostics, parseResult.OutputFormat, error);
             return (int)checkOnlyResult.ExitCode;
         }
 
-        var result = buildCommand.Execute(parseResult.Options, currentDirectory);
+        var result = buildCommand.Execute(parseResult.BuildOptions, currentDirectory);
         diagnosticSink.Write(result.Diagnostics, parseResult.OutputFormat, error);
         return (int)result.ExitCode;
     }
 
-    private static BuildCommandParseResult Parse(IReadOnlyList<string> args)
+    private static CommandParseResult Parse(IReadOnlyList<string> args)
     {
-        if (args.Count == 0 || !string.Equals(args[0], "build", StringComparison.Ordinal))
+        if (args.Count == 0)
         {
-            return BuildCommandParseResult.Failure(
+            return CommandParseResult.Failure(
                 DiagnosticOutputFormat.Text,
-                CommandLineDiagnostic("Unsupported command. Only 'build --check-only' is supported."));
+                CommandLineDiagnostic("Unsupported command. Only 'build' and 'init' are supported."));
         }
+
+        return args[0] switch
+        {
+            "build" => ParseBuild(args),
+            "init" => ParseInit(args),
+            _ => CommandParseResult.Failure(
+                DiagnosticOutputFormat.Text,
+                CommandLineDiagnostic("Unsupported command. Only 'build' and 'init' are supported.")),
+        };
+    }
+
+    private static CommandParseResult ParseBuild(IReadOnlyList<string> args)
+    {
 
         string? positionalProject = null;
         string? optionProject = null;
@@ -155,10 +187,10 @@ public sealed class CliApplication
 
         if (diagnostics.Count > 0)
         {
-            return BuildCommandParseResult.Failure(outputFormat, diagnostics);
+            return CommandParseResult.Failure(outputFormat, diagnostics);
         }
 
-        return BuildCommandParseResult.Success(new BuildCommandOptions(
+        return CommandParseResult.BuildSuccess(new BuildCommandOptions(
             optionProject ?? positionalProject,
             outputFormat,
             warningsAsErrors,
@@ -167,29 +199,146 @@ public sealed class CliApplication
             Target: target));
     }
 
+    private static CommandParseResult ParseInit(IReadOnlyList<string> args)
+    {
+        string? positionalProject = null;
+        string? projectName = null;
+        var template = InitTemplate.Basic;
+        var force = false;
+        var noSample = false;
+        var outputFormat = DiagnosticOutputFormat.Text;
+        var diagnostics = new List<Diagnostic>();
+
+        for (var index = 1; index < args.Count; index++)
+        {
+            var arg = args[index];
+            switch (arg)
+            {
+                case "--name":
+                    if (++index >= args.Count)
+                    {
+                        diagnostics.Add(CommandLineDiagnostic("--name requires a value."));
+                        break;
+                    }
+
+                    projectName = args[index];
+                    break;
+
+                case "--template":
+                    if (++index >= args.Count)
+                    {
+                        diagnostics.Add(CommandLineDiagnostic("--template requires a value."));
+                        break;
+                    }
+
+                    var templateValue = args[index];
+                    if (string.Equals(templateValue, "basic", StringComparison.OrdinalIgnoreCase))
+                    {
+                        template = InitTemplate.Basic;
+                    }
+                    else if (string.Equals(templateValue, "empty", StringComparison.OrdinalIgnoreCase))
+                    {
+                        template = InitTemplate.Empty;
+                    }
+                    else
+                    {
+                        diagnostics.Add(CommandLineDiagnostic($"Invalid --template value '{templateValue}'. Expected 'basic' or 'empty'."));
+                    }
+
+                    break;
+
+                case "--force":
+                    force = true;
+                    break;
+
+                case "--no-sample":
+                    noSample = true;
+                    break;
+
+                case "--log-format":
+                    if (++index >= args.Count)
+                    {
+                        diagnostics.Add(CommandLineDiagnostic("--log-format requires a value."));
+                        break;
+                    }
+
+                    var format = args[index];
+                    if (string.Equals(format, "text", StringComparison.OrdinalIgnoreCase))
+                    {
+                        outputFormat = DiagnosticOutputFormat.Text;
+                    }
+                    else if (string.Equals(format, "json", StringComparison.OrdinalIgnoreCase))
+                    {
+                        outputFormat = DiagnosticOutputFormat.JsonLines;
+                    }
+                    else
+                    {
+                        diagnostics.Add(CommandLineDiagnostic($"Invalid --log-format value '{format}'. Expected 'text' or 'json'."));
+                    }
+
+                    break;
+
+                default:
+                    if (arg.StartsWith("-", StringComparison.Ordinal))
+                    {
+                        diagnostics.Add(CommandLineDiagnostic($"Unsupported option '{arg}'."));
+                    }
+                    else if (positionalProject is null)
+                    {
+                        positionalProject = arg;
+                    }
+                    else
+                    {
+                        diagnostics.Add(CommandLineDiagnostic($"Unexpected argument '{arg}'."));
+                    }
+
+                    break;
+            }
+        }
+
+        if (diagnostics.Count > 0)
+        {
+            return CommandParseResult.Failure(outputFormat, diagnostics);
+        }
+
+        return CommandParseResult.InitSuccess(new InitCommandOptions(
+            positionalProject,
+            projectName,
+            template,
+            force,
+            noSample,
+            outputFormat));
+    }
+
     private static Diagnostic CommandLineDiagnostic(string message)
     {
         return new Diagnostic(DiagnosticLevel.Error, "KES9001", string.Empty, 1, 1, message);
     }
 
-    private sealed record BuildCommandParseResult(
-        BuildCommandOptions? Options,
+    private sealed record CommandParseResult(
+        BuildCommandOptions? BuildOptions,
+        InitCommandOptions? InitOptions,
         IReadOnlyList<Diagnostic> Diagnostics,
         DiagnosticOutputFormat OutputFormat)
     {
-        public static BuildCommandParseResult Success(BuildCommandOptions options)
+        public static CommandParseResult BuildSuccess(BuildCommandOptions options)
         {
-            return new BuildCommandParseResult(options, [], options.OutputFormat);
+            return new CommandParseResult(options, null, [], options.OutputFormat);
         }
 
-        public static BuildCommandParseResult Failure(DiagnosticOutputFormat format, params Diagnostic[] diagnostics)
+        public static CommandParseResult InitSuccess(InitCommandOptions options)
+        {
+            return new CommandParseResult(null, options, [], options.OutputFormat);
+        }
+
+        public static CommandParseResult Failure(DiagnosticOutputFormat format, params Diagnostic[] diagnostics)
         {
             return Failure(format, (IReadOnlyList<Diagnostic>)diagnostics);
         }
 
-        public static BuildCommandParseResult Failure(DiagnosticOutputFormat format, IReadOnlyList<Diagnostic> diagnostics)
+        public static CommandParseResult Failure(DiagnosticOutputFormat format, IReadOnlyList<Diagnostic> diagnostics)
         {
-            return new BuildCommandParseResult(null, diagnostics, format);
+            return new CommandParseResult(null, null, diagnostics, format);
         }
     }
 }
