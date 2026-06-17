@@ -155,9 +155,11 @@ public class NameResolverTests
             "events/main.ke",
             "Main",
             new SelectStatementSyntax(
+                null,
             [
                 new CaseClauseSyntax("Go", "#choice", new SourceLocation(2, 15)),
-            ]),
+            ],
+                KeywordLocation: new SourceLocation(1, 1)),
             new LabelStatementSyntax("#choice", new SourceLocation(3, 7)),
             new JumpStatementSyntax("#ending", new SourceLocation(4, 6)),
             new SayStatementSyntax("Noa", "#ending", [new TextLineSyntax("end", false)], new SourceLocation(5, 9)));
@@ -186,9 +188,11 @@ public class NameResolverTests
             "events/main.ke",
             "Main",
             new SelectStatementSyntax(
+                null,
             [
                 new CaseClauseSyntax("Go", "#missingCase", new SourceLocation(2, 15)),
-            ]),
+            ],
+                KeywordLocation: new SourceLocation(1, 1)),
             new JumpStatementSyntax("#missingJump", new SourceLocation(3, 6)));
         var graph = Graph([main], new Dictionary<string, IReadOnlyList<string>>
         {

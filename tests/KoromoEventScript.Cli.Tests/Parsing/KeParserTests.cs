@@ -67,6 +67,8 @@ jump #end
             Assert.That(narStatement.Lines.Select(static line => line.Text), Is.EqualTo(["地の文です"]));
 
             var selectStatement = (SelectStatementSyntax)syntax.Statements[6];
+            Assert.That(selectStatement.Tag, Is.Null);
+            Assert.That(selectStatement.TagLocation, Is.Null);
             Assert.That(selectStatement.Cases.Select(static item => (item.Text, item.Tag)),
                 Is.EqualTo(new[] { ("はい", "#yes"), ("いいえ", "#no") }));
             Assert.That(selectStatement.Cases.Select(static item => item.TagLocation),
@@ -291,6 +293,27 @@ case "はい" #yes
         var exception = Assert.Throws<ParserException>(() => KeParser.Parse(source));
 
         Assert.That(exception!.Diagnostic.Code, Is.EqualTo("KES2006"));
+    }
+
+    [Test]
+    public void Parse_ParsesSelectTagWhenPresent()
+    {
+        const string source = """
+select #se_sample_0001:
+    case "はい" #yes
+""";
+
+        var syntax = KeParser.Parse(source);
+        var selectStatement = (SelectStatementSyntax)syntax.Statements.Single();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(selectStatement.Tag, Is.EqualTo("#se_sample_0001"));
+            Assert.That(selectStatement.TagLocation, Is.EqualTo(new SourceLocation(1, 8)));
+            Assert.That(selectStatement.KeywordLocation, Is.EqualTo(new SourceLocation(1, 1)));
+            Assert.That(selectStatement.Cases.Single().Tag, Is.EqualTo("#yes"));
+            Assert.That(selectStatement.Cases.Single().TagLocation, Is.EqualTo(new SourceLocation(2, 15)));
+        });
     }
 
     [Test]

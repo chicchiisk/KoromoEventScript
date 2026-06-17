@@ -1,0 +1,68 @@
+# Implementation Plan
+
+- [x] 1. Foundation: `kes correct` と build が共有する前段解析の基盤を整える
+- [x] 1.1 build/correct 共通の script 準備サービスを抽出する
+  - project root 解決、`kes.xml` load、entry `.kel` 解決、参照 `.kc` parse、semantic 解析を build 依存の薄い request/result にまとめる。
+  - 既存の build / build check-only が共通準備サービスへ切り替わっても、現在と同じ診断分類と成功条件を維持する。
+  - build 系の既存テストが共通準備サービス経由でも通る状態になる。
+  - *Requirements: 1.1, 1.2, 1.3, 1.5, 2.1, 2.2, 2.3, 2.4*
+- [x] 1.2 `kes correct` の command 契約を追加する
+  - `PROJECT_DIR`、`--entry`、`--check-only` を表現できる options/result 境界を追加する。
+  - 後続タスクが採番計画、preview、書き戻しを差し込める command shell を用意する。
+  - `kes correct` 専用の終了コードと diagnostics 受け渡し口が明確になる。
+  - *Requirements: 1.1, 1.3, 4.2, 5.1, 5.6*
+
+- [x] 2. Core: 公開仕様どおりの自動採番計画を生成できるようにする
+- [x] 2.1 自動タグパターンと共有連番ルールを実装する
+  - `say` / `nar` / `select` ごとの prefix、ファイル名正規化、4桁ゼロ埋め、`9999` 超過時の桁拡張を扱えるようにする。
+  - 自動採番パターンに一致する既存タグだけを予約集合へ取り込み、衝突回避に使えるようにする。
+  - 同一 `.kc` 内で番号空間を共有する allocator が、出現順に一意な番号を返す。
+  - *Requirements: 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9*
+- [x] 2.2 自動タグ補完対象を走査して採番計画を作る
+  - semantic 済み document 群から `say` / `nar` / `select` だけを抽出し、不足タグだけを補完対象にする。
+  - ファイルごとの candidate、source location、生成タグ、preview 用情報を持つ計画を返す。
+  - 既存の適切なタグを保持しつつ、不足タグだけが計画へ入る状態になる。
+  - *Requirements: 3.1, 3.6, 3.8, 3.9, 4.4*
+- [x] 2.3 採番計画のユニットテストを追加する
+  - prefix 生成、共有連番、既存自動タグ衝突回避、手動タグ非予約のケースを固定する。
+  - 期待した tag assignment plan がテストで観測できるようにする。
+  - *Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9*
+
+- [x] 3. Core: 採番計画を preview と書き戻しへ変換できるようにする
+- [x] 3.1 局所編集ベースの `.kc` 書き戻しサービスを実装する
+  - 元ファイルの本文を保持したまま、対象箇所へ tag token を挿入する局所編集を適用する。
+  - 同一ファイルの複数変更は offset がずれない順で適用し、対象外の本文や空行を壊さない。
+  - 書き戻し後の `.kc` に不足タグが反映され、無関係な差分が最小限に保たれる。
+  - *Requirements: 4.1, 4.3, 4.4, 5.5*
+- [x] 3.2 `--check-only` 向け preview 出力を実装する
+  - 採番計画から、追記または更新予定のタグ一覧を整形して出力できるようにする。
+  - preview 経路ではファイル書き込みを行わず、利用者が差分確認だけできるようにする。
+  - `--check-only` 実行時に `.kc` が不変であることを observable に確認できる状態にする。
+  - *Requirements: 4.2, 4.3, 5.6*
+- [x] 3.3 書き戻しと preview のテストを追加する
+  - 不足タグだけが追記されるケース、既存タグ維持、複数挿入、`--check-only` 非破壊を固定する。
+  - 一時プロジェクトのファイル snapshot で、書き換え結果と不変条件を検証できるようにする。
+  - *Requirements: 4.1, 4.2, 4.3, 4.4*
+
+- [x] 4. Integration: `kes correct` を CLI の正式コマンドとして統合する
+- [x] 4.1 `CorrectCommand` に解析・採番・preview/書き戻しの調停を実装する
+  - 共通準備サービス、採番計画、preview、書き戻しを結合し、semantic 失敗時は後段へ進まないようにする。
+  - file/parse/compile/command line の各失敗を公開仕様の exit code へ正しく写像する。
+  - `CorrectCommand` 単体で success / diagnostics / exit code の結果が観測できるようにする。
+  - *Requirements: 2.4, 4.1, 4.2, 4.3, 4.4, 5.1, 5.2, 5.3, 5.4, 5.5, 5.6*
+- [x] 4.2 `CliApplication` に `correct` の parse/dispatch を接続する
+  - `correct` コマンド、`PROJECT_DIR`、`--entry`、`--check-only` の手動パースを追加する。
+  - 未知 option、値欠落、対象ファイル未解決が既存 CLI と同じ diagnostic sink 経路で報告されるようにする。
+  - `kes correct` が CLI 入口から実行でき、成功時と失敗時の戻り値が一貫する状態にする。
+  - *Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 5.1, 5.2, 5.5, 5.6*
+
+- [x] 5. Validation: `kes correct` の回帰安全性を自動テストで固定する
+- [x] 5.1 command / CLI 統合テストを追加する
+  - 正常系、`--check-only`、entry 差し替え、command line error を command / CLI の両方で確認する。
+  - 利用者視点で `kes correct` がファイル更新または preview 出力まで完了することをテストで確認する。
+  - *Requirements: 1.1, 1.3, 1.4, 4.1, 4.2, 4.3, 5.1, 5.2, 5.6*
+- [x] 5.2 解析失敗・I/O 失敗・build 回帰の検証を追加する
+  - `.kel` / `.kc` の parse 失敗、semantic error、file write failure に対して `kes correct` が適切な exit code と diagnostics を返すことを確認する。
+  - 共通準備サービス抽出後も、既存 build / build check-only の重要な回帰が起きていないことをテストで固定する。
+  - failure path と既存 build path の両方が自動テストで観測できる状態にする。
+  - *Requirements: 2.4, 5.2, 5.3, 5.4, 5.5, 5.6*

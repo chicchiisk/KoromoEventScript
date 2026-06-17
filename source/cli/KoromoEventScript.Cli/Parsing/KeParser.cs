@@ -355,7 +355,7 @@ public sealed class KeParser
 
     private NarStatementSyntax ParseNarStatement()
     {
-        ConsumeKeyword("nar");
+        var narToken = ConsumeKeyword("nar");
         var tagToken = Match(TokenKind.Tag) ? Previous : null;
         var tag = tagToken?.Lexeme;
 
@@ -365,12 +365,13 @@ public sealed class KeParser
         }
 
         var lines = ParseTextBlock("KES2003", "Nar blocks must contain at least one text line.");
-        return new NarStatementSyntax(tag, lines, tagToken is null ? null : ToLocation(tagToken));
+        return new NarStatementSyntax(tag, lines, tagToken is null ? null : ToLocation(tagToken), ToLocation(narToken));
     }
 
     private SelectStatementSyntax ParseSelectStatement()
     {
-        ConsumeKeyword("select");
+        var selectToken = ConsumeKeyword("select");
+        var tagToken = Match(TokenKind.Tag) ? Previous : null;
         if (!Match(TokenKind.Colon))
         {
             ThrowCurrent("KES2002", "Select statements must end with ':'.");
@@ -388,9 +389,9 @@ public sealed class KeParser
 
             ConsumeKeyword("case");
             var textToken = Consume(TokenKind.StringLiteral, "KES2001", "Case statements require a string literal.");
-            var tagToken = Consume(TokenKind.Tag, "KES2001", "Case statements require a jump target tag.");
+            var caseTagToken = Consume(TokenKind.Tag, "KES2001", "Case statements require a jump target tag.");
             EnsureLineEndsNow("KES2001", "Case statements only support a string literal and a tag.");
-            cases.Add(new CaseClauseSyntax(textToken.Lexeme, tagToken.Lexeme, ToLocation(tagToken)));
+            cases.Add(new CaseClauseSyntax(textToken.Lexeme, caseTagToken.Lexeme, ToLocation(caseTagToken)));
         }
 
         Consume(TokenKind.Dedent, "KES2004", "Select statements must end their block with a dedent.");
@@ -400,7 +401,7 @@ public sealed class KeParser
             ThrowPrevious("KES2004", "Select blocks must contain at least one case.");
         }
 
-        return new SelectStatementSyntax(cases);
+        return new SelectStatementSyntax(tagToken?.Lexeme, cases, tagToken is null ? null : ToLocation(tagToken), ToLocation(selectToken));
     }
 
     private IfStatementSyntax ParseIfStatement()

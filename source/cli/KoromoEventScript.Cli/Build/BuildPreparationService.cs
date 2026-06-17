@@ -8,19 +8,10 @@ namespace KoromoEventScript.Cli.Build;
 
 public sealed class BuildPreparationService
 {
-    private readonly ProjectRootResolver projectRootResolver;
-    private readonly ProjectConfigLoader projectConfigLoader;
-    private readonly SourceFileParser sourceFileParser;
-    private readonly KelScriptReferenceResolver scriptReferenceResolver;
-    private readonly SemanticAnalyzer semanticAnalyzer;
+    private readonly ScriptPreparationService scriptPreparationService;
 
     public BuildPreparationService()
-        : this(
-            new ProjectRootResolver(),
-            new ProjectConfigLoader(),
-            new SourceFileParser(),
-            new KelScriptReferenceResolver(),
-            new SemanticAnalyzer())
+        : this(new ScriptPreparationService())
     {
     }
 
@@ -30,12 +21,18 @@ public sealed class BuildPreparationService
         SourceFileParser sourceFileParser,
         KelScriptReferenceResolver scriptReferenceResolver,
         SemanticAnalyzer semanticAnalyzer)
+        : this(new ScriptPreparationService(
+            projectRootResolver,
+            projectConfigLoader,
+            sourceFileParser,
+            scriptReferenceResolver,
+            semanticAnalyzer))
     {
-        this.projectRootResolver = projectRootResolver;
-        this.projectConfigLoader = projectConfigLoader;
-        this.sourceFileParser = sourceFileParser;
-        this.scriptReferenceResolver = scriptReferenceResolver;
-        this.semanticAnalyzer = semanticAnalyzer;
+    }
+
+    public BuildPreparationService(ScriptPreparationService scriptPreparationService)
+    {
+        this.scriptPreparationService = scriptPreparationService;
     }
 
     public BuildPreparationResult Prepare(BuildCommandOptions options, string currentDirectory)
@@ -43,86 +40,16 @@ public sealed class BuildPreparationService
         ArgumentNullException.ThrowIfNull(options);
         ArgumentException.ThrowIfNullOrWhiteSpace(currentDirectory);
 
-        var diagnostics = new List<Diagnostic>();
-        var rootResult = projectRootResolver.Resolve(options.ProjectDirectory, currentDirectory);
-        if (!rootResult.Succeeded)
-        {
-            diagnostics.Add(rootResult.Diagnostic!);
-            return BuildPreparationResult.Failure(CliExitCode.FileOrDirectoryError, diagnostics);
-        }
+        var result = scriptPreparationService.Prepare(
+            new ScriptPreparationRequest(
+                options.ProjectDirectory,
+                options.EntryPath,
+                options.WarningsAsErrors),
+            currentDirectory);
 
-        var configResult = projectConfigLoader.Load(rootResult.ProjectRoot!);
-        if (!configResult.Succeeded)
-        {
-            diagnostics.Add(configResult.Diagnostic!);
-            return BuildPreparationResult.Failure(CliExitCode.FileOrDirectoryError, diagnostics);
-        }
-
-        var config = configResult.Config!;
-        var entryAbsolutePath = ResolveProjectPath(config.ProjectRoot, config.EntryPath);
-        var entryDisplayPath = NormalizeDisplayPath(config.EntryPath);
-        var kelResult = sourceFileParser.ParseKel(entryAbsolutePath, entryDisplayPath);
-        if (kelResult.Status != SourceParseStatus.Success)
-        {
-            diagnostics.Add(kelResult.Diagnostic!);
-            return BuildPreparationResult.Failure(MapParseStatus(kelResult.Status), diagnostics);
-        }
-
-        var entryDocuments = new List<ScriptDocument>();
-        foreach (var scriptReference in scriptReferenceResolver.ResolveScriptReferences(kelResult.Syntax!))
-        {
-            var scriptAbsolutePath = ResolveProjectPath(config.ProjectRoot, scriptReference);
-            var scriptDisplayPath = NormalizeDisplayPath(scriptReference);
-            var scriptResult = sourceFileParser.ParseKe(scriptAbsolutePath, scriptDisplayPath);
-            if (scriptResult.Status == SourceParseStatus.Success)
-            {
-                entryDocuments.Add(new ScriptDocument(
-                    scriptDisplayPath,
-                    Path.GetFileNameWithoutExtension(scriptDisplayPath),
-                    scriptResult.Syntax!));
-                continue;
-            }
-
-            diagnostics.Add(scriptResult.Diagnostic!);
-            if (scriptResult.Status == SourceParseStatus.FileError)
-            {
-                return BuildPreparationResult.Failure(CliExitCode.FileOrDirectoryError, diagnostics);
-            }
-        }
-
-        if (diagnostics.Count > 0)
-        {
-            return BuildPreparationResult.Failure(CliExitCode.SyntaxError, diagnostics);
-        }
-
-        var semanticResult = semanticAnalyzer.Analyze(config, entryDocuments);
-        var exitCode = WarningPolicy.Apply(
-            semanticResult.ExitCode,
-            semanticResult.Diagnostics,
-            options.WarningsAsErrors || config.WarningsAsErrors);
-
-        return new BuildPreparationResult(config, semanticResult, exitCode, semanticResult.Diagnostics);
-    }
-
-    private static CliExitCode MapParseStatus(SourceParseStatus status)
-    {
-        return status switch
-        {
-            SourceParseStatus.Success => CliExitCode.Success,
-            SourceParseStatus.FileError => CliExitCode.FileOrDirectoryError,
-            SourceParseStatus.SyntaxError => CliExitCode.SyntaxError,
-            _ => throw new ArgumentOutOfRangeException(nameof(status), status, null),
-        };
-    }
-
-    private static string ResolveProjectPath(string projectRoot, string projectRelativePath)
-    {
-        return Path.GetFullPath(Path.Combine(projectRoot, projectRelativePath));
-    }
-
-    private static string NormalizeDisplayPath(string path)
-    {
-        return path.Replace('\\', '/');
+        return result.Succeeded
+            ? new BuildPreparationResult(result.Config, result.SemanticResult, result.ExitCode, result.Diagnostics)
+            : BuildPreparationResult.Failure(result.ExitCode, result.Diagnostics);
     }
 }
 

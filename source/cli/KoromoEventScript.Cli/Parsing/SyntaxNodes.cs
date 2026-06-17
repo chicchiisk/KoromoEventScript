@@ -119,11 +119,16 @@ public sealed record SayStatementSyntax(
 public sealed record NarStatementSyntax(
     string? Tag,
     IReadOnlyList<TextLineSyntax> Lines,
-    SourceLocation? TagLocation = null) : StatementSyntax;
+    SourceLocation? TagLocation = null,
+    SourceLocation KeywordLocation = default) : StatementSyntax;
 
 public sealed record TextLineSyntax(string Text, bool IsExpressionLine);
 
-public sealed record SelectStatementSyntax(IReadOnlyList<CaseClauseSyntax> Cases) : StatementSyntax;
+public sealed record SelectStatementSyntax(
+    string? Tag,
+    IReadOnlyList<CaseClauseSyntax> Cases,
+    SourceLocation? TagLocation = null,
+    SourceLocation KeywordLocation = default) : StatementSyntax;
 
 public sealed record CaseClauseSyntax(
     string Text,

@@ -1,5 +1,6 @@
 using KoromoEventScript.Cli.Commands;
 using KoromoEventScript.Cli.Commands.Init;
+using KoromoEventScript.Cli.Commands.Correct;
 using KoromoEventScript.Cli.Diagnostics;
 
 namespace KoromoEventScript.Cli.Tests.Commands;
@@ -133,6 +134,7 @@ intro = {
         var app = new CliApplication(
             new KoromoEventScript.Cli.Commands.Build.BuildCheckOnlyCommand(),
             new KoromoEventScript.Cli.Commands.Build.BuildCommand(),
+            new CorrectCommand(),
             initCommand,
             new DiagnosticSink());
 
