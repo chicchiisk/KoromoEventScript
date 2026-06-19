@@ -204,12 +204,13 @@ entries[count]:
 | 4    | null      | なし（0 バイト） |
 | 5    | actorRef  | string index `i32`（同プール内の string エントリへの参照） |
 | 6    | assetRef  | string index `i32` |
-| 7    | localeKey | string index `i32` |
+| 7    | localeKey | string index `i32`（legacy / authoring 用。localized runtime `.klib` では非推奨） |
 | 8    | classRef  | string index `i32`（compile-time 解決済みの class stable ID） |
 | 9    | fieldRef  | string index `i32`（compile-time 解決済みの field stable ID） |
 | 10   | methodRef | string index `i32`（compile-time 解決済みの method stable ID） |
 
 actorRef / assetRef / localeKey / classRef / fieldRef / methodRef の `string index` は同じ定数プール内の string エントリ（type=1）を指す。
+現在の公開 build では、ローカライズ対象本文は compile-time に解決された string 定数として `.klib` へ埋め込む。`localeKey` は旧来の authoring / 互換用表現として予約される。
 stable ID 文字列の内部形式は compiler 実装依存でよいが、同一プロジェクト内で一意かつ build 間で安定していなければならない。
 string エントリはこれらの参照型エントリより先に配置することを推奨する。
 
@@ -241,7 +242,7 @@ variables[count]:
 | 3    | string    |
 | 4    | Actor     |
 | 5    | assetRef  |
-| 6    | localeKey |
+| 6    | localeKey（legacy / authoring 用） |
 | 7    | array     |
 | 8    | classInstance |
 
@@ -353,7 +354,7 @@ VM は次の状態を保持する。
 | `JUMP`        | 0x40   | `offset:i32`                            | -            | 無条件ジャンプ。offset の基点は当該命令の次のバイト |
 | `JUMP_FALSE`  | 0x41   | `offset:i32`                            | cond →       | スタックトップが false の場合ジャンプ |
 | `LABEL`       | 0x42   | `name_idx:i32` `flags:i32`              | -            | label marker。実行時は PC を進めるだけ。flags bit0 = public（manifest entry から参照される label） |
-| `SELECT`      | 0x43   | `n:i32` `[text_idx:i32 offset:i32] × n` | prompt →     | 選択肢表示。スタックから prompt（string/localeKey/null）を pop し n 個の選択肢を runtime へ渡す。ユーザー選択後、対応 offset へジャンプ |
+| `SELECT`      | 0x43   | `n:i32` `[text_idx:i32 offset:i32] × n` | prompt →     | 選択肢表示。スタックから prompt（string/null）を pop し n 個の選択肢を runtime へ渡す。source 上で `select #tag:` が指定されている場合、runtime はその tag を選択 UI の識別子として利用してよい。ユーザー選択後、対応 offset へジャンプ |
 | `END`         | 0x4F   | -                                       | -            | 実行完了 |
 
 #### 関数・コマンド呼び出し
@@ -392,9 +393,9 @@ VM は次の状態を保持する。
 
 シナリオ DSL の `say`、`nar`、将来的な UI/演出命令は VM 命令として固定せず、runtime syscall として表現する。
 
-- `say <actor> #<tag>:` のような構文は、`actor`（actorRef）と `text`（localeKey）を順に push して `SYSCALL_VOID sys_idx=<scenario.say> argc=2` に lower する。voice は runtime がタグから自動解決するため、コンパイラは voice を push しない。
+- `say <actor> #<tag>:` のような構文は、`actor`（actorRef）と compile-time に解決済みの本文 string を順に push して `SYSCALL_VOID sys_idx=<scenario.say> argc=2` に lower する。タグは voice 解決や debug のために compiler / build 系で利用されるが、表示本文そのものの runtime 解決には使わない。
 - `say <actor>:` （タグなし）は、`actor` と本文 string を push して同様に `argc=2` で lower する。
-- `nar #<tag>:` のような構文は、`text`（localeKey）を push して `SYSCALL_VOID sys_idx=<scenario.nar> argc=1` に lower する。
+- `nar #<tag>:` のような構文は、compile-time に解決済みの本文 string を push して `SYSCALL_VOID sys_idx=<scenario.nar> argc=1` に lower する。
 - `nar:` （タグなし）は、本文 string を push して同様に `argc=1` で lower する。
 
 syscall 名文字列の命名規約は runtime 仕様が所有するが、本仕様のサンプルでは `scenario.say`、`scenario.nar` を用いる。
@@ -514,14 +515,18 @@ debug セクションのソースマップを使って save/load を復元して
 | scripts entry（artifact path）| Module Info `scriptId`、Import `scriptId` |
 | entry / chapter の開始位置   | Label Map で entryLabel → bytecode offset に解決 |
 | asset（path、variant）        | 定数プール `assetRef` エントリ内の string ID |
-| locale key（翻訳文字列）      | 定数プール `localeKey` エントリ内の key string |
+| 表示テキスト（翻訳文字列）    | 定数プール string エントリ内の localized UTF-8 text |
 | runtime capabilities          | File Header `features` bitmask と manifest の runtime 要件を照合 |
+
+ローカライズ本文は build 時に `.csv` と `.kc` から compile-time 解決され、対象言語向け `.klib` の string 定数として埋め込まれる。
+翻訳作業用の source locale `.csv` は build-time 入力であり、runtime や VM は直接読み込まない。
+source locale `.csv` の列構成は [ローカライズ辞書仕様書](localization-dictionary-spec.md)が所有する。
 
 ---
 
 ## `.kc` スクリプトサンプルとコンパイル後 `.klib` バイトコード表現
 
-次の `.kc` ファイルは、`actor` 定義、`cast`、`var` 定義、`label`、`say`、`select/case`、代入式、`jump`、`nar` を含む
+次の `.kc` ファイルは、`actor` 定義、`cast`、`var` 定義、`label`、`say`、`select/case`、代入式、`jump`、`nar`、インラインマクロを含む
 小規模プロローグシナリオの例である。
 
 ```kes
@@ -531,21 +536,22 @@ cast Hero
 var score: number = 0
 
 label start
-say Hero #pro_001:
-    旅はまだ続く
-select:
+say Hero #sy_prologue_0001:
+    旅はまだ{vo}続く
+select #se_prologue_0002:
     case "街へ向かう" #town
     case "森へ向かう" #forest
 label town
 score = score + 10
 jump end
 label forest
-nar #pro_nar001:
-    静かな森に足を踏み入れた。
+nar #na_prologue_0003:
+    静かな森に{p}足を踏み入れた。
 label end
 ```
 
 compiler はこの `.kc` を解析し、定数プール・変数テーブル・bytecode・ラベルマップ・デバッグ情報を生成する。
+`{vo}` や `{p}` のようなインラインマクロを含む本文も、compile-time に解決された localized string として `.klib` へ埋め込まれる。
 以下はその人間可読なアセンブリ表現である。
 
 ### 定数プール（コンパイル後）
@@ -557,12 +563,12 @@ compiler はこの `.kc` を解析し、定数プール・変数テーブル・b
 [3]  string    "start"
 [4]  string    "actor.Hero"
 [5]  actorRef  → [4]               ; actor.Hero
-[6]  string    "pro_001_1"
-[7]  localeKey → [6]               ; say text
+[6]  string    "sy_prologue_0001"
+[7]  string    "旅はまだ{vo}続く"     ; say text（localized）
 [8]  string    "街へ向かう"
 [9]  string    "森へ向かう"
-[10] string    "pro_nar001_1"
-[11] localeKey → [10]              ; nar text
+[10] string    "na_prologue_0003"
+[11] string    "静かな森に{p}足を踏み入れた。" ; nar text（localized）
 [12] string    "v.score"           ; 変数 stable ID
 [13] string    "score"             ; 変数 source 名
 [14] number    0.0                 ; var 初期値
@@ -594,7 +600,7 @@ offset  size  opcode        operands                          備考
 0x0013  5     DEF_VAR       var[0]                            ; var score = 0
 0x0018  9     LABEL         cp[3]"start" flags=1              ; label start（public）
 0x0021  5     PUSH_CONST    cp[5]                             ; actor:Hero
-0x0026  5     PUSH_CONST    cp[7]                             ; localeKey:pro_001_1
+0x0026  5     PUSH_CONST    cp[7]                             ; string:"旅はまだ{vo}続く"
 0x002B  9     SYSCALL_VOID  sys=cp[22]"scenario.say" argc=2   ; actor + text
 0x0034  1     PUSH_NULL                                       ; prompt = null
 0x0035  21    SELECT        n=2                               ; 2 選択肢
@@ -607,7 +613,7 @@ offset  size  opcode        operands                          備考
 0x005E  5     STORE_VAR     var[0]                            ; score = 結果
 0x0063  5     JUMP          offset=+0x0017                    ; → end（base=0x0068）
 0x0068  9     LABEL         cp[18]"forest" flags=0
-0x0071  5     PUSH_CONST    cp[11]                            ; localeKey:pro_nar001_1
+0x0071  5     PUSH_CONST    cp[11]                            ; string:"静かな森に{p}足を踏み入れた。"
 0x0076  9     SYSCALL_VOID  sys=cp[23]"scenario.nar" argc=1   ; voice なし
 0x007F  9     LABEL         cp[19]"end"    flags=0
 0x0088  1     END
@@ -631,11 +637,11 @@ name=cp[19]"end"    offset=0x007F  flags=0
 | `cast Hero`                         | `PUSH_CONST cp[5]` + `CALL_VOID cmd=cp[16] argc=1`         | actorRef を push してコマンド呼び出し |
 | `var score: number = 0`             | `PUSH_CONST cp[14]` + `DEF_VAR var[0]`                     | 初期値を push してから変数定義 |
 | `label start`                       | `LABEL cp[3] flags=1`                                      | flags=1 で public（manifest entry から参照可） |
-| `say Hero #pro_001: ...`            | `PUSH_CONST`×2 + `SYSCALL_VOID sys=cp[22] argc=2`         | actor/text を積んで `scenario.say` を呼ぶ（voice は runtime がタグから自動解決） |
-| `select: case "..." case "..."`     | `PUSH_NULL` + `SELECT n=2 [text offset]×2`                 | case テキストと jump offset をインライン |
+| `say Hero #sy_prologue_0001: ...`   | `PUSH_CONST`×2 + `SYSCALL_VOID sys=cp[22] argc=2`         | actor/text を積んで `scenario.say` を呼ぶ。本文中の `{vo}` などのインラインマクロは localized string に保持される |
+| `select #se_prologue_0002: case "..." case "..."` | `PUSH_NULL` + `SELECT n=2 [text offset]×2`       | case テキストと jump offset をインライン。`select` の tag は source 識別子として保持してよい |
 | `score = score + 10`                | `LOAD_VAR` + `PUSH_CONST` + `ADD` + `STORE_VAR`           | load → push → 演算 → store |
 | `jump end`                          | `JUMP offset=+23`                                          | Label Map から resolve した相対 offset |
-| `nar #pro_nar001: ...`              | `PUSH_CONST cp[11]` + `SYSCALL_VOID sys=cp[23] argc=1`     | localeKey を push して `scenario.nar` を呼ぶ |
+| `nar #na_prologue_0003: ...`        | `PUSH_CONST cp[11]` + `SYSCALL_VOID sys=cp[23] argc=1`     | localized string を push して `scenario.nar` を呼ぶ。本文中の `{p}` などのインラインマクロも string に保持される |
 
 ---
 
@@ -661,7 +667,7 @@ name=cp[19]"end"    offset=0x007F  flags=0
 - compiler 実装、`.klib` emitter 実装、serializer 実装、バイナリ schema validator 実装。
 - スタックマシン VM 実装、命令ディスパッチや save/load の実装詳細。
 - runtime 実装、描画、音声、入力、UI、プラットフォーム固有の配布処理。
-- asset manifest 全体、locale dictionary、runtime package manifest の完全な schema。
+- asset manifest 全体、source locale `.csv`、ローカライズ済み `.klib` バリアントの manifest 表現、runtime package manifest の完全な schema。
 - 配布時の圧縮、暗号化、署名、改ざん検出。
 - テキスト形式（JSON 等）での `.klib` 表現（debug tooling が独自に定義してよい）。
 

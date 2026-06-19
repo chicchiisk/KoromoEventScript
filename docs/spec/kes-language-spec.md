@@ -1011,12 +1011,12 @@ nar:
 `say` と `nar` には `#id` 形式のタグを付与できる。
 
 ```kes
-say Amane #ch001_s01110:
+say Amane #sy_sample_0001:
     わかった
     {vo}
     待ってるわ
 
-nar #n001:
+nar #na_sample_0002:
     その日のことを、私はまだよく覚えている。
 ```
 
@@ -1026,8 +1026,8 @@ nar #n001:
 
 タグ付き `say` および `nar` は、タグを基点として自動的にボイスIDを組み立てて再生する。
 
-上記の例では、1行目で `ch001_s01110_1` が再生される。
-`{vo}` のように明示的なボイス再生命令を本文中に書いた場合、連番は進み、次のボイスは `ch001_s01110_2` となる。
+上記の例では、1行目で `sy_sample_0001_1` が再生される。
+`{vo}` のように明示的なボイス再生命令を本文中に書いた場合、連番は進み、次のボイスは `sy_sample_0001_2` となる。
 
 `say` または `nar` のブロックを抜けると連番はリセットされる。
 該当するボイスが存在しない場合は警告を出し、再生しない。
@@ -1064,7 +1064,7 @@ I have {plural value one="an" other=value} apple{plural value other="s"}
 `say` および `nar` のブロック内で `@` から始まる行は、その行全体を式として扱う糖衣構文である。
 
 ```kes
-say Noa #say0001:
+say Noa #sy_sample_0003:
     詳しい話を確認できるよう、
     @vf Noa "eye_close"
     一度集まってもらってもいいかもしれないね
@@ -1090,23 +1090,25 @@ nar:
 ## 選択肢構文
 
 `select` はノベルゲームの選択肢を表示し、選ばれた項目に対応するタグへ制御を移すための組み込み構文である。
-`select:` に続くブロックには `case` 行のみを書ける。
+`select:` または `select <tag>:` に続くブロックには `case` 行のみを書ける。
 
 ```kes
-select:
-    case "かぐやに意見を聞く" #choice1
-    case "オリエに意見を聞く" #choice2
-    case "乃愛に意見を聞く" #choice3
+select #se_sample_0001:
+    case "かぐやに意見を聞く" #se_sample_0002
+    case "オリエに意見を聞く" #se_sample_0003
+    case "乃愛に意見を聞く" #se_sample_0004
 ```
 
 `case` は1行の構文であり、必ず `case <文字列リテラル> <タグ>` の順に書く。
 文字列リテラルは画面上に表示される選択肢テキストである。
 タグは、その選択肢が選ばれたときのジャンプ先を表す。
+`select` 自体にも任意でタグを付けられる。`select` に付いたタグは、その選択 UI 自体を識別するためのタグである。
 
 `select` は実行時にすべての `case` を画面に表示し、プレイヤーの選択を待つ。
 プレイヤーが選択したら、対応するタグへジャンプする。
 `select` ブロックが `case` を1つも持たない場合はコンパイルエラーとする。
 `case` を `select` ブロックの外に書いた場合もコンパイルエラーとする。
+`case` の選択肢文字列は、ローカライズ辞書の自動抽出対象である。
 
 ### ラベルとジャンプ
 
@@ -1114,7 +1116,7 @@ select:
 `jump` は指定したタグへ無条件でジャンプする構文である。
 
 ```kes
-label #choice1
+label #se_sample_0002
 
 say Riku:
     かぐやはどう思う？
@@ -1295,39 +1297,8 @@ using change_scene "crossfade" as scene:
 ## サンプルコード
 
 ```kes
-/**
-* KESサンプルコード
-* ver 1.0.0
-* author chicchiisk
-* (c) Koromosoft
-*/
-
-// import <module名>の形式
-// module名は、ファイル名から拡張子をとったもの。パスは考慮しない
-// つまり、別ディレクトリの同名ファイルを、KES言語では許容しない
 import Common
 
-/*
-    kes言語において、xxx: のように書いた後一段下げて羅列した文字列は、xxxという関数に対して羅列した引数を呼び出す複数命令に展開される。
-    下記のように書いた命令は、内部的に
-
-    cast Riku
-    cast Amane
-    cast Noa
-    ...
-
-    のように展開される糖衣構文となっている。
-    この構文をList Expansion Syntax Sugar (LESS) と呼ぶ
-    関数はすべてLESS構文で呼び出せる。
-
-    if,while,for,usingなどほかにもインデントを伴う構文があるが、これらは組み込みの構文であり、LESSではない。
-    LESSはあくまで関数呼び出しの糖衣構文である。
-
-    また、cast関数はアクターを読み込む関数だが、アクターはclassとも違う特殊オブジェクトとなっている。
-    actor構文で定義できる。
-    cast命令でロードすると、actor定義名（class名に相当するもの）でインスタンスに直接アクセスできる。
-    つまりactorのインスタンスは必ずひとつとなる。
-*/
 cast:
     Riku
     Amane
@@ -1336,64 +1307,20 @@ cast:
     Kaguya
     Orie
 
-/*
-    xxx yyy zzz:
-            a0
-            a1
-            a2
-    のように関数名と:の間にスペース区切りで定義した文字列は、共通の引数として認識される。
-
-    つまり、
-
-    xxx yyy zzz a0
-    xxx yyy zzz a1
-    xxx yyy zzz a2
-
-    のように展開される。
-*/
-
 var _bg_jitaku="bg_自宅"
 var _bg_jitaku_focus="bg_自宅_フォーカス"
 var _bg_living="bg_リビング"
 var _bg_living_focus="bg_リビング_フォーカス"
 
-// バックレイヤーへの描画
-rt_back // render targetを裏画面に切り替える
+rt_back
 bg _bg_jitaku
 show Amane 0
-rt_front // render targetを表画面に切り替える
+rt_front
 
-// バックレイヤーに画面を切り替える
 trans "crossfade"
-
-/*
- セリフ文はsay構文を使う。sayはLESS構文ではなく、組み込みの構文である。
- say構文ではブロック内の文章がシナリオテキスト（画面上に出るテキスト）として解釈される。
- 特殊な書式を埋め込むことができ、
- {hogehoge} のようにすると、hogehogeという名前の変数の値を埋め込める。
- {}内は式なので、計算式などもOK
- 関数も入れられるので、ローカライズ時の複数形への対処などもできる。
-
- I have {plural value one="an" other=value} apple{plural value other="s"}
-
- これは、value=1の場合、
-    I have an apple
- value>=2の場合、
-    I have apples
- と表示される。
-*/
 
 say Riku:
     俺は、かぐやに連絡してみる
-
-/*
- このように2行になっている場合は、LESS構文ルールから、
-
- say riku "前世帰りみたいな大きな変化はなくても、"
- say riku "何か気づいたこととかあるかもしれないしな"
-
- と、展開される。
-*/
 say Riku:
     前世帰りみたいな大きな変化はなくても、
     何か気づいたこととかあるかもしれないしな
@@ -1401,102 +1328,16 @@ say Riku:
 face Amane "通常"
 action_jump Amane
 
-/*
-    say構文は、そのタグを目印に、自動でボイス再生を行う。
-    下記の場合、 ch001_s01110_1 というidのボイスファイルを探して再生する
-    末尾についている_1という番号は、ボイスが再生されるたびにカウントアップされ、
-    say構文を抜けると1にリセットされる
-    つまり、say構文内で、{vo}のように明示的にボイス再生を呼び出すと、
-    ch001_s01110_2 のようにカウントアップされたIDのボイスが再生される。
-    該当IDのボイスがなければ、警告が出て再生されない。
-
-    下記の例だと、
-    ch001_s01110_1 : わかった
-    ch001_s01110_2 : 待ってるわ
-    のように音声が入っているとして、
-    1は自動で呼び出され、2は明示呼び出しになっている（3行目の{vo}コマンド）
-
-    say構文では、テキスト再生は、ほかのコマンドの再生を妨げないようになっているため、
-    テキスト表示
-    ボイス1再生→ボイス2再生
-    が並行して実行される。（ボイスは順次実行する）
-
-    say構文は自動でクリック待ちを行い、クリックした場合はsay構文内で実行されている命令はすべて即時終了し、
-    次へ処理が進む（音再生の場合は音が中断する）
-*/
-say Amane #ch001_s01110:
+var hero_name = localize.get("proper_name_hero")
+say Amane #sy_sample_0001:
     わかった
     {vo}
     待ってるわ
-
-/*
-    rt_back ... rt_front trans を自動で呼び出す拡張。
-    using句ではusing <class_type_name> <constructor_arg>*:
-    のように書くことで、class_type_nameに指定したクラスをインスタンス化する。
-    インスタンスをブロック内で参照したい場合は、as <instance_name> を付ける。
-    usingブロックを抜けると、そのオブジェクトは破棄される。
-    オブジェクトが破棄される前、usingブロックはdisposeを自動で呼び出す。
-    disposeでクリンナップ処理を書くことで、今回の場合はrt_front trans "hogehoge"の呼び出し忘れを防止できる
-
-    class change_scene:
-        // constructor
-        fn __init__(fx:string):
-            rt_back
-        
-        // usingが自動呼出し
-        fn dispose():
-            rt_front
-            trans _fx
-
-        // destructor
-        fn __destroy__:
-            skip
-
-        private var _fx:string
-*/
 using change_scene "crossfade":
     bg _bg_jitaku_focus
     show noa 0 bustup=true face="normal"
 
-/*
-    say構文内では、@で始まる場合、その行全体が式とみなされる糖衣構文を用意されている。
-    下記の例だと、
-        {v_face noa "normal"}
-        {v_face noa "eye_close"}
-    と解釈される。
-
-    v_faceは関数であり、次の通りの定義を持つ、ボイスと表情を連動再生する組み込み関数である。
-    actor引数は省略可能であり、get_current_say_actorは現在say構文の中にいる場合、
-    構文に指定されたActorを返す
-
-    fn vf (exp:string, actor?:Actor):
-        var a:Actor
-        if actor != null:
-            a = actor
-        else:
-            a = get_current_say_actor
-
-        vo //ボイス再生
-        face a exp //表情変更
-
-    この関数を用いると、ボイスが流れながらころころと表情が変わる、
-    ゆずソフト系の演出ができる。
-
-    また、say構文中の式は;で区切ることで複数かける。
-        {1+2+3;print "hoge"}
-    もしくは、
-        @1+2+3; print "hoge"
-    という具合だ。
-
-    複数書いた場合、テキストに表示される値は、最後の評価された式の結果となる。
-    void関数や、代入文など、評価結果のないものは値が表示されない。
-    また、値を捨てたい（計算だけして画面に出さない）場合は、
-    @var _ = sum 1 2 3
-    のように、無名変数へ代入して捨てることができる。
-    変数名"_"は無名変数と解釈される特殊名である。
-*/
-
-say Noa #say0001:
+say Noa #sy_sample_0003:
     詳しい話を確認できるよう、
     @vf Noa "eye_close"
     一度集まってもらってもいいかもしれないね
@@ -1521,7 +1362,6 @@ say Orie:
 say Riku:
     一緒だったのか
 
-// これはLESS構文
 face exp="eye_open" no_wait=true:
     Orie
     Kurumi
@@ -1563,19 +1403,11 @@ say Noa:
 face Kurumi "think"
 say Kurumi:
     そっちも別に
-
-/*
-    select - caseで選択肢を表す
-    caseは一行の構文で、必ず case 文字列 タグの順に並ぶ
-    文字列が画面上に表示される選択肢テキストで、タグはジャンプ先のタグとなる。
-*/
-select:
-    case "かぐやに意見を聞く" #choice1
-    case "オリエに意見を聞く" #choice2
-    case "乃愛に意見を聞く" #choice3
-
-// ラベル構文は、タグを持ち、ジャンプ先に使われる
-label #choice1
+select #se_sample_0001:
+    case "かぐやに意見を聞く" #se_sample_0002
+    case "オリエに意見を聞く" #se_sample_0003
+    case "乃愛に意見を聞く" #se_sample_0004
+label #se_sample_0002
 
 say Riku:
     かぐやはどう思う？
@@ -1583,18 +1415,14 @@ say Riku:
 face Kaguya "think"
 say Kaguya:
     そうね…、心当たりはないわ
-
-// jumpはラベル構文と対になる、ジャンプ先を示す構文である。
-// jumpは無条件で指定したラベルにジャンプする
 jump #end_choice
 
-label #choice2
+label #se_sample_0003
 say Orie:
     私に聞かれましても困ります
 jump #end_choice
 
-// 直接sayやnar構文にジャンプすることも可能
-say Riku #choice3:
+say Riku #sy_sample_0005:
     乃愛はどう思う？
 
 face Noa "bikkuri"
@@ -1678,7 +1506,7 @@ say Riku:
 <inline_stmt_list> ::= <inline_stmt> (";" <inline_stmt>)*
 <inline_stmt> ::= <expr> | <var_decl> | <assignment> | <command_stmt>
 
-<select_stmt> ::= "select" ":" <newline> <select_block>
+<select_stmt> ::= "select" <tag>? ":" <newline> <select_block>
 <select_block> ::= <indent> <case_stmt>+ <dedent>
 <case_stmt> ::= "case" <string_literal> <tag> <newline>
 <label_stmt> ::= "label" <tag>

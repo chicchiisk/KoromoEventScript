@@ -13,7 +13,7 @@ KoromoEventScript Runtime は、Windows 11 上で KoromoEventScript のビルド
 - 配布用プレイヤーとして、一般ユーザーが `kes publish --target windows` の成果物を起動して遊べることを優先する。
 - 開発時には `kes run` から起動され、ビルド成果物の確認にも利用できる。
 - ランタイムは `.kc` / `.kel` の生ソースを直接実行しない。
-- ランタイムは CLI が生成した `.klib`、`manifest.json`、素材、ローカライズ辞書を読み込み、VM を通じてイベントを実行する。
+- ランタイムは CLI が生成した `.klib`、`manifest.json`、素材を読み込み、VM を通じてイベントを実行する。
 - `.klib` は現行の VM 実行用中間表現であり、ファイル形式、instruction schema、manifest 参照契約は [`.klib` 中間表現仕様](k-intermediate-representation-spec.md)に従う。
 - `.klib` は旧称または移行前の表記として扱い、新規仕様と新規成果物では `.klib` を正とする。
 
@@ -92,11 +92,10 @@ Windows ランタイムは、次のファイルを入力として扱う。
 
 | ファイル | 用途 |
 |---|---|
-| `manifest.json` | 実行に必要な `.klib`、素材、ローカライズ辞書、メタ情報を定義する |
+| `manifest.json` | 実行に必要な `.klib`、素材、メタ情報を定義する |
 | `.klib` | VM が実行する中間表現 |
 | 画像素材 | 背景、actor、UI 部品、トランジション素材 |
 | 音声素材 | BGM、SE、Voice |
-| ローカライズ辞書 | 表示テキスト、UI 文言、ロケール差分 |
 | ランタイム設定 | ウィンドウ、音量、テキスト速度などの初期設定 |
 
 素材解決は `manifest.json` を必須とする。
@@ -112,13 +111,14 @@ Windows ランタイムは、次のファイルを入力として扱う。
 | entry | エントリポイントとなる `.kel` または VM 実行情報 |
 | scripts | 実行対象の `.klib` 一覧。各 script は `.klib` の `module.scriptId`、script path、entry label と対応する |
 | assets | 素材 ID、種別、相対パス、メタ情報 |
-| locale | 利用可能なロケール、既定ロケール、辞書パス |
+| locale | 利用可能なロケール、既定ロケール、各言語向け `.klib` バリアントの情報 |
 | runtime | ウィンドウ初期値、制作座標系、起動設定 |
 | build | CLI バージョン、ビルド日時、ターゲット |
 
 manifest 内の相対パスは、manifest が置かれたディレクトリを基準に解決する。
-manifest は `.klib` を列挙または参照し、`.klib` 内の script path、asset ID、locale key を配布物内の script path、素材パス、ローカライズ辞書へ解決する。
+manifest は `.klib` を列挙または参照し、`.klib` 内の script path、asset ID などを配布物内の script path と素材パスへ解決する。
 `.klib` 側は VM 実行契約と安定識別子を持ち、manifest 側は配布パス、asset metadata、locale metadata を所有する。
+ランタイムは翻訳作業用の生 `.csv` を直接読み込まない。ローカライズ辞書は build 時に解決され、言語別の `.klib` として出力される。runtime は選択された言語向け `.klib` をそのまま実行する。
 
 ## 画面と描画
 
@@ -364,8 +364,10 @@ dist/
                 manifest.json
                 events/
                     chapter001.klib
+                    loc/
+                        en/
+                            chapter001.klib
                 assets/
-                locale/
             licenses/
         MyProject-0.1.0-windows.zip
 ```
@@ -376,7 +378,7 @@ dist/
 | `data/manifest.json` | ランタイム入力 manifest |
 | `data/events/` | `.klib` ファイル |
 | `data/assets/` | 画像、音声、UI 素材 |
-| `data/locale/` | ローカライズ辞書 |
+| `data/events/loc/` | 言語別に compile-time 解決された `.klib` バリアント |
 | `licenses/` | ランタイム、ライブラリ、素材のライセンス情報 |
 
 Windows 向け配布物では、`--include-source` が指定されていない限り `.kc` / `.kel` の生ファイルを含めない。

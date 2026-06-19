@@ -41,7 +41,7 @@ trans effect="crossfade" duration=0.3
 
 この例では、`effect` と `duration` は省略可能である。
 
-タグ値を通常命令へ渡す場合は、`#choice1` 形式ではなく `"choice1"` のような文字列 ID を渡す。
+タグ値を通常命令へ渡す場合は、`#se_sample_0002` 形式ではなく `"se_sample_0002"` のような文字列 ID を渡す。
 `#id` 形式のタグは `say`、`nar`、`label`、`jump`、`case` の構文上でのみ使う。
 
 ## `__systemcall__` 内部命令
@@ -120,6 +120,7 @@ syscall ID はモジュール名を接頭辞に持つ。
 | `state.mark_read` | `tag:string` | `void` | タグを既読にする |
 | `state.is_read` | `tag:string` | `bool` | タグの既読状態を返す |
 | `state.save` | `slot:number title:string` | `void` | 指定スロットへ保存する |
+| `localize.get` | `tag:string` | `string` | ローカライズ辞書から指定タグに対応する文字列を取得する |
 | `system.wait` | `seconds:number` | `void` | 指定秒数だけ待機する |
 | `system.set_auto` | `enabled:bool` | `void` | オート進行を切り替える |
 | `system.set_skip` | `mode:string` | `void` | スキップモードを設定する |
@@ -143,6 +144,9 @@ fn trans(effect: string, duration: number):
 fn array_len(values: string[]): number:
     return __systemcall__ "core.array_len" values
 
+fn localize.get(tag: string): string:
+    return __systemcall__ "localize.get" tag
+
 fn vf(actor: Actor, exp: string):
     vo
     face actor exp
@@ -154,6 +158,7 @@ fn vf(actor: Actor, exp: string):
 ### エラー/警告条件
 
 - `__systemcall__` が通常 `.kc` から直接呼び出された場合はコンパイルエラーとする。
+- `localize.get` は `__systemcall__ "localize.get" tag` の薄いラッパとして定義する。
 - syscall ID が文字列リテラルでない場合はコンパイルエラーとする。
 - syscall ID が未定義の場合はコンパイルエラーとする。
 - syscall シグネチャと異なる引数数・引数型・戻り値利用はコンパイルエラーとする。
@@ -389,7 +394,7 @@ hide Noa
 ### 最小サンプル
 
 ```kes
-say Noa #say0001:
+say Noa #sy_sample_0003:
     詳しい話を確認できるよう、
     @vf "eye_close"
     一度集まってもらってもいいかもしれないね。{p}
@@ -465,7 +470,7 @@ bgm_stop fade=1.0
 |---|---|---|
 | `label` | `label #tag` | VM のジャンプ先を定義する |
 | `jump` | `jump #tag` | 指定タグへ実行位置を移す |
-| `select` | `select:` | 選択肢 UI を表示する |
+| `select` | `select:` / `select #tag:` | 選択肢 UI を表示する |
 | `case` | `case "text" #tag` | 選択肢の表示文とジャンプ先を定義する |
 
 ### 引数・戻り値
@@ -491,7 +496,7 @@ bgm_stop fade=1.0
 ### 最小サンプル
 
 ```kes
-select:
+select #se_sample_0001:
     case "かぐやに意見を聞く" #choice_kaguya
     case "乃愛に意見を聞く" #choice_noa
 
