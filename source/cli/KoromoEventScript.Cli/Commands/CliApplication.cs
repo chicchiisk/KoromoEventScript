@@ -121,13 +121,14 @@ public sealed class CliApplication
 
     private static CommandParseResult ParseBuild(IReadOnlyList<string> args)
     {
-
         string? positionalProject = null;
-        string? optionProject = null;
         string? entryPath = null;
+        string? outputDirectory = null;
+        string? locale = null;
         var checkOnly = false;
         var warningsAsErrors = false;
         var emitTextIr = false;
+        var noIncremental = false;
         var target = "windows";
         var outputFormat = DiagnosticOutputFormat.Text;
         var diagnostics = new List<Diagnostic>();
@@ -159,14 +160,36 @@ public sealed class CliApplication
                     emitTextIr = true;
                     break;
 
-                case "--project":
+                case "--out-dir":
                     if (++index >= args.Count)
                     {
-                        diagnostics.Add(CommandLineDiagnostic("--project requires a value."));
+                        diagnostics.Add(CommandLineDiagnostic("--out-dir requires a value."));
                         break;
                     }
 
-                    optionProject = args[index];
+                    outputDirectory = args[index];
+                    break;
+
+                case "--loc":
+                    if (++index >= args.Count)
+                    {
+                        diagnostics.Add(CommandLineDiagnostic("--loc requires a value."));
+                        break;
+                    }
+
+                    locale = args[index];
+                    if (string.IsNullOrWhiteSpace(locale))
+                    {
+                        diagnostics.Add(CommandLineDiagnostic("--loc requires a locale tag."));
+                    }
+                    else if (!locale.All(static character => char.IsAsciiLetterOrDigit(character) || character == '-'))
+                    {
+                        diagnostics.Add(CommandLineDiagnostic($"Invalid locale tag '{locale}'. Expected only letters, digits, or hyphen."));
+                    }
+                    break;
+
+                case "--no-incremental":
+                    noIncremental = true;
                     break;
 
                 case "--log-format":
@@ -225,9 +248,9 @@ public sealed class CliApplication
             }
         }
 
-        if (positionalProject is not null && optionProject is not null)
+        if (emitTextIr && checkOnly)
         {
-            diagnostics.Add(CommandLineDiagnostic("Specify the project directory either as PROJECT_DIR or --project, not both."));
+            diagnostics.Add(CommandLineDiagnostic("--txt-il cannot be combined with --check-only."));
         }
 
         if (diagnostics.Count > 0)
@@ -236,13 +259,16 @@ public sealed class CliApplication
         }
 
         return CommandParseResult.BuildSuccess(new BuildCommandOptions(
-            optionProject ?? positionalProject,
+            positionalProject,
             outputFormat,
             warningsAsErrors,
             entryPath,
             CheckOnly: checkOnly,
             EmitTextIr: emitTextIr,
-            Target: target));
+            Target: target,
+            OutputDirectory: outputDirectory,
+            Locale: locale,
+            NoIncremental: noIncremental));
     }
 
     private static CommandParseResult ParseCorrect(IReadOnlyList<string> args)

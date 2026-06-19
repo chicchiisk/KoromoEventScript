@@ -1,0 +1,41 @@
+{
+  "cliVersion": "1.0.0.0",
+  "target": "windows",
+  "entryEventListPath": "events/main.kel",
+  "inputs": [
+    {
+      "path": "events/main.kel",
+      "kind": "kel"
+    },
+    {
+      "path": "events/chapter001.kc",
+      "kind": "kc"
+    },
+    {
+      "path": "events/chapter002.kc",
+      "kind": "kc"
+    },
+    {
+      "path": "events/lib/Common.kc",
+      "kind": "kc"
+    }
+  ],
+  "scripts": [
+    {
+      "sourcePath": "events/chapter001.kc",
+      "klibPath": "events/chapter001.klib",
+      "klibTextPath": "events/chapter001.klibtxt"
+    },
+    {
+      "sourcePath": "events/chapter002.kc",
+      "klibPath": "events/chapter002.klib",
+      "klibTextPath": "events/chapter002.klibtxt"
+    },
+    {
+      "sourcePath": "events/lib/Common.kc",
+      "klibPath": "events/lib/Common.klib",
+      "klibTextPath": "events/lib/Common.klibtxt"
+    }
+  ],
+  "localizations": []
+}

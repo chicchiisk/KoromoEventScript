@@ -38,12 +38,14 @@
   [24] string "show"
   [25] string "__for_end_5"
   [26] string "#start"
-  [27] string "こんにちは"
-  [28] string "つづく"
-  [29] string "続ける"
-  [30] string "終わる"
-  [31] string "#continue"
-  [32] string "#end"
+  [27] string "#sy_main_0001"
+  [28] string "こんにちは"
+  [29] string "#na_main_0002"
+  [30] string "つづく"
+  [31] string "続ける"
+  [32] string "終わる"
+  [33] string "#continue"
+  [34] string "#end"
 }
 
 .variables
@@ -112,17 +114,19 @@
   IL_0104: JUMP -90 // events/main.kc:13:1
   IL_0109: LABEL 25 0 // events/main.kc:13:1
   IL_0112: LABEL 26 1 // events/main.kc:15:7
-  IL_011B: PUSHCONST 8 // events/main.kc:16:5
-  IL_0120: PUSHCONST 27 // events/main.kc:16:5
-  IL_0125: SYSCALLVOID 3 2 // events/main.kc:16:5
-  IL_012E: PUSHCONST 28 // events/main.kc:1:1
-  IL_0133: SYSCALLVOID 4 1 // events/main.kc:1:1
-  IL_013C: PUSHNULL // events/main.kc:1:1
-  IL_013D: SELECT 2 [cp[29] => 0, cp[30] => 14] // events/main.kc:1:1
-  IL_0152: LABEL 31 1 // events/main.kc:23:7
-  IL_015B: JUMP 0 // events/main.kc:24:6
-  IL_0160: LABEL 32 1 // events/main.kc:25:7
-  IL_0169: END
+  IL_011B: LABEL 27 1 // events/main.kc:16:10
+  IL_0124: PUSHCONST 8 // events/main.kc:16:5
+  IL_0129: PUSHCONST 28 // events/main.kc:16:5
+  IL_012E: SYSCALLVOID 3 2 // events/main.kc:16:5
+  IL_0137: LABEL 29 1 // events/main.kc:18:5
+  IL_0140: PUSHCONST 30 // events/main.kc:18:5
+  IL_0145: SYSCALLVOID 4 1 // events/main.kc:18:5
+  IL_014E: PUSHNULL // events/main.kc:1:1
+  IL_014F: SELECT 2 [cp[31] => 0, cp[32] => 14] // events/main.kc:1:1
+  IL_0164: LABEL 33 1 // events/main.kc:23:7
+  IL_016D: JUMP 0 // events/main.kc:24:6
+  IL_0172: LABEL 34 1 // events/main.kc:25:7
+  IL_017B: END
 }
 
 .labels
@@ -134,8 +138,10 @@
   cp[22] => 175 flags=0
   cp[25] => 265 flags=0
   cp[26] => 274 flags=1
-  cp[31] => 338 flags=1
-  cp[32] => 352 flags=1
+  cp[27] => 283 flags=1
+  cp[29] => 311 flags=1
+  cp[33] => 356 flags=1
+  cp[34] => 370 flags=1
 }
 
 .debug
@@ -197,15 +203,17 @@
     IL_0104 -> "events/main.kc":13:1
     IL_0109 -> "events/main.kc":13:1
     IL_0112 -> "events/main.kc":15:7
-    IL_011B -> "events/main.kc":16:5
-    IL_0120 -> "events/main.kc":16:5
-    IL_0125 -> "events/main.kc":16:5
-    IL_012E -> "events/main.kc":1:1
-    IL_0133 -> "events/main.kc":1:1
-    IL_013C -> "events/main.kc":1:1
-    IL_013D -> "events/main.kc":1:1
-    IL_0152 -> "events/main.kc":23:7
-    IL_015B -> "events/main.kc":24:6
-    IL_0160 -> "events/main.kc":25:7
+    IL_011B -> "events/main.kc":16:10
+    IL_0124 -> "events/main.kc":16:5
+    IL_0129 -> "events/main.kc":16:5
+    IL_012E -> "events/main.kc":16:5
+    IL_0137 -> "events/main.kc":18:5
+    IL_0140 -> "events/main.kc":18:5
+    IL_0145 -> "events/main.kc":18:5
+    IL_014E -> "events/main.kc":1:1
+    IL_014F -> "events/main.kc":1:1
+    IL_0164 -> "events/main.kc":23:7
+    IL_016D -> "events/main.kc":24:6
+    IL_0172 -> "events/main.kc":25:7
   }
 }

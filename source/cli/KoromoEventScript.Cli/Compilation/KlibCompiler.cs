@@ -12,13 +12,17 @@ public sealed class KlibCompiler
 {
     private readonly BuiltInSignatureRegistry builtIns = new();
 
-    public KlibCompilationResult Compile(ProjectConfig config, SemanticAnalysisResult semanticResult, ScriptDocument document)
+    public KlibCompilationResult Compile(
+        ProjectConfig config,
+        SemanticAnalysisResult semanticResult,
+        ScriptDocument document,
+        bool embedLocalizedText = false)
     {
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(semanticResult);
         ArgumentNullException.ThrowIfNull(document);
 
-        var context = new CompilationContext(config, semanticResult, document, builtIns);
+        var context = new CompilationContext(config, semanticResult, document, builtIns, embedLocalizedText);
         context.Compile();
         return context.Diagnostics.Count > 0
             ? KlibCompilationResult.Failure(context.Diagnostics)
@@ -43,6 +47,7 @@ public sealed class KlibCompiler
         private readonly Dictionary<string, int> currentLocals = new(StringComparer.Ordinal);
         private readonly Stack<Dictionary<string, int>> localScopes = new();
         private readonly Stack<LoopLabels> loops = new();
+        private readonly bool embedLocalizedText;
         private int nextScopeId;
         private int nextHiddenVariableId;
         private int nextSyntheticLabelId;
@@ -51,12 +56,14 @@ public sealed class KlibCompiler
             ProjectConfig config,
             SemanticAnalysisResult semanticResult,
             ScriptDocument document,
-            BuiltInSignatureRegistry builtIns)
+            BuiltInSignatureRegistry builtIns,
+            bool embedLocalizedText)
         {
             this.config = config;
             this.semanticResult = semanticResult;
             this.document = document;
             this.builtIns = builtIns;
+            this.embedLocalizedText = embedLocalizedText;
             scopes = semanticResult.DefinitionCollections
                 .FirstOrDefault(result => string.Equals(result.Document.ProjectRelativePath, document.ProjectRelativePath, StringComparison.Ordinal))?
                 .DefinitionTable.Scopes
@@ -468,7 +475,7 @@ public sealed class KlibCompiler
         {
             if (!line.IsExpressionLine)
             {
-                var constantIndex = string.IsNullOrWhiteSpace(tag)
+                var constantIndex = string.IsNullOrWhiteSpace(tag) || embedLocalizedText
                     ? constantPool.GetStringConstantIndex(line.Text)
                     : constantPool.GetLocaleKeyIndex(BuildLocaleKey(tag!, index));
                 instructions.Add(new InstructionBuilder(KlibOpCode.PushConst, location, KlibMappingKind.TextBody, constantIndex));

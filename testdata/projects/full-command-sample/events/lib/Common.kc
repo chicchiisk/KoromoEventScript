@@ -1,0 +1,20 @@
+actor Riku:
+    var defaultFace: string = "normal"
+
+actor Amane:
+    var defaultFace: string = "normal"
+
+actor Noa:
+    var defaultFace: string = "normal"
+
+var sharedTitle: string = "全命令サンプル"
+var sharedStep: number = 1
+var castMembers: Actor[] = [Riku, Amane, Noa]
+var highlightPositions: number[] = [-1, 0, 1]
+
+label #common_boot
+jump #common_ready
+
+label #common_ready
+nar #na_common_0001:
+    共通ロジックの初期化が完了した。

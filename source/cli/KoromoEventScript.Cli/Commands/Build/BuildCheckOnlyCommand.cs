@@ -7,16 +7,16 @@ namespace KoromoEventScript.Cli.Commands.Build;
 
 public sealed class BuildCheckOnlyCommand
 {
-    private readonly BuildPreparationService preparationService;
+    private readonly BuildPipelineService pipelineService;
 
     public BuildCheckOnlyCommand()
-        : this(new BuildPreparationService())
+        : this(new BuildPipelineService())
     {
     }
 
-    public BuildCheckOnlyCommand(BuildPreparationService preparationService)
+    public BuildCheckOnlyCommand(BuildPipelineService pipelineService)
     {
-        this.preparationService = preparationService;
+        this.pipelineService = pipelineService;
     }
 
     public BuildCheckOnlyResult Execute(BuildCommandOptions options, string currentDirectory)
@@ -24,12 +24,7 @@ public sealed class BuildCheckOnlyCommand
         ArgumentNullException.ThrowIfNull(options);
         ArgumentException.ThrowIfNullOrWhiteSpace(currentDirectory);
 
-        var preparation = preparationService.Prepare(options with { CheckOnly = true }, currentDirectory);
-        if (!preparation.Succeeded)
-        {
-            return new BuildCheckOnlyResult(preparation.ExitCode, preparation.Diagnostics);
-        }
-
-        return new BuildCheckOnlyResult(preparation.ExitCode, preparation.Diagnostics);
+        var result = pipelineService.Run(new BuildPipelineRequest(options with { CheckOnly = true }, currentDirectory, ValidateOnly: true));
+        return new BuildCheckOnlyResult(result.ExitCode, result.Diagnostics);
     }
 }

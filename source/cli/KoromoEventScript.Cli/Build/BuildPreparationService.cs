@@ -48,7 +48,7 @@ public sealed class BuildPreparationService
             currentDirectory);
 
         return result.Succeeded
-            ? new BuildPreparationResult(result.Config, result.SemanticResult, result.ExitCode, result.Diagnostics)
+            ? new BuildPreparationResult(result.Config, result.SemanticResult, result.EntryDisplayPath, result.ExitCode, result.Diagnostics)
             : BuildPreparationResult.Failure(result.ExitCode, result.Diagnostics);
     }
 }
@@ -56,13 +56,14 @@ public sealed class BuildPreparationService
 public sealed record BuildPreparationResult(
     ProjectConfig? Config,
     SemanticAnalysisResult? SemanticResult,
+    string? EntryPath,
     CliExitCode ExitCode,
     IReadOnlyList<Diagnostic> Diagnostics)
 {
-    public bool Succeeded => ExitCode == CliExitCode.Success && Config is not null && SemanticResult is not null;
+    public bool Succeeded => ExitCode == CliExitCode.Success && Config is not null && SemanticResult is not null && EntryPath is not null;
 
     public static BuildPreparationResult Failure(CliExitCode exitCode, IReadOnlyList<Diagnostic> diagnostics)
     {
-        return new BuildPreparationResult(null, null, exitCode, diagnostics.ToArray());
+        return new BuildPreparationResult(null, null, null, exitCode, diagnostics.ToArray());
     }
 }

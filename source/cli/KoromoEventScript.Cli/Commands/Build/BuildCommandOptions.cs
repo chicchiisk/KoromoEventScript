@@ -9,4 +9,7 @@ public sealed record BuildCommandOptions(
     string? EntryPath = null,
     bool CheckOnly = false,
     bool EmitTextIr = false,
-    string Target = "windows");
+    string Target = "windows",
+    string? OutputDirectory = null,
+    string? Locale = null,
+    bool NoIncremental = false);

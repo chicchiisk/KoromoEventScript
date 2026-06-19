@@ -40,17 +40,31 @@ public class CliApplicationTests
     }
 
     [Test]
-    public void Run_RejectsDuplicateProjectSources()
+    public void Run_RejectsTxtIlWhenCheckOnlyIsSpecified()
     {
+        using var fixture = TemporaryProject.Create();
+        fixture.WriteConfig(entry: "events/main.kel");
+        fixture.WriteFile("events/main.kel", """
+entry = intro
+intro = {
+    chapter = "events/main.ke"
+}
+""");
+        fixture.WriteFile("events/main.ke", string.Empty);
         using var output = new StringWriter();
         using var error = new StringWriter();
 
-        var exitCode = new CliApplication().Run(["build", "ProjectA", "--project", "ProjectB", "--check-only"], output, error, TestContext.CurrentContext.WorkDirectory);
+        var exitCode = new CliApplication().Run(
+            ["build", fixture.Root, "--check-only", "--txt-il"],
+            output,
+            error,
+            TestContext.CurrentContext.WorkDirectory);
 
         Assert.Multiple(() =>
         {
             Assert.That(exitCode, Is.EqualTo((int)CliExitCode.CommandLineError));
-            Assert.That(error.ToString(), Does.Contain("project"));
+            Assert.That(error.ToString(), Does.Contain("--txt-il"));
+            Assert.That(error.ToString(), Does.Contain("--check-only"));
         });
     }
 
@@ -80,6 +94,106 @@ intro = {
             Assert.That(exitCode, Is.EqualTo((int)CliExitCode.WarningsAsErrors));
             Assert.That(output.ToString(), Is.Empty);
             Assert.That(error.ToString(), Does.Contain("warning KES4001"));
+        });
+    }
+
+    [Test]
+    public void Run_AcceptsBuildOutDirAndNoIncrementalOptions()
+    {
+        using var fixture = TemporaryProject.Create();
+        fixture.WriteConfig(entry: "events/main.kel");
+        fixture.WriteFile("events/main.kel", """
+entry = intro
+intro = {
+    chapter = "events/main.ke"
+}
+""");
+        fixture.WriteFile("events/main.ke", string.Empty);
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+
+        var exitCode = new CliApplication().Run(
+            ["build", fixture.Root, "--check-only", "--out-dir", "custom-build", "--no-incremental"],
+            output,
+            error,
+            TestContext.CurrentContext.WorkDirectory);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(exitCode, Is.EqualTo((int)CliExitCode.Success));
+            Assert.That(output.ToString(), Is.Empty);
+            Assert.That(error.ToString(), Does.Contain("warning KES4001"));
+            Assert.That(error.ToString(), Does.Not.Contain("KES9001"));
+        });
+    }
+
+    [Test]
+    public void Run_AcceptsBuildLocaleOptionDuringCheckOnlyValidation()
+    {
+        using var fixture = TemporaryProject.Create();
+        fixture.WriteConfig(entry: "events/main.kel");
+        fixture.WriteFile("events/main.kel", """
+entry = intro
+intro = {
+    chapter = "events/main.ke"
+}
+""");
+        fixture.WriteFile("events/main.ke", string.Empty);
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+
+        var exitCode = new CliApplication().Run(
+            ["build", fixture.Root, "--check-only", "--loc", "en"],
+            output,
+            error,
+            TestContext.CurrentContext.WorkDirectory);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(exitCode, Is.EqualTo((int)CliExitCode.Success));
+            Assert.That(output.ToString(), Is.Empty);
+            Assert.That(error.ToString(), Does.Contain("warning KES4001"));
+            Assert.That(error.ToString(), Does.Not.Contain("KES9001"));
+        });
+    }
+
+    [Test]
+    public void Run_RejectsBuildOutDirOptionWithoutValue()
+    {
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+
+        var exitCode = new CliApplication().Run(
+            ["build", "--out-dir"],
+            output,
+            error,
+            TestContext.CurrentContext.WorkDirectory);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(exitCode, Is.EqualTo((int)CliExitCode.CommandLineError));
+            Assert.That(error.ToString(), Does.Contain("KES9001"));
+            Assert.That(error.ToString(), Does.Contain("--out-dir"));
+        });
+    }
+
+    [Test]
+    public void Run_RejectsBuildLocOptionWithoutValue()
+    {
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+
+        var exitCode = new CliApplication().Run(
+            ["build", "--loc"],
+            output,
+            error,
+            TestContext.CurrentContext.WorkDirectory);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(exitCode, Is.EqualTo((int)CliExitCode.CommandLineError));
+            Assert.That(error.ToString(), Does.Contain("KES9001"));
+            Assert.That(error.ToString(), Does.Contain("--loc"));
         });
     }
 

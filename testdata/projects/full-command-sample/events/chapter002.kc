@@ -1,0 +1,51 @@
+import Common
+
+var retries: number = 0
+var ready: bool = false
+var threshold: number = 5
+var stageActors: Actor[] = [Riku, Noa, Amane]
+
+threshold = threshold - 2
+
+label #chapter2_start
+
+say Noa #sy_chapter002_0001:
+    二章目では分岐と反復をまとめて確認する
+
+nar #na_chapter002_0002:
+    共有配列をもとに表示位置を組み立てる。
+
+bg "bg_evening"
+show:
+    Riku -1 "normal"
+    Noa 0 "smile"
+    Amane 1 "normal"
+
+if !ready || retries == 0:
+    face Noa "smile"
+else:
+    show Noa 0
+
+while retries < 2:
+    retries = retries + 1
+
+for actor in stageActors:
+    show actor 0
+
+select #se_chapter002_0003:
+    case "締めに入る" #finish
+    case "もう一度説明する" #repeat
+
+label #repeat
+say Riku #sy_chapter002_0004:
+    補足は以上だ
+jump #finish
+
+label #finish
+face:
+    Riku "eye_open"
+    Amane "eye_open"
+    Noa "eye_open"
+
+say Amane #sy_chapter002_0005:
+    これで全体の流れは確認できたね

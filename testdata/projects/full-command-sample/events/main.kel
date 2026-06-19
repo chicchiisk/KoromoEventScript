@@ -1,0 +1,11 @@
+entry = chapter001_intro
+
+chapter001_intro = {
+    type = story
+    chapter = "events/chapter001.kc"
+}
+
+chapter002_intro = {
+    type = story
+    chapter = "events/chapter002.kc"
+}
