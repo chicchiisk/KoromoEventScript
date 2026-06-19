@@ -1,0 +1,54 @@
+# Implementation Plan
+
+- [x] 1. `kes loc` の CLI 境界と実行入口を追加する
+- [x] 1.1 `loc` サブコマンドの引数解釈と dispatch を追加する
+  - `CliApplication` が `loc` を認識し、`PROJECT_DIR`、`--locale`、`--out`、`--log-format` を `LocCommandOptions` へ正規化できるようにする。
+  - 値不足や未対応オプションでは既存コマンドと同じ command line diagnostic を返し、exit code `2` で停止する。
+  - 完了時には `loc` 実行時に `CliApplication` から `LocCommand` へ制御が渡り、失敗時の diagnostic 出力形式も既存契約と一致している。
+  - _Requirements: 1.1, 1.2, 1.5, 5.2, 5.6_
+- [x] 1.2 `kes correct` 相当の前処理を含む `LocCommand` の実行骨格を作る
+  - `ScriptPreparationService`、`TagAssignmentPlanner`、`ScriptRewriteService` を組み合わせ、解析成功時のみ辞書 export へ進む orchestration を組む。
+  - 既定出力先を project root から解決し、`--out` 指定時はそのパスを優先する。
+  - 完了時には `LocCommand` が project/file/syntax/compile failure を適切な exit code に変換し、成功時に出力先付き success message を返せる。
+  - _Requirements: 1.3, 1.4, 1.6, 2.1, 2.2, 2.3, 2.4, 2.5, 5.1, 5.3, 5.4, 5.5, 5.7_
+
+- [x] 2. ローカライズ辞書のコアモデルと生成ロジックを実装する
+- [x] 2.1 (P) ローカライズ対象テキストの抽出ロジックを実装する
+  - `say`、`nar`、`select-case` だけを対象に、`TagAssignmentPlan` を使って未設定タグも解決できる抽出器と source entry model を追加する。
+  - `say` の話者名、`original` の改行・改ページ・インラインマクロ保持を仕様どおり表現できるようにする。
+  - 完了時には ordered documents と tag plan から、空でない `tag` を持つ辞書行候補を出現順で取得できる。
+  - _Requirements: 3.4, 3.5, 3.6, 3.7, 3.8_
+  - _Boundary: LocalizationTextExtractor_
+- [x] 2.2 (P) CSV 辞書の読込・保存・形式検証を実装する
+  - `tag`、`say`、`original` 固定列と可変 locale 列を扱う document / entry model を追加する。
+  - UTF-8 BOM 付き保存、既存辞書読込、必須列不足と非一意 `tag` の検証を repository に実装する。
+  - 完了時には CSV を round-trip でき、形式不正時は辞書形式の diagnostic と file 系 failure を返せる。
+  - _Requirements: 3.1, 3.2, 3.3, 4.1, 4.8, 4.9, 5.5_
+  - _Boundary: LocalizationDictionaryCsvRepository, LocalizationDictionaryDocument, LocalizationDictionaryEntry_
+- [x] 2.3 出力言語列の決定と既存翻訳保持マージを実装する
+  - `--locale`、省略時の既存辞書優先、既存辞書なし時の基準言語、既存言語列保持を扱う locale selection と export service を追加する。
+  - 抽出結果と既存辞書を突き合わせ、同一 `tag` の既存翻訳保持、不足行・不足列追加を実装する。
+  - 完了時には requested locales と既存辞書から最終 locale 列が決まり、保存前 document に必要な行と列がそろっている。
+  - _Depends: 2.1, 2.2_
+  - _Requirements: 3.1, 3.3, 3.8, 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7_
+
+- [x] 3. `kes loc` を辞書生成フローとして統合する
+- [x] 3.1 `LocCommand` と export service を接続して辞書生成を完了させる
+  - `LocCommand` から ordered documents、tag plan、locale 指定、出力先を export service に渡し、既存辞書がある場合の更新フローをつなぐ。
+  - 失敗時は `.csv` を成功扱いで残さず、成功時は生成または更新した辞書の出力先を標準出力へ示す。
+  - 完了時には `kes loc` 1 回でタグ書き戻しと CSV 書き出しが連続実行され、project root 既定出力と `--out` 明示出力の両方が動作する。
+  - _Depends: 1.2, 2.1, 2.2, 2.3_
+  - _Requirements: 1.3, 1.4, 2.1, 3.1, 4.1, 5.1, 5.5, 5.7_
+
+- [x] 4. `kes loc` の回帰防止テストを整備する
+- [x] 4.1 (P) ローカライズ辞書ドメインの unit test を追加する
+  - 抽出器、CSV repository、export service それぞれに対して、マクロ保持、UTF-8 BOM、必須列検証、locale マージ、既存翻訳保持のテストを追加する。
+  - 完了時にはローカライズ辞書のコアロジックが individual component 単位で再現可能になっている。
+  - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8, 4.9_
+  - _Boundary: LocalizationTextExtractor, LocalizationDictionaryCsvRepository, LocalizationDictionaryExportService, LocalizationLocaleSelection_
+- [x] 4.2 `kes loc` の CLI / integration test を追加する
+  - 最小プロジェクトを使って、happy path、既存辞書更新、`--out` 指定、引数不正、syntax/compile/file/dictionary failure を検証する。
+  - `CliApplicationTests` と `LocCommandTests` を追加または更新し、exit code と diagnostic 契約を固定する。
+  - 完了時には `kes loc` の公開契約がコマンド実行レベルで再現でき、主要 failure category に対する回帰検知が可能になっている。
+  - _Depends: 1.1, 3.1, 4.1_
+  - _Requirements: 1.1, 1.5, 1.6, 2.4, 2.5, 4.1, 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7_

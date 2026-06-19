@@ -3,15 +3,15 @@ actor Riku:
 
 label #start
 
-say Riku:
+say Riku #sy_chapter001_0001:
     こんにちは
 
-select:
+select #se_chapter001_0002:
     case "続ける" #continue
     case "終わる" #end
 
 label #continue
-nar:
+nar #na_chapter001_0003:
     物語は続いていく。
 
 jump #end

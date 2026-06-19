@@ -1,6 +1,7 @@
 using KoromoEventScript.Cli.Commands;
 using KoromoEventScript.Cli.Commands.Init;
 using KoromoEventScript.Cli.Commands.Correct;
+using KoromoEventScript.Cli.Commands.Loc;
 using KoromoEventScript.Cli.Diagnostics;
 
 namespace KoromoEventScript.Cli.Tests.Commands;
@@ -136,6 +137,7 @@ intro = {
             new KoromoEventScript.Cli.Commands.Build.BuildCommand(),
             new CorrectCommand(),
             initCommand,
+            new LocCommand(),
             new DiagnosticSink());
 
         var exitCode = app.Run(
@@ -194,6 +196,47 @@ intro = {
             Assert.That(exitCode, Is.EqualTo((int)CliExitCode.FileOrDirectoryError));
             Assert.That(output.ToString(), Is.Empty);
             Assert.That(error.ToString(), Does.Contain("\"code\":\"KES9002\""));
+        });
+    }
+
+    [Test]
+    public void Run_RejectsLocLocaleOptionWithoutValue()
+    {
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+
+        var exitCode = new CliApplication().Run(
+            ["loc", "--locale"],
+            output,
+            error,
+            TestContext.CurrentContext.WorkDirectory);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(exitCode, Is.EqualTo((int)CliExitCode.CommandLineError));
+            Assert.That(output.ToString(), Is.Empty);
+            Assert.That(error.ToString(), Does.Contain("KES9001"));
+            Assert.That(error.ToString(), Does.Contain("--locale"));
+        });
+    }
+
+    [Test]
+    public void Run_RejectsLocOutOptionWithoutValue()
+    {
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+
+        var exitCode = new CliApplication().Run(
+            ["loc", "--out"],
+            output,
+            error,
+            TestContext.CurrentContext.WorkDirectory);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(exitCode, Is.EqualTo((int)CliExitCode.CommandLineError));
+            Assert.That(error.ToString(), Does.Contain("KES9001"));
+            Assert.That(error.ToString(), Does.Contain("--out"));
         });
     }
 
