@@ -1180,7 +1180,12 @@ public sealed class KlibCompiler
 
         public virtual KlibInstruction ToInstruction(int index)
         {
-            return new KlibInstruction(index, Offset, OpCode, Operands.ToArray(), Source, MappingKind);
+            return new KlibInstruction(index, Offset, OpCode, Operands.ToArray(), ToKlibSourceLocation(Source), MappingKind);
+        }
+
+        protected static KlibSourceLocation? ToKlibSourceLocation(SourceLocation? source)
+        {
+            return source is null ? null : new KlibSourceLocation(source.Value.Line, source.Value.Column);
         }
     }
 
@@ -1264,7 +1269,7 @@ public sealed class KlibCompiler
                 Offset,
                 OpCode,
                 Operands.ToArray(),
-                Source,
+                ToKlibSourceLocation(Source),
                 MappingKind,
                 SelectCases.Select(@case => new KlibSelectCase(@case.TextIndex, @case.Offset)).ToArray());
         }

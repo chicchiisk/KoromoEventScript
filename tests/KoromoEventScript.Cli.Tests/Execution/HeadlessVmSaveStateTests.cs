@@ -1,5 +1,6 @@
 using KoromoEventScript.Cli.Compilation;
 using KoromoEventScript.Cli.Execution;
+using SourceLocation = KoromoEventScript.Runtime.Core.Klib.KlibSourceLocation;
 
 namespace KoromoEventScript.Cli.Tests.Execution;
 
@@ -243,13 +244,13 @@ intro = {
     {
         var session = HeadlessVmTestHelper.CreateSession(HeadlessVmTestHelper.CreateSyntheticDocument(
             [
-                new KlibInstruction(0, 0, KlibOpCode.PushInt, [1], new KoromoEventScript.Cli.Parsing.SourceLocation(1, 1), KlibMappingKind.Statement),
-                new KlibInstruction(1, 5, KlibOpCode.PushInt, [2], new KoromoEventScript.Cli.Parsing.SourceLocation(1, 5), KlibMappingKind.Statement),
-                new KlibInstruction(2, 10, KlibOpCode.ArrayNew, [2], new KoromoEventScript.Cli.Parsing.SourceLocation(1, 10), KlibMappingKind.Statement),
-                new KlibInstruction(3, 15, KlibOpCode.DefVar, [0], new KoromoEventScript.Cli.Parsing.SourceLocation(1, 15), KlibMappingKind.Statement),
-                new KlibInstruction(4, 20, KlibOpCode.PushNull, [], new KoromoEventScript.Cli.Parsing.SourceLocation(2, 1), KlibMappingKind.Statement),
-                new KlibInstruction(5, 21, KlibOpCode.Select, [1], new KoromoEventScript.Cli.Parsing.SourceLocation(2, 5), KlibMappingKind.Statement, [new KlibSelectCase(0, 0)]),
-                new KlibInstruction(6, 34, KlibOpCode.End, [], new KoromoEventScript.Cli.Parsing.SourceLocation(3, 1), KlibMappingKind.Statement),
+                new KlibInstruction(0, 0, KlibOpCode.PushInt, [1], new SourceLocation(1, 1), KlibMappingKind.Statement),
+                new KlibInstruction(1, 5, KlibOpCode.PushInt, [2], new SourceLocation(1, 5), KlibMappingKind.Statement),
+                new KlibInstruction(2, 10, KlibOpCode.ArrayNew, [2], new SourceLocation(1, 10), KlibMappingKind.Statement),
+                new KlibInstruction(3, 15, KlibOpCode.DefVar, [0], new SourceLocation(1, 15), KlibMappingKind.Statement),
+                new KlibInstruction(4, 20, KlibOpCode.PushNull, [], new SourceLocation(2, 1), KlibMappingKind.Statement),
+                new KlibInstruction(5, 21, KlibOpCode.Select, [1], new SourceLocation(2, 5), KlibMappingKind.Statement, [new KlibSelectCase(0, 0)]),
+                new KlibInstruction(6, 34, KlibOpCode.End, [], new SourceLocation(3, 1), KlibMappingKind.Statement),
             ],
             [new KlibConstant(KlibConstantKind.String, StringValue: "続ける")],
             [new KlibVariable(0, 0, KlibVariableType.Array, KlibScopeKind.Script, 0, null)]));
@@ -272,13 +273,13 @@ intro = {
     {
         var document = HeadlessVmTestHelper.CreateSyntheticDocument(
             [
-                new KlibInstruction(0, 0, KlibOpCode.PushInt, [40], new KoromoEventScript.Cli.Parsing.SourceLocation(1, 1), KlibMappingKind.Statement),
-                new KlibInstruction(1, 5, KlibOpCode.PushInt, [2], new KoromoEventScript.Cli.Parsing.SourceLocation(1, 5), KlibMappingKind.Statement),
-                new KlibInstruction(2, 10, KlibOpCode.PushConst, [0], new KoromoEventScript.Cli.Parsing.SourceLocation(1, 10), KlibMappingKind.Statement),
-                new KlibInstruction(3, 15, KlibOpCode.SysCallVoid, [1, 1], new KoromoEventScript.Cli.Parsing.SourceLocation(1, 15), KlibMappingKind.Statement),
-                new KlibInstruction(4, 24, KlibOpCode.Add, [], new KoromoEventScript.Cli.Parsing.SourceLocation(2, 1), KlibMappingKind.Statement),
-                new KlibInstruction(5, 25, KlibOpCode.SysCallVoid, [1, 1], new KoromoEventScript.Cli.Parsing.SourceLocation(2, 5), KlibMappingKind.Statement),
-                new KlibInstruction(6, 34, KlibOpCode.End, [], new KoromoEventScript.Cli.Parsing.SourceLocation(3, 1), KlibMappingKind.Statement),
+                new KlibInstruction(0, 0, KlibOpCode.PushInt, [40], new SourceLocation(1, 1), KlibMappingKind.Statement),
+                new KlibInstruction(1, 5, KlibOpCode.PushInt, [2], new SourceLocation(1, 5), KlibMappingKind.Statement),
+                new KlibInstruction(2, 10, KlibOpCode.PushConst, [0], new SourceLocation(1, 10), KlibMappingKind.Statement),
+                new KlibInstruction(3, 15, KlibOpCode.SysCallVoid, [1, 1], new SourceLocation(1, 15), KlibMappingKind.Statement),
+                new KlibInstruction(4, 24, KlibOpCode.Add, [], new SourceLocation(2, 1), KlibMappingKind.Statement),
+                new KlibInstruction(5, 25, KlibOpCode.SysCallVoid, [1, 1], new SourceLocation(2, 5), KlibMappingKind.Statement),
+                new KlibInstruction(6, 34, KlibOpCode.End, [], new SourceLocation(3, 1), KlibMappingKind.Statement),
             ],
             [
                 new KlibConstant(KlibConstantKind.String, StringValue: "pause"),
@@ -305,17 +306,17 @@ intro = {
     {
         var document = HeadlessVmTestHelper.CreateSyntheticDocument(
             [
-                new KlibInstruction(0, 0, KlibOpCode.PushInt, [1], new KoromoEventScript.Cli.Parsing.SourceLocation(1, 1), KlibMappingKind.Statement),
-                new KlibInstruction(1, 5, KlibOpCode.PushInt, [2], new KoromoEventScript.Cli.Parsing.SourceLocation(1, 5), KlibMappingKind.Statement),
-                new KlibInstruction(2, 10, KlibOpCode.ArrayNew, [2], new KoromoEventScript.Cli.Parsing.SourceLocation(1, 10), KlibMappingKind.Statement),
-                new KlibInstruction(3, 15, KlibOpCode.DefVar, [0], new KoromoEventScript.Cli.Parsing.SourceLocation(1, 15), KlibMappingKind.Statement),
-                new KlibInstruction(4, 20, KlibOpCode.PushNull, [], new KoromoEventScript.Cli.Parsing.SourceLocation(2, 1), KlibMappingKind.Statement),
-                new KlibInstruction(5, 21, KlibOpCode.Select, [1], new KoromoEventScript.Cli.Parsing.SourceLocation(2, 5), KlibMappingKind.Statement, [new KlibSelectCase(0, 0)]),
-                new KlibInstruction(6, 34, KlibOpCode.LoadVar, [0], new KoromoEventScript.Cli.Parsing.SourceLocation(3, 1), KlibMappingKind.Statement),
-                new KlibInstruction(7, 39, KlibOpCode.PushInt, [1], new KoromoEventScript.Cli.Parsing.SourceLocation(3, 5), KlibMappingKind.Statement),
-                new KlibInstruction(8, 44, KlibOpCode.ArrayGet, [], new KoromoEventScript.Cli.Parsing.SourceLocation(3, 10), KlibMappingKind.Statement),
-                new KlibInstruction(9, 45, KlibOpCode.SysCallVoid, [1, 1], new KoromoEventScript.Cli.Parsing.SourceLocation(3, 15), KlibMappingKind.Statement),
-                new KlibInstruction(10, 54, KlibOpCode.End, [], new KoromoEventScript.Cli.Parsing.SourceLocation(4, 1), KlibMappingKind.Statement),
+                new KlibInstruction(0, 0, KlibOpCode.PushInt, [1], new SourceLocation(1, 1), KlibMappingKind.Statement),
+                new KlibInstruction(1, 5, KlibOpCode.PushInt, [2], new SourceLocation(1, 5), KlibMappingKind.Statement),
+                new KlibInstruction(2, 10, KlibOpCode.ArrayNew, [2], new SourceLocation(1, 10), KlibMappingKind.Statement),
+                new KlibInstruction(3, 15, KlibOpCode.DefVar, [0], new SourceLocation(1, 15), KlibMappingKind.Statement),
+                new KlibInstruction(4, 20, KlibOpCode.PushNull, [], new SourceLocation(2, 1), KlibMappingKind.Statement),
+                new KlibInstruction(5, 21, KlibOpCode.Select, [1], new SourceLocation(2, 5), KlibMappingKind.Statement, [new KlibSelectCase(0, 0)]),
+                new KlibInstruction(6, 34, KlibOpCode.LoadVar, [0], new SourceLocation(3, 1), KlibMappingKind.Statement),
+                new KlibInstruction(7, 39, KlibOpCode.PushInt, [1], new SourceLocation(3, 5), KlibMappingKind.Statement),
+                new KlibInstruction(8, 44, KlibOpCode.ArrayGet, [], new SourceLocation(3, 10), KlibMappingKind.Statement),
+                new KlibInstruction(9, 45, KlibOpCode.SysCallVoid, [1, 1], new SourceLocation(3, 15), KlibMappingKind.Statement),
+                new KlibInstruction(10, 54, KlibOpCode.End, [], new SourceLocation(4, 1), KlibMappingKind.Statement),
             ],
             [
                 new KlibConstant(KlibConstantKind.String, StringValue: "続ける"),

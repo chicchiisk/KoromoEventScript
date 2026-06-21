@@ -1,6 +1,7 @@
 using KoromoEventScript.Cli.Compilation;
 using KoromoEventScript.Cli.Execution;
 using KoromoEventScript.Cli.Parsing;
+using SourceLocation = KoromoEventScript.Runtime.Core.Klib.KlibSourceLocation;
 
 namespace KoromoEventScript.Cli.Tests.Execution;
 

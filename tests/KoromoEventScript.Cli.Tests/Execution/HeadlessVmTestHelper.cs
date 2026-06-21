@@ -4,6 +4,7 @@ using KoromoEventScript.Cli.Commands.Build;
 using KoromoEventScript.Cli.Compilation;
 using KoromoEventScript.Cli.Diagnostics;
 using KoromoEventScript.Cli.Execution;
+using SourceLocation = KoromoEventScript.Runtime.Core.Klib.KlibSourceLocation;
 
 namespace KoromoEventScript.Cli.Tests.Execution;
 
@@ -89,8 +90,8 @@ internal static class HeadlessVmTestHelper
     {
         return CreateSyntheticDocument(
             [
-                new KlibInstruction(0, 0, KlibOpCode.Jump, [4], new KoromoEventScript.Cli.Parsing.SourceLocation(1, 1), KlibMappingKind.Statement),
-                new KlibInstruction(1, 5, KlibOpCode.End, [], new KoromoEventScript.Cli.Parsing.SourceLocation(2, 1), KlibMappingKind.Statement),
+                new KlibInstruction(0, 0, KlibOpCode.Jump, [4], new SourceLocation(1, 1), KlibMappingKind.Statement),
+                new KlibInstruction(1, 5, KlibOpCode.End, [], new SourceLocation(2, 1), KlibMappingKind.Statement),
             ],
             [StringConstant("#missing")]);
     }

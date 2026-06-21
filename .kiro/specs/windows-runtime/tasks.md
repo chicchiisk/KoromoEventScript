@@ -15,7 +15,7 @@
   - _Requirements: 1.1, 3.1, 10.1_
   - _Boundary: Solution structure_
 
-- [ ] 1.3 `.klib` モデルと headless VM 資産を Runtime Core へ共有化する
+- [x] 1.3 `.klib` モデルと headless VM 資産を Runtime Core へ共有化する
   - CLI に閉じている `.klib` 型と VM の再利用可能部分を Runtime Core から参照できる境界へ移す
   - CLI 側は新しい共有境界を参照し、既存 CLI build と headless 実行のテストを保つ
   - Runtime Core だけを参照するテストで `.klib` 型を構築できる
