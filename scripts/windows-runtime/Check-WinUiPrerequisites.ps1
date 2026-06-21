@@ -59,6 +59,23 @@ function Get-DotNetSdkStatus {
         -Remediation 'Run the WinUI setup flow to install Microsoft.DotNet.SDK.10 if no SDK >= 8.0 is present.'
 }
 
+function ConvertTo-WinAppCliVersion {
+    param([string[]]$Output)
+
+    foreach ($line in $Output) {
+        $match = [regex]::Match($line, '(?<!\d)(\d+\.\d+(?:\.\d+)?(?:\.\d+)?)(?!\d)')
+        if ($match.Success) {
+            try {
+                return [version]$match.Groups[1].Value
+            }
+            catch {
+            }
+        }
+    }
+
+    return $null
+}
+
 function Get-WinAppCliStatus {
     $command = Get-Command winapp -ErrorAction SilentlyContinue
     $version = $null
@@ -66,12 +83,9 @@ function Get-WinAppCliStatus {
 
     if ($command) {
         try {
-            $raw = (& winapp --version 2>$null) -as [string]
-            if ($raw) {
-                $base = ($raw.Trim() -split '-')[0]
-                $version = [version]$base
-                $ok = $version -ge $MinimumWinAppVersion
-            }
+            $raw = @(& winapp --version 2>$null)
+            $version = ConvertTo-WinAppCliVersion -Output $raw
+            $ok = $version -and $version -ge $MinimumWinAppVersion
         }
         catch {
             $version = $null
@@ -202,6 +216,7 @@ function Invoke-SelfTest {
     Assert-SelfTest ($report -match 'BuildAndRun\.ps1') 'report documents BuildAndRun.ps1-equivalent launch'
     Assert-SelfTest ($report -match 'Do not run the packaged \.exe directly') 'report forbids packaged exe direct launch'
     Assert-SelfTest ((Get-PrerequisiteExitCode -Statuses $allOkStatuses) -eq 0) 'all-ok statuses exit with success'
+    Assert-SelfTest ((ConvertTo-WinAppCliVersion -Output @('Windows App Development CLI - Version 0.3.2', '0.3.2')) -eq [version]'0.3.2') 'parses winapp banner version output'
 
     $developerModeOff = @(
         New-PrerequisiteStatus -Name '.NET SDK' -Ok $true -Found '10.0.100' -Required '.NET SDK >= 8.0' -Remediation 'unused'

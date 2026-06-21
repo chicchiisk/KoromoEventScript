@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "KoromoEventScript.Runtime.Windows (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "KoromoEventScript.Runtime.Windows (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

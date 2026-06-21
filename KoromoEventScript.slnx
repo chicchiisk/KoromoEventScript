@@ -3,7 +3,13 @@
   <Folder Name="/source/cli/">
     <Project Path="source/cli/KoromoEventScript.Cli/KoromoEventScript.Cli.csproj" />
   </Folder>
+  <Folder Name="/source/runtime/">
+    <Project Path="source/runtime/KoromoEventScript.Runtime.Core/KoromoEventScript.Runtime.Core.csproj" />
+    <Project Path="source/runtime/KoromoEventScript.Runtime.Windows/KoromoEventScript.Runtime.Windows.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/KoromoEventScript.Cli.Tests/KoromoEventScript.Cli.Tests.csproj" />
+    <Project Path="tests/KoromoEventScript.Runtime.Core.Tests/KoromoEventScript.Runtime.Core.Tests.csproj" />
+    <Project Path="tests/KoromoEventScript.Runtime.Windows.Tests/KoromoEventScript.Runtime.Windows.Tests.csproj" />
   </Folder>
 </Solution>

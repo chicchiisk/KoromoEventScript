@@ -8,7 +8,7 @@
   - _Requirements: 1.1, 1.5, 10.1, 10.2_
   - _Boundary: Runtime prerequisites_
 
-- [ ] 1.2 Runtime Core、Windows app、テスト project を solution に追加する
+- [x] 1.2 Runtime Core、Windows app、テスト project を solution に追加する
   - runtime core、WinUI 3 Windows app、core tests、Windows host tests の project を追加する
   - Windows app は x64 または ARM64 を対象にし、AnyCPU に依存しない構成にする
   - `dotnet build KoromoEventScript.slnx` で新規 project を含む solution が復元とコンパイルの入口を持つ
