@@ -22,7 +22,7 @@
   - _Requirements: 2.3, 4.1, 4.2_
   - _Boundary: Runtime Core, CLI shared compilation_
 
-- [ ] 1.4 Runtime 共通の effect、diagnostic、exit code 契約を定義する
+- [x] 1.4 Runtime 共通の effect、diagnostic、exit code 契約を定義する
   - 描画、音声、入力待ち、UI、保存、設定、診断の runtime effect を VM から Windows host へ渡せる形にする
   - warning、runtime error、startup error、IO error、argument error を終了コードへ写像できる契約を用意する
   - VM または syscall が生成した effect と diagnostic を fake host で観測できる
