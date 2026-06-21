@@ -30,7 +30,7 @@
   - _Boundary: Runtime Core contracts_
 
 - [ ] 2. manifest、package、素材解決を実装する
-- [ ] 2.1 Runtime manifest の読み込みと相対パス解決を実装する
+- [x] 2.1 Runtime manifest の読み込みと相対パス解決を実装する
   - `manifest.json` を runtime 入力の入口として読み込み、schema version、game id、locale、scripts、assets、runtime defaults、build 情報を検証する
   - 相対パスは manifest の配置ディレクトリ基準で解決する
   - manifest が存在しない、読めない、必須項目が欠ける場合に起動エラーとして観測できる
