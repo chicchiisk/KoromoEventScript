@@ -56,6 +56,17 @@ public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
             "core.number_to_string" => NumberToString(invocation),
             "core.bool_to_string" => BoolToString(invocation),
             "core.assert" => Assert(invocation),
+            "scene.rt_back" => SceneNoArgs(invocation),
+            "scene.rt_front" => SceneNoArgs(invocation),
+            "scene.bg" => SceneString(invocation, "id"),
+            "scene.camera_autofocus" => SceneBool(invocation, "enabled"),
+            "scene.trans" => SceneTransition(invocation),
+            "actor.cast" => ActorSingle(invocation),
+            "actor.hide" => ActorSingle(invocation),
+            "actor.action_jump" => ActorSingle(invocation),
+            "actor.face" => ActorFace(invocation),
+            "actor.move" => ActorMove(invocation),
+            "actor.show" => ActorShow(invocation),
             _ => RuntimeSyscallResult.Failure(
                 RuntimeFailureKind.Runtime,
                 Error("KESR3400", invocation, $"Runtime syscall '{invocation.Id}' is not supported.")),
@@ -182,6 +193,142 @@ public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
             Error("KESR3403", invocation, $"Assertion failed: {message}"));
     }
 
+    private RuntimeSyscallResult SceneNoArgs(RuntimeSyscallInvocation invocation)
+    {
+        if (invocation.Arguments.Count != 0)
+        {
+            return ArgumentFailure(invocation, $"Syscall '{invocation.Id}' does not take arguments.");
+        }
+
+        return PublishSceneEffect(invocation, new Dictionary<string, string?>());
+    }
+
+    private RuntimeSyscallResult SceneString(RuntimeSyscallInvocation invocation, string key)
+    {
+        if (!TryReadString(invocation, 0, out var value) || invocation.Arguments.Count != 1)
+        {
+            return ArgumentFailure(invocation, $"Syscall '{invocation.Id}' requires one string argument.");
+        }
+
+        return PublishSceneEffect(invocation, new Dictionary<string, string?> { [key] = value });
+    }
+
+    private RuntimeSyscallResult SceneBool(RuntimeSyscallInvocation invocation, string key)
+    {
+        if (!TryReadBool(invocation, 0, out var value) || invocation.Arguments.Count != 1)
+        {
+            return ArgumentFailure(invocation, $"Syscall '{invocation.Id}' requires one bool argument.");
+        }
+
+        return PublishSceneEffect(invocation, new Dictionary<string, string?> { [key] = FormatBool(value) });
+    }
+
+    private RuntimeSyscallResult SceneTransition(RuntimeSyscallInvocation invocation)
+    {
+        if (!TryReadString(invocation, 0, out var effect) ||
+            !TryReadNumber(invocation, 1, out var duration) ||
+            invocation.Arguments.Count != 2)
+        {
+            return ArgumentFailure(invocation, "Syscall 'scene.trans' requires effect:string and duration:number arguments.");
+        }
+
+        if (duration < 0)
+        {
+            return RuntimeSyscallResult.Failure(
+                RuntimeFailureKind.Runtime,
+                Error("KESR3402", invocation, "Syscall 'scene.trans' duration must not be negative."));
+        }
+
+        return PublishSceneEffect(
+            invocation,
+            new Dictionary<string, string?>
+            {
+                ["effect"] = effect,
+                ["duration"] = FormatNumber(duration),
+            });
+    }
+
+    private RuntimeSyscallResult ActorSingle(RuntimeSyscallInvocation invocation)
+    {
+        if (!TryReadActor(invocation, 0, out var actor) || invocation.Arguments.Count != 1)
+        {
+            return ArgumentFailure(invocation, $"Syscall '{invocation.Id}' requires one actor argument.");
+        }
+
+        return PublishSceneEffect(invocation, new Dictionary<string, string?> { ["actor"] = actor });
+    }
+
+    private RuntimeSyscallResult ActorFace(RuntimeSyscallInvocation invocation)
+    {
+        if (!TryReadActor(invocation, 0, out var actor) ||
+            !TryReadString(invocation, 1, out var expression) ||
+            invocation.Arguments.Count != 2)
+        {
+            return ArgumentFailure(invocation, "Syscall 'actor.face' requires actor and exp:string arguments.");
+        }
+
+        return PublishSceneEffect(
+            invocation,
+            new Dictionary<string, string?>
+            {
+                ["actor"] = actor,
+                ["exp"] = expression,
+            });
+    }
+
+    private RuntimeSyscallResult ActorMove(RuntimeSyscallInvocation invocation)
+    {
+        if (!TryReadActor(invocation, 0, out var actor) ||
+            !TryReadNumber(invocation, 1, out var position) ||
+            !TryReadNumber(invocation, 2, out var duration) ||
+            invocation.Arguments.Count != 3)
+        {
+            return ArgumentFailure(invocation, "Syscall 'actor.move' requires actor, pos:number, and duration:number arguments.");
+        }
+
+        if (duration < 0)
+        {
+            return RuntimeSyscallResult.Failure(
+                RuntimeFailureKind.Runtime,
+                Error("KESR3402", invocation, "Syscall 'actor.move' duration must not be negative."));
+        }
+
+        return PublishSceneEffect(
+            invocation,
+            new Dictionary<string, string?>
+            {
+                ["actor"] = actor,
+                ["pos"] = FormatNumber(position),
+                ["duration"] = FormatNumber(duration),
+            });
+    }
+
+    private RuntimeSyscallResult ActorShow(RuntimeSyscallInvocation invocation)
+    {
+        if (!TryReadActor(invocation, 0, out var actor) ||
+            !TryReadNumber(invocation, 1, out var position) ||
+            !TryReadString(invocation, 2, out var face) ||
+            !TryReadNumber(invocation, 3, out var layer) ||
+            !TryReadNumber(invocation, 4, out var z) ||
+            !TryReadBool(invocation, 5, out var bustup) ||
+            invocation.Arguments.Count != 6)
+        {
+            return ArgumentFailure(invocation, "Syscall 'actor.show' requires actor, pos, face, layer, z, and bustup arguments.");
+        }
+
+        return PublishSceneEffect(
+            invocation,
+            new Dictionary<string, string?>
+            {
+                ["actor"] = actor,
+                ["pos"] = FormatNumber(position),
+                ["face"] = face,
+                ["layer"] = FormatNumber(layer),
+                ["z"] = FormatNumber(z),
+                ["bustup"] = FormatBool(bustup),
+            });
+    }
+
     private static bool TryReadNumberPair(
         RuntimeSyscallInvocation invocation,
         string syscallId,
@@ -215,5 +362,85 @@ public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
     private static RuntimeDiagnostic Error(string code, RuntimeSyscallInvocation invocation, string message)
     {
         return RuntimeDiagnostic.Error(code, message, RuntimeFailureKind.Runtime, invocation.Location);
+    }
+
+    private RuntimeSyscallResult PublishSceneEffect(RuntimeSyscallInvocation invocation, IReadOnlyDictionary<string, string?> payload)
+    {
+        effectSink?.Publish(new RuntimeEffectBatch([new RuntimeEffect(RuntimeEffectKind.Scene, invocation.Id, payload)], []));
+        return RuntimeSyscallResult.Success();
+    }
+
+    private static RuntimeSyscallResult ArgumentFailure(RuntimeSyscallInvocation invocation, string message)
+    {
+        return RuntimeSyscallResult.Failure(RuntimeFailureKind.Runtime, Error("KESR3402", invocation, message));
+    }
+
+    private static bool TryReadString(RuntimeSyscallInvocation invocation, int index, out string value)
+    {
+        value = string.Empty;
+        if (index < 0 ||
+            index >= invocation.Arguments.Count ||
+            invocation.Arguments[index].Kind != RuntimeValueKind.String)
+        {
+            return false;
+        }
+
+        value = invocation.Arguments[index].StringValue ?? string.Empty;
+        return true;
+    }
+
+    private static bool TryReadNumber(RuntimeSyscallInvocation invocation, int index, out double value)
+    {
+        value = 0;
+        if (index < 0 ||
+            index >= invocation.Arguments.Count ||
+            invocation.Arguments[index].Kind != RuntimeValueKind.Number ||
+            invocation.Arguments[index].NumberValue is null)
+        {
+            return false;
+        }
+
+        value = invocation.Arguments[index].NumberValue.GetValueOrDefault();
+        return true;
+    }
+
+    private static bool TryReadBool(RuntimeSyscallInvocation invocation, int index, out bool value)
+    {
+        value = false;
+        if (index < 0 ||
+            index >= invocation.Arguments.Count ||
+            invocation.Arguments[index].Kind != RuntimeValueKind.Bool ||
+            invocation.Arguments[index].BoolValue is null)
+        {
+            return false;
+        }
+
+        value = invocation.Arguments[index].BoolValue.GetValueOrDefault();
+        return true;
+    }
+
+    private static bool TryReadActor(RuntimeSyscallInvocation invocation, int index, out string value)
+    {
+        value = string.Empty;
+        if (index < 0 ||
+            index >= invocation.Arguments.Count ||
+            invocation.Arguments[index].Kind != RuntimeValueKind.Reference ||
+            string.IsNullOrEmpty(invocation.Arguments[index].ReferenceId))
+        {
+            return false;
+        }
+
+        value = invocation.Arguments[index].ReferenceId!;
+        return true;
+    }
+
+    private static string FormatNumber(double value)
+    {
+        return value.ToString("G", CultureInfo.InvariantCulture);
+    }
+
+    private static string FormatBool(bool value)
+    {
+        return value ? "true" : "false";
     }
 }

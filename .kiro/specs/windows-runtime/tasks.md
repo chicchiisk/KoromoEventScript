@@ -99,7 +99,7 @@
   - _Requirements: 5.1, 5.2, 9.3_
   - _Boundary: Runtime Core STL core_
 
-- [ ] 4.2 (P) scene と actor STL syscall を runtime effect へ変換する
+- [x] 4.2 (P) scene と actor STL syscall を runtime effect へ変換する
   - 裏画面、表画面、背景、transition、camera 補助を scene state effect として表現する
   - actor の load、show、hide、expression、move、簡易 action を actor state effect として表現する
   - fake host が scene / actor effect を順序付きで受け取れる
