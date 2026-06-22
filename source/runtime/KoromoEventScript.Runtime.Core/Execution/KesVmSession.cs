@@ -21,6 +21,8 @@ public sealed class KesVmSession
 
     public KlibDocument Document { get; }
 
+    internal RuntimeObjectStore ObjectStore { get; } = new();
+
     public RuntimeExecutionPosition Position { get; private set; }
 
     public RuntimeContinuation Continuation { get; private set; }

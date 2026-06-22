@@ -242,6 +242,154 @@ public sealed class KesVmExecutor
                 session.AdvanceAfter(instruction);
                 return KesVmExecutionResult.Success();
 
+            case KlibOpCode.ArrayNew:
+                if (!TryReadOperand(instruction, 0, out var arrayCount) || arrayCount < 0)
+                {
+                    return Fault(session, "KESR3301", "ARRAY_NEW requires a non-negative count operand.");
+                }
+
+                var arrayValues = PopArguments(session, arrayCount);
+                if (arrayValues is null)
+                {
+                    return Fault(session, "KESR3101", "Not enough operands to build an array.");
+                }
+
+                session.PushOperand(session.ObjectStore.CreateArray(arrayValues));
+                session.AdvanceAfter(instruction);
+                return KesVmExecutionResult.Success();
+
+            case KlibOpCode.ArrayGet:
+                if (!TryPopIndexAndReference(session, "ARRAY_GET", out var getReferenceId, out var getIndex, out var getFault))
+                {
+                    return getFault!;
+                }
+
+                if (!session.ObjectStore.TryGetArrayValue(getReferenceId!, getIndex, out var arrayValue, out var arrayError))
+                {
+                    return Fault(session, "KESR3302", arrayError ?? "ARRAY_GET failed.");
+                }
+
+                session.PushOperand(arrayValue);
+                session.AdvanceAfter(instruction);
+                return KesVmExecutionResult.Success();
+
+            case KlibOpCode.ArraySet:
+                if (!session.TryPopOperand(out var assignedValue))
+                {
+                    return Fault(session, "KESR3101", "Operand stack underflow while executing ARRAY_SET.");
+                }
+
+                if (!TryPopIndexAndReference(session, "ARRAY_SET", out var setReferenceId, out var setIndex, out var setFault))
+                {
+                    return setFault!;
+                }
+
+                if (!session.ObjectStore.TrySetArrayValue(setReferenceId!, setIndex, assignedValue, out var setError))
+                {
+                    return Fault(session, "KESR3302", setError ?? "ARRAY_SET failed.");
+                }
+
+                session.AdvanceAfter(instruction);
+                return KesVmExecutionResult.Success();
+
+            case KlibOpCode.New:
+                if (!TryReadOperand(instruction, 0, out var classIndex) ||
+                    !TryReadOperand(instruction, 1, out var constructorArgc) ||
+                    constructorArgc < 0)
+                {
+                    return Fault(session, "KESR3303", "NEW requires class and argc operands.");
+                }
+
+                if (PopArguments(session, constructorArgc) is null)
+                {
+                    return Fault(session, "KESR3101", "Not enough constructor arguments on the stack.");
+                }
+
+                if (!TryResolveString(session.Document, classIndex, out var classId, out var classError))
+                {
+                    return Fault(session, "KESR3303", classError ?? "Class reference could not be resolved.");
+                }
+
+                session.PushOperand(session.ObjectStore.CreateInstance(classId!));
+                session.AdvanceAfter(instruction);
+                return KesVmExecutionResult.Success();
+
+            case KlibOpCode.GetField:
+                if (!TryReadOperand(instruction, 0, out var getFieldIndex))
+                {
+                    return Fault(session, "KESR3304", "GET_FIELD field operand is missing.");
+                }
+
+                if (!TryResolveString(session.Document, getFieldIndex, out var getFieldId, out var getFieldResolveError))
+                {
+                    return Fault(session, "KESR3304", getFieldResolveError ?? "GET_FIELD field reference could not be resolved.");
+                }
+
+                if (!TryPopReference(session, "GET_FIELD", out var getReceiverId, out var getReceiverFault))
+                {
+                    return getReceiverFault!;
+                }
+
+                if (!session.ObjectStore.TryGetField(getReceiverId!, getFieldId!, out var fieldValue, out var getFieldError))
+                {
+                    return Fault(session, "KESR3304", getFieldError ?? "GET_FIELD failed.");
+                }
+
+                session.PushOperand(fieldValue);
+                session.AdvanceAfter(instruction);
+                return KesVmExecutionResult.Success();
+
+            case KlibOpCode.SetField:
+                if (!TryReadOperand(instruction, 0, out var setFieldIndex))
+                {
+                    return Fault(session, "KESR3304", "SET_FIELD field operand is missing.");
+                }
+
+                if (!TryResolveString(session.Document, setFieldIndex, out var setFieldId, out var setFieldResolveError))
+                {
+                    return Fault(session, "KESR3304", setFieldResolveError ?? "SET_FIELD field reference could not be resolved.");
+                }
+
+                if (!session.TryPopOperand(out var setFieldValue))
+                {
+                    return Fault(session, "KESR3101", "Operand stack underflow while executing SET_FIELD.");
+                }
+
+                if (!TryPopReference(session, "SET_FIELD", out var setReceiverId, out var setReceiverFault))
+                {
+                    return setReceiverFault!;
+                }
+
+                if (!session.ObjectStore.TrySetField(setReceiverId!, setFieldId!, setFieldValue, out var setFieldError))
+                {
+                    return Fault(session, "KESR3304", setFieldError ?? "SET_FIELD failed.");
+                }
+
+                session.AdvanceAfter(instruction);
+                return KesVmExecutionResult.Success();
+
+            case KlibOpCode.Call:
+            case KlibOpCode.CallVoid:
+                return ExecuteCall(session, instruction);
+
+            case KlibOpCode.CallMethod:
+            case KlibOpCode.CallMethodVoid:
+                return ExecuteMethodCall(session, instruction);
+
+            case KlibOpCode.Dispose:
+                if (!TryPopReference(session, "DISPOSE", out var disposeReferenceId, out var disposeFault))
+                {
+                    return disposeFault!;
+                }
+
+                if (!session.ObjectStore.TryDispose(disposeReferenceId!, out var disposeError))
+                {
+                    return Fault(session, "KESR3305", disposeError ?? "DISPOSE failed.");
+                }
+
+                session.AdvanceAfter(instruction);
+                return KesVmExecutionResult.Success();
+
             default:
                 return Fault(session, "KESR3199", $"Opcode '{instruction.OpCode}' is not supported by this executor task.");
         }
@@ -414,6 +562,271 @@ public sealed class KesVmExecutor
 
         value = instruction.Operands[index];
         return true;
+    }
+
+    private static IReadOnlyList<RuntimeValue>? PopArguments(KesVmSession session, int count)
+    {
+        var arguments = new RuntimeValue[count];
+        for (var i = count - 1; i >= 0; i--)
+        {
+            if (!session.TryPopOperand(out var value))
+            {
+                return null;
+            }
+
+            arguments[i] = value;
+        }
+
+        return arguments;
+    }
+
+    private static bool TryPopIndexAndReference(
+        KesVmSession session,
+        string opcodeName,
+        out string? referenceId,
+        out int index,
+        out KesVmExecutionResult? fault)
+    {
+        referenceId = null;
+        index = 0;
+        fault = null;
+
+        if (!session.TryPopOperand(out var indexValue) ||
+            indexValue.Kind != RuntimeValueKind.Number ||
+            indexValue.NumberValue is null)
+        {
+            fault = Fault(session, "KESR3302", $"{opcodeName} requires a numeric index.");
+            return false;
+        }
+
+        if (!TryPopReference(session, opcodeName, out referenceId, out fault))
+        {
+            return false;
+        }
+
+        index = (int)indexValue.NumberValue.Value;
+        if (Math.Abs(indexValue.NumberValue.Value - index) > double.Epsilon)
+        {
+            fault = Fault(session, "KESR3302", $"{opcodeName} index must be an integer.");
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool TryPopReference(
+        KesVmSession session,
+        string opcodeName,
+        out string? referenceId,
+        out KesVmExecutionResult? fault)
+    {
+        referenceId = null;
+        fault = null;
+
+        if (!session.TryPopOperand(out var referenceValue) ||
+            referenceValue.Kind != RuntimeValueKind.Reference ||
+            string.IsNullOrEmpty(referenceValue.ReferenceId))
+        {
+            fault = Fault(session, "KESR3300", $"{opcodeName} requires an object reference.");
+            return false;
+        }
+
+        referenceId = referenceValue.ReferenceId;
+        return true;
+    }
+
+    private static KesVmExecutionResult ExecuteCall(KesVmSession session, KlibInstruction instruction)
+    {
+        if (!TryReadOperand(instruction, 0, out var callIndex) ||
+            !TryReadOperand(instruction, 1, out var argc) ||
+            argc < 0)
+        {
+            return Fault(session, "KESR3310", "CALL requires target and argc operands.");
+        }
+
+        if (!TryResolveString(session.Document, callIndex, out var callName, out var callResolveError))
+        {
+            return Fault(session, "KESR3310", callResolveError ?? "CALL target could not be resolved.");
+        }
+
+        var arguments = PopArguments(session, argc);
+        if (arguments is null)
+        {
+            return Fault(session, "KESR3101", "Not enough arguments on the stack for callable execution.");
+        }
+
+        var returnsValue = instruction.OpCode == KlibOpCode.Call;
+        var result = InvokePureCall(session, callName!, arguments, returnsValue);
+        if (!result.Succeeded)
+        {
+            return result;
+        }
+
+        session.AdvanceAfter(instruction);
+        return KesVmExecutionResult.Success();
+    }
+
+    private static KesVmExecutionResult ExecuteMethodCall(KesVmSession session, KlibInstruction instruction)
+    {
+        if (!TryReadOperand(instruction, 0, out var methodIndex) ||
+            !TryReadOperand(instruction, 1, out var argc) ||
+            argc < 0)
+        {
+            return Fault(session, "KESR3311", "CALL_METHOD requires target and argc operands.");
+        }
+
+        if (!TryResolveString(session.Document, methodIndex, out var methodName, out var methodResolveError))
+        {
+            return Fault(session, "KESR3311", methodResolveError ?? "CALL_METHOD target could not be resolved.");
+        }
+
+        var arguments = PopArguments(session, argc);
+        if (arguments is null)
+        {
+            return Fault(session, "KESR3101", "Not enough method arguments on the stack.");
+        }
+
+        if (!TryPopReference(session, "CALL_METHOD", out var receiverId, out var receiverFault))
+        {
+            return receiverFault!;
+        }
+
+        if (!StringComparer.Ordinal.Equals(methodName, "dispose"))
+        {
+            return Fault(session, "KESR3311", $"Method '{methodName}' is not supported.");
+        }
+
+        if (!session.ObjectStore.TryDispose(receiverId!, out var disposeError))
+        {
+            return Fault(session, "KESR3305", disposeError ?? "Method 'dispose' failed.");
+        }
+
+        if (instruction.OpCode == KlibOpCode.CallMethod)
+        {
+            session.PushOperand(RuntimeValue.Null);
+        }
+
+        session.AdvanceAfter(instruction);
+        return KesVmExecutionResult.Success();
+    }
+
+    private static KesVmExecutionResult InvokePureCall(
+        KesVmSession session,
+        string callName,
+        IReadOnlyList<RuntimeValue> arguments,
+        bool returnsValue)
+    {
+        switch (callName)
+        {
+            case "number_to_string":
+                if (arguments.Count != 1 || arguments[0].Kind != RuntimeValueKind.Number || arguments[0].NumberValue is null)
+                {
+                    return Fault(session, "KESR3310", "Callable 'number_to_string' requires one number argument.");
+                }
+
+                if (returnsValue)
+                {
+                    var numberValue = arguments[0].NumberValue!.Value;
+                    session.PushOperand(RuntimeValue.String(numberValue.ToString("G", System.Globalization.CultureInfo.InvariantCulture)));
+                }
+
+                return KesVmExecutionResult.Success();
+
+            case "bool_to_string":
+                if (arguments.Count != 1 || arguments[0].Kind != RuntimeValueKind.Bool || arguments[0].BoolValue is null)
+                {
+                    return Fault(session, "KESR3310", "Callable 'bool_to_string' requires one bool argument.");
+                }
+
+                if (returnsValue)
+                {
+                    var boolValue = arguments[0].BoolValue!.Value;
+                    session.PushOperand(RuntimeValue.String(boolValue ? "true" : "false"));
+                }
+
+                return KesVmExecutionResult.Success();
+
+            case "array_len":
+                if (arguments.Count != 1 ||
+                    arguments[0].Kind != RuntimeValueKind.Reference ||
+                    string.IsNullOrEmpty(arguments[0].ReferenceId))
+                {
+                    return Fault(session, "KESR3310", "Callable 'array_len' requires one array reference argument.");
+                }
+
+                var arrayReferenceId = arguments[0].ReferenceId!;
+                if (!session.ObjectStore.TryGetArrayLength(arrayReferenceId, out var length, out var lengthError))
+                {
+                    return Fault(session, "KESR3310", lengthError ?? "Callable 'array_len' failed.");
+                }
+
+                if (returnsValue)
+                {
+                    session.PushOperand(RuntimeValue.Number(length));
+                }
+
+                return KesVmExecutionResult.Success();
+
+            case "str_len":
+                if (arguments.Count != 1 || arguments[0].Kind != RuntimeValueKind.String)
+                {
+                    return Fault(session, "KESR3310", "Callable 'str_len' requires one string argument.");
+                }
+
+                if (returnsValue)
+                {
+                    session.PushOperand(RuntimeValue.Number(arguments[0].StringValue?.Length ?? 0));
+                }
+
+                return KesVmExecutionResult.Success();
+
+            case "assert":
+                if (arguments.Count != 1 || arguments[0].Kind != RuntimeValueKind.Bool || arguments[0].BoolValue != true)
+                {
+                    return Fault(session, "KESR3310", "Callable 'assert' requires a true bool condition.");
+                }
+
+                if (returnsValue)
+                {
+                    session.PushOperand(RuntimeValue.Null);
+                }
+
+                return KesVmExecutionResult.Success();
+
+            default:
+                return Fault(session, "KESR3310", $"Callable '{callName}' is not supported.");
+        }
+    }
+
+    private static bool TryResolveString(KlibDocument document, int constantIndex, out string? value, out string? error)
+    {
+        value = null;
+        error = null;
+
+        if (constantIndex < 0 || constantIndex >= document.Constants.Count)
+        {
+            error = $"Constant index '{constantIndex}' is invalid.";
+            return false;
+        }
+
+        var constant = document.Constants[constantIndex];
+        if (constant.Kind == KlibConstantKind.String)
+        {
+            value = constant.StringValue ?? string.Empty;
+            return true;
+        }
+
+        if (constant.ReferenceIndex is int referenceIndex &&
+            referenceIndex >= 0 &&
+            referenceIndex < document.Constants.Count &&
+            document.Constants[referenceIndex].Kind == KlibConstantKind.String)
+        {
+            value = document.Constants[referenceIndex].StringValue ?? string.Empty;
+            return true;
+        }
+
+        error = $"Constant index '{constantIndex}' does not resolve to a string.";
+        return false;
     }
 
     private static int GetInstructionSize(KlibInstruction instruction)

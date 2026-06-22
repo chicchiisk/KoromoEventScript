@@ -76,7 +76,7 @@
   - _Boundary: Runtime Core VM control flow_
   - _Depends: 3.1_
 
-- [ ] 3.4 (P) 配列、class、field、method、call 命令を実行する
+- [x] 3.4 (P) 配列、class、field、method、call 命令を実行する
   - array new/get/set、object field、method call、call/call void を VM 状態へ反映する
   - 不正な index、field、method、call target を runtime error として扱う
   - 配列と object を使う `.klib` fixture が Runtime Core の VM で完走する
