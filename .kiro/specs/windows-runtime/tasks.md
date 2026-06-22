@@ -84,7 +84,7 @@
   - _Boundary: Runtime Core VM object model_
   - _Depends: 3.1_
 
-- [ ] 3.5 opcode coverage gate を追加する
+- [x] 3.5 opcode coverage gate を追加する
   - `.klib` opcode enum の全値が executor dispatch の対象であることを自動検証する
   - 未対応 opcode が追加された場合にテストが失敗する
   - coverage test の失敗メッセージから不足 opcode が分かる

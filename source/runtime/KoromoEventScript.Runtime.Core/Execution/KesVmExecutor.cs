@@ -7,6 +7,52 @@ public sealed class KesVmExecutor
 {
     private const int DefaultMaxInstructionCount = 10_000;
 
+    public static IReadOnlySet<KlibOpCode> DispatchedOpCodes { get; } = new HashSet<KlibOpCode>
+    {
+        KlibOpCode.PushConst,
+        KlibOpCode.PushTrue,
+        KlibOpCode.PushFalse,
+        KlibOpCode.PushNull,
+        KlibOpCode.PushInt,
+        KlibOpCode.Pop,
+        KlibOpCode.Dup,
+        KlibOpCode.LoadVar,
+        KlibOpCode.StoreVar,
+        KlibOpCode.DefVar,
+        KlibOpCode.Add,
+        KlibOpCode.Sub,
+        KlibOpCode.Mul,
+        KlibOpCode.Div,
+        KlibOpCode.Neg,
+        KlibOpCode.Eq,
+        KlibOpCode.Neq,
+        KlibOpCode.Lt,
+        KlibOpCode.Le,
+        KlibOpCode.Gt,
+        KlibOpCode.Ge,
+        KlibOpCode.And,
+        KlibOpCode.Or,
+        KlibOpCode.Not,
+        KlibOpCode.Jump,
+        KlibOpCode.JumpFalse,
+        KlibOpCode.Label,
+        KlibOpCode.Select,
+        KlibOpCode.End,
+        KlibOpCode.Call,
+        KlibOpCode.CallVoid,
+        KlibOpCode.SysCall,
+        KlibOpCode.SysCallVoid,
+        KlibOpCode.ArrayNew,
+        KlibOpCode.ArrayGet,
+        KlibOpCode.ArraySet,
+        KlibOpCode.New,
+        KlibOpCode.GetField,
+        KlibOpCode.SetField,
+        KlibOpCode.CallMethod,
+        KlibOpCode.CallMethodVoid,
+        KlibOpCode.Dispose,
+    };
+
     public KesVmExecutionResult Run(KesVmSession session, int maxInstructionCount = DefaultMaxInstructionCount)
     {
         ArgumentNullException.ThrowIfNull(session);
@@ -375,6 +421,10 @@ public sealed class KesVmExecutor
             case KlibOpCode.CallMethod:
             case KlibOpCode.CallMethodVoid:
                 return ExecuteMethodCall(session, instruction);
+
+            case KlibOpCode.SysCall:
+            case KlibOpCode.SysCallVoid:
+                return Fault(session, "KESR3400", "Runtime syscall dispatch is not connected yet.");
 
             case KlibOpCode.Dispose:
                 if (!TryPopReference(session, "DISPOSE", out var disposeReferenceId, out var disposeFault))
