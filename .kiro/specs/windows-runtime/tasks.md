@@ -171,7 +171,7 @@
   - _Boundary: Windows Runtime audio_
   - _Depends: 4.4_
 
-- [ ] 6.2 Windows input router を実装する
+- [x] 6.2 Windows input router を実装する
   - 左クリック、Enter、Space、右クリック、Esc、Ctrl、Tab、mouse wheel、上下キー、F11 を runtime input に変換する
   - text advance、choice decision、system menu、skip、auto、backlog、choice navigation、fullscreen の状態変化を発生させる
   - keyboard と mouse の入力ごとに期待する runtime input がテストで確認できる
