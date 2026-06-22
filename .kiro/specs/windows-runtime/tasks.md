@@ -37,7 +37,7 @@
   - _Requirements: 2.1, 2.2, 2.4, 9.7_
   - _Boundary: Runtime Core manifest_
 
-- [ ] 2.2 (P) `.klib` package resolver と script id 検証を実装する
+- [x] 2.2 (P) `.klib` package resolver と script id 検証を実装する
   - manifest の script entry と `.klib` の `scriptId` 対応を検証する
   - 必須 `.klib` が欠ける場合は IO error として返す
   - `.kc`、`.kel`、翻訳作業用 `.csv`、`.klibtxt` が runtime 実行入力にならないことをテストで確認できる
