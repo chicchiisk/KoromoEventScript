@@ -1,30 +1,29 @@
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 
 namespace KoromoEventScript.Runtime.Windows.ViewModels;
 
 /// <summary>
-/// Sample ViewModel using CommunityToolkit.Mvvm partial property syntax.
-/// Uses <see cref="ObservableProperty"/> for change notification and
-/// <see cref="RelayCommand"/> for command binding.
+/// Holds the standard runtime UI shell state until VM-driven host state is wired in.
 /// </summary>
 public partial class MainPageViewModel : ObservableObject
 {
     [ObservableProperty]
-    public partial string Greeting { get; set; } = "Hello, WinUI!";
+    public partial bool IsMessageVisible { get; set; } = true;
 
     [ObservableProperty]
-    public partial int Counter { get; set; }
+    public partial bool AreChoicesVisible { get; set; } = true;
 
-    [RelayCommand]
-    private void Increment()
-    {
-        Counter++;
-    }
+    [ObservableProperty]
+    public partial bool IsBacklogVisible { get; set; }
 
-    [RelayCommand]
-    private void Decrement()
-    {
-        Counter--;
-    }
+    [ObservableProperty]
+    public partial string SpeakerName { get; set; } = "Narrator";
+
+    [ObservableProperty]
+    public partial string MessageText { get; set; } = "Runtime message window";
+
+    public ObservableCollection<string> Choices { get; } = ["Continue", "Open menu"];
+
+    public ObservableCollection<string> BacklogEntries { get; } = ["Runtime message window"];
 }

@@ -154,7 +154,7 @@
   - _Boundary: Windows Runtime rendering controls_
   - _Depends: 5.2_
 
-- [ ] 5.4 (P) 標準 UI の message、choice、backlog、menu shell を実装する
+- [x] 5.4 (P) 標準 UI の message、choice、backlog、menu shell を実装する
   - WinUI の標準 control と theme resource を使い、message window、choice list、backlog、system menu の表示状態を ViewModel で管理する
   - すべての interactive control に AutomationId または AutomationProperties.Name を設定する
   - UI automation で message、choice、backlog、menu の主要要素を検索できる

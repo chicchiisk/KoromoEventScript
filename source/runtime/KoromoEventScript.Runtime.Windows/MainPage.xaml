@@ -14,5 +14,97 @@
             x:Name="SceneCanvas"
             ClearColor="Black"
             Draw="SceneCanvas_Draw" />
+
+        <AppBarButton
+            x:Name="SystemMenuButton"
+            AutomationProperties.AutomationId="RuntimeSystemMenuButton"
+            AutomationProperties.Name="System menu"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Top"
+            Margin="24"
+            ToolTipService.ToolTip="System menu">
+            <AppBarButton.Icon>
+                <SymbolIcon Symbol="More" />
+            </AppBarButton.Icon>
+            <AppBarButton.Flyout>
+                <MenuFlyout>
+                    <MenuFlyoutItem
+                        AutomationProperties.AutomationId="RuntimeMenuSave"
+                        Text="Save" />
+                    <MenuFlyoutItem
+                        AutomationProperties.AutomationId="RuntimeMenuLoad"
+                        Text="Load" />
+                    <MenuFlyoutItem
+                        AutomationProperties.AutomationId="RuntimeMenuSettings"
+                        Text="Settings" />
+                    <MenuFlyoutItem
+                        AutomationProperties.AutomationId="RuntimeMenuTitle"
+                        Text="Title" />
+                    <MenuFlyoutItem
+                        AutomationProperties.AutomationId="RuntimeMenuExit"
+                        Text="Exit" />
+                </MenuFlyout>
+            </AppBarButton.Flyout>
+        </AppBarButton>
+
+        <Border
+            AutomationProperties.AutomationId="RuntimeMessageWindow"
+            HorizontalAlignment="Stretch"
+            VerticalAlignment="Bottom"
+            Margin="48"
+            Padding="24"
+            Background="{ThemeResource AcrylicBackgroundFillColorBaseBrush}"
+            BorderBrush="{ThemeResource SurfaceStrokeColorDefaultBrush}"
+            BorderThickness="1"
+            CornerRadius="{ThemeResource OverlayCornerRadius}"
+            Visibility="{x:Bind local:MainPage.BoolToVisibility(ViewModel.IsMessageVisible), Mode=OneWay}">
+            <Grid RowSpacing="12">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <TextBlock
+                    Text="{x:Bind ViewModel.SpeakerName, Mode=OneWay}"
+                    Style="{StaticResource BodyStrongTextBlockStyle}" />
+                <TextBlock
+                    AutomationProperties.AutomationId="RuntimeMessageText"
+                    Grid.Row="1"
+                    Text="{x:Bind ViewModel.MessageText, Mode=OneWay}"
+                    TextWrapping="WrapWholeWords" />
+            </Grid>
+        </Border>
+
+        <ListView
+            AutomationProperties.AutomationId="RuntimeChoiceList"
+            AutomationProperties.Name="Choices"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Center"
+            Width="420"
+            Margin="48"
+            ItemsSource="{x:Bind ViewModel.Choices, Mode=OneWay}"
+            SelectionMode="Single"
+            Visibility="{x:Bind local:MainPage.BoolToVisibility(ViewModel.AreChoicesVisible), Mode=OneWay}" />
+
+        <Grid
+            AutomationProperties.AutomationId="RuntimeBacklogPanel"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Stretch"
+            Width="520"
+            Padding="24"
+            RowSpacing="16"
+            Background="{ThemeResource AcrylicBackgroundFillColorBaseBrush}"
+            Visibility="{x:Bind local:MainPage.BoolToVisibility(ViewModel.IsBacklogVisible), Mode=OneWay}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <TextBlock Text="Backlog" Style="{StaticResource SubtitleTextBlockStyle}" />
+            <ListView
+                AutomationProperties.AutomationId="RuntimeBacklogList"
+                AutomationProperties.Name="Backlog"
+                Grid.Row="1"
+                ItemsSource="{x:Bind ViewModel.BacklogEntries, Mode=OneWay}"
+                SelectionMode="None" />
+        </Grid>
     </Grid>
 </Page>

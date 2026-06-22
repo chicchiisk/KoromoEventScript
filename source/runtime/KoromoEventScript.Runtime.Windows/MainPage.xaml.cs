@@ -1,5 +1,6 @@
 using Microsoft.Graphics.Canvas.UI.Xaml;
 using Microsoft.UI;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using KoromoEventScript.Runtime.Windows.ViewModels;
 using KoromoEventScript.Runtime.Windows.Rendering;
@@ -63,5 +64,10 @@ public sealed partial class MainPage : Page
             SceneLayer.SystemUi => Colors.DarkGray,
             _ => Colors.Black,
         };
+    }
+
+    public static Visibility BoolToVisibility(bool value)
+    {
+        return value ? Visibility.Visible : Visibility.Collapsed;
     }
 }
