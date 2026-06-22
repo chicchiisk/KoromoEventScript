@@ -163,7 +163,7 @@
   - _Depends: 4.3_
 
 - [ ] 6. 音声、入力、保存 UI を Windows host に接続する
-- [ ] 6.1 Audio channel service を実装する
+- [x] 6.1 Audio channel service を実装する
   - BGM、SE、Voice を別 channel として再生、停止、fade、音量変更できる
   - `say` / `nar` の voice 素材が存在する場合は再生し、欠ける場合は warning のみで継続する
   - skip 時に Voice が停止し、BGM が継続することを fake または host test で確認できる

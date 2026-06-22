@@ -27,6 +27,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\source\runtime\KoromoEventScript.Runtime.Core\KoromoEventScript.Runtime.Core.csproj" />
+    <Compile Include="..\..\source\runtime\KoromoEventScript.Runtime.Windows\Audio\*.cs" Link="Audio\%(Filename)%(Extension)" />
     <Compile Include="..\..\source\runtime\KoromoEventScript.Runtime.Windows\Bootstrap\*.cs" Link="Bootstrap\%(Filename)%(Extension)" />
     <Compile Include="..\..\source\runtime\KoromoEventScript.Runtime.Windows\Rendering\*.cs" Link="Rendering\%(Filename)%(Extension)" />
   </ItemGroup>
