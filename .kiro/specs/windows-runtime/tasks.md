@@ -138,7 +138,7 @@
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 9.3, 9.4_
   - _Boundary: Windows Runtime bootstrap_
 
-- [ ] 5.2 Win2D scene renderer と 1920x1080 座標系を実装する
+- [x] 5.2 Win2D scene renderer と 1920x1080 座標系を実装する
   - 1920x1080 制作座標を 16:9 では全体拡大、非 16:9 では中央配置と余白表示に変換する
   - 背景、actor、効果、テキスト、選択肢、システム UI を論理レイヤー順に描画する
   - renderer test または screenshot で座標変換とレイヤー順を確認できる
