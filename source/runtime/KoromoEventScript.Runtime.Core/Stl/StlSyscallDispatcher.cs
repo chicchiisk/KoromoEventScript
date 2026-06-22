@@ -37,6 +37,19 @@ public sealed record RuntimeSyscallResult(
 public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
 {
     private readonly IRuntimeEffectSink? effectSink;
+    private readonly HashSet<string> readTags = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> config = new(StringComparer.Ordinal)
+    {
+        ["masterVolume"] = "1",
+        ["bgmVolume"] = "1",
+        ["seVolume"] = "1",
+        ["voiceVolume"] = "1",
+        ["textSpeed"] = "1",
+        ["autoSpeed"] = "1",
+        ["skipMode"] = "off",
+        ["fullscreen"] = "false",
+        ["locale"] = "ja-JP",
+    };
 
     public StlSyscallDispatcher(IRuntimeEffectSink? effectSink = null)
     {
@@ -77,6 +90,24 @@ public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
             "text.cm" => TextNoArgs(invocation),
             "text.vo" => TextVoice(invocation),
             "audio.vo_auto" => AutoVoice(invocation),
+            "audio.bgm" => AudioBgm(invocation),
+            "audio.bgm_stop" => AudioBgmStop(invocation),
+            "audio.se" => AudioSe(invocation),
+            "audio.se_stop" => AudioSeStop(invocation),
+            "audio.se_stop_all" => AudioNoArgs(invocation),
+            "audio.voice_stop" => AudioNoArgs(invocation),
+            "state.mark_read" => StateMarkRead(invocation),
+            "state.is_read" => StateIsRead(invocation),
+            "state.save" => StateSave(invocation),
+            "state.autosave" => SaveNoArgs(invocation),
+            "state.load" => StateLoad(invocation),
+            "system.wait" => SystemWait(invocation),
+            "system.set_auto" => SystemBool(invocation, "enabled"),
+            "system.set_skip" => SystemSetSkip(invocation),
+            "system.set_config_string" => SystemSetConfigString(invocation),
+            "system.set_config_number" => SystemSetConfigNumber(invocation),
+            "system.set_config_bool" => SystemSetConfigBool(invocation),
+            "system.get_config" => SystemGetConfig(invocation),
             _ => RuntimeSyscallResult.Failure(
                 RuntimeFailureKind.Runtime,
                 Error("KESR3400", invocation, $"Runtime syscall '{invocation.Id}' is not supported.")),
@@ -410,6 +441,242 @@ public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
         return PublishAudioEffect(invocation, new Dictionary<string, string?> { ["auto"] = "true" });
     }
 
+    private RuntimeSyscallResult AudioBgm(RuntimeSyscallInvocation invocation)
+    {
+        if (!TryReadString(invocation, 0, out var id) ||
+            !TryReadBool(invocation, 1, out var loop) ||
+            !TryReadNumber(invocation, 2, out var fade) ||
+            invocation.Arguments.Count != 3)
+        {
+            return ArgumentFailure(invocation, "Syscall 'audio.bgm' requires id:string, loop:bool, and fade:number arguments.");
+        }
+
+        if (fade < 0)
+        {
+            return RuntimeSyscallResult.Failure(RuntimeFailureKind.Runtime, Error("KESR3402", invocation, "Syscall 'audio.bgm' fade must not be negative."));
+        }
+
+        return PublishAudioEffect(
+            invocation,
+            new Dictionary<string, string?>
+            {
+                ["id"] = id,
+                ["loop"] = FormatBool(loop),
+                ["fade"] = FormatNumber(fade),
+            });
+    }
+
+    private RuntimeSyscallResult AudioBgmStop(RuntimeSyscallInvocation invocation)
+    {
+        if (!TryReadNumber(invocation, 0, out var fade) || invocation.Arguments.Count != 1)
+        {
+            return ArgumentFailure(invocation, "Syscall 'audio.bgm_stop' requires one fade:number argument.");
+        }
+
+        if (fade < 0)
+        {
+            return RuntimeSyscallResult.Failure(RuntimeFailureKind.Runtime, Error("KESR3402", invocation, "Syscall 'audio.bgm_stop' fade must not be negative."));
+        }
+
+        return PublishAudioEffect(invocation, new Dictionary<string, string?> { ["fade"] = FormatNumber(fade) });
+    }
+
+    private RuntimeSyscallResult AudioSe(RuntimeSyscallInvocation invocation)
+    {
+        if (!TryReadString(invocation, 0, out var id) || invocation.Arguments.Count != 1)
+        {
+            return ArgumentFailure(invocation, $"Syscall '{invocation.Id}' requires one id:string argument.");
+        }
+
+        return PublishAudioEffect(invocation, new Dictionary<string, string?> { ["id"] = id });
+    }
+
+    private RuntimeSyscallResult AudioSeStop(RuntimeSyscallInvocation invocation)
+    {
+        if (!TryReadString(invocation, 0, out var id) || invocation.Arguments.Count != 1)
+        {
+            return ArgumentFailure(invocation, "Syscall 'audio.se_stop' requires one id:string argument.");
+        }
+
+        return PublishAudioEffect(invocation, new Dictionary<string, string?> { ["id"] = id });
+    }
+
+    private RuntimeSyscallResult AudioNoArgs(RuntimeSyscallInvocation invocation)
+    {
+        if (invocation.Arguments.Count != 0)
+        {
+            return ArgumentFailure(invocation, $"Syscall '{invocation.Id}' does not take arguments.");
+        }
+
+        return PublishAudioEffect(invocation, new Dictionary<string, string?>());
+    }
+
+    private RuntimeSyscallResult StateMarkRead(RuntimeSyscallInvocation invocation)
+    {
+        if (!TryReadString(invocation, 0, out var tag) || invocation.Arguments.Count != 1)
+        {
+            return ArgumentFailure(invocation, "Syscall 'state.mark_read' requires one tag:string argument.");
+        }
+
+        readTags.Add(tag);
+        return PublishSaveEffect(invocation, new Dictionary<string, string?> { ["tag"] = tag });
+    }
+
+    private RuntimeSyscallResult StateIsRead(RuntimeSyscallInvocation invocation)
+    {
+        if (!TryReadString(invocation, 0, out var tag) || invocation.Arguments.Count != 1)
+        {
+            return ArgumentFailure(invocation, "Syscall 'state.is_read' requires one tag:string argument.");
+        }
+
+        return RuntimeSyscallResult.Success(RuntimeValue.Bool(readTags.Contains(tag)));
+    }
+
+    private RuntimeSyscallResult StateSave(RuntimeSyscallInvocation invocation)
+    {
+        if (!TryReadSlot(invocation, 0, out var slot) ||
+            !TryReadString(invocation, 1, out var title) ||
+            invocation.Arguments.Count != 2)
+        {
+            return ArgumentFailure(invocation, "Syscall 'state.save' requires slot:number and title:string arguments.");
+        }
+
+        return PublishSaveEffect(invocation, new Dictionary<string, string?> { ["slot"] = slot.ToString(CultureInfo.InvariantCulture), ["title"] = title });
+    }
+
+    private RuntimeSyscallResult SaveNoArgs(RuntimeSyscallInvocation invocation)
+    {
+        if (invocation.Arguments.Count != 0)
+        {
+            return ArgumentFailure(invocation, $"Syscall '{invocation.Id}' does not take arguments.");
+        }
+
+        return PublishSaveEffect(invocation, new Dictionary<string, string?>());
+    }
+
+    private RuntimeSyscallResult StateLoad(RuntimeSyscallInvocation invocation)
+    {
+        if (!TryReadSlot(invocation, 0, out var slot) || invocation.Arguments.Count != 1)
+        {
+            return ArgumentFailure(invocation, "Syscall 'state.load' requires one slot:number argument.");
+        }
+
+        return PublishSaveEffect(invocation, new Dictionary<string, string?> { ["slot"] = slot.ToString(CultureInfo.InvariantCulture) });
+    }
+
+    private RuntimeSyscallResult SystemWait(RuntimeSyscallInvocation invocation)
+    {
+        if (!TryReadNumber(invocation, 0, out var seconds) || invocation.Arguments.Count != 1)
+        {
+            return ArgumentFailure(invocation, "Syscall 'system.wait' requires one seconds:number argument.");
+        }
+
+        if (seconds < 0)
+        {
+            return RuntimeSyscallResult.Failure(RuntimeFailureKind.Runtime, Error("KESR3402", invocation, "Syscall 'system.wait' seconds must not be negative."));
+        }
+
+        PublishEffects(new RuntimeEffect(
+            RuntimeEffectKind.Wait,
+            invocation.Id,
+            new Dictionary<string, string?> { ["kind"] = RuntimeWaitKind.Timed.ToString(), ["seconds"] = FormatNumber(seconds) }));
+        return RuntimeSyscallResult.Success();
+    }
+
+    private RuntimeSyscallResult SystemBool(RuntimeSyscallInvocation invocation, string key)
+    {
+        if (!TryReadBool(invocation, 0, out var enabled) || invocation.Arguments.Count != 1)
+        {
+            return ArgumentFailure(invocation, $"Syscall '{invocation.Id}' requires one bool argument.");
+        }
+
+        return PublishSettingsEffect(invocation, new Dictionary<string, string?> { [key] = FormatBool(enabled) });
+    }
+
+    private RuntimeSyscallResult SystemSetSkip(RuntimeSyscallInvocation invocation)
+    {
+        if (!TryReadString(invocation, 0, out var mode) || invocation.Arguments.Count != 1)
+        {
+            return ArgumentFailure(invocation, "Syscall 'system.set_skip' requires one mode:string argument.");
+        }
+
+        if (mode is not ("off" or "read" or "all"))
+        {
+            return RuntimeSyscallResult.Failure(RuntimeFailureKind.Runtime, Error("KESR3405", invocation, $"Skip mode '{mode}' is not supported."));
+        }
+
+        config["skipMode"] = mode;
+        return PublishSettingsEffect(invocation, new Dictionary<string, string?> { ["mode"] = mode });
+    }
+
+    private RuntimeSyscallResult SystemSetConfigString(RuntimeSyscallInvocation invocation)
+    {
+        if (!TryReadString(invocation, 0, out var key) ||
+            !TryReadString(invocation, 1, out var value) ||
+            invocation.Arguments.Count != 2)
+        {
+            return ArgumentFailure(invocation, "Syscall 'system.set_config_string' requires key:string and value:string arguments.");
+        }
+
+        if (key is not ("skipMode" or "locale"))
+        {
+            return UnknownConfig(invocation, key);
+        }
+
+        if (key == "skipMode" && value is not ("off" or "read" or "all"))
+        {
+            return RuntimeSyscallResult.Failure(RuntimeFailureKind.Runtime, Error("KESR3405", invocation, $"Skip mode '{value}' is not supported."));
+        }
+
+        return SetConfig(invocation, key, value);
+    }
+
+    private RuntimeSyscallResult SystemSetConfigNumber(RuntimeSyscallInvocation invocation)
+    {
+        if (!TryReadString(invocation, 0, out var key) ||
+            !TryReadNumber(invocation, 1, out var value) ||
+            invocation.Arguments.Count != 2)
+        {
+            return ArgumentFailure(invocation, "Syscall 'system.set_config_number' requires key:string and value:number arguments.");
+        }
+
+        if (key is not ("masterVolume" or "bgmVolume" or "seVolume" or "voiceVolume" or "textSpeed" or "autoSpeed"))
+        {
+            return UnknownConfig(invocation, key);
+        }
+
+        return SetConfig(invocation, key, FormatNumber(value));
+    }
+
+    private RuntimeSyscallResult SystemSetConfigBool(RuntimeSyscallInvocation invocation)
+    {
+        if (!TryReadString(invocation, 0, out var key) ||
+            !TryReadBool(invocation, 1, out var value) ||
+            invocation.Arguments.Count != 2)
+        {
+            return ArgumentFailure(invocation, "Syscall 'system.set_config_bool' requires key:string and value:bool arguments.");
+        }
+
+        if (key != "fullscreen")
+        {
+            return UnknownConfig(invocation, key);
+        }
+
+        return SetConfig(invocation, key, FormatBool(value));
+    }
+
+    private RuntimeSyscallResult SystemGetConfig(RuntimeSyscallInvocation invocation)
+    {
+        if (!TryReadString(invocation, 0, out var key) || invocation.Arguments.Count != 1)
+        {
+            return ArgumentFailure(invocation, "Syscall 'system.get_config' requires one key:string argument.");
+        }
+
+        return config.TryGetValue(key, out var value)
+            ? RuntimeSyscallResult.Success(RuntimeValue.String(value))
+            : UnknownConfig(invocation, key);
+    }
+
     private static bool TryReadNumberPair(
         RuntimeSyscallInvocation invocation,
         string syscallId,
@@ -463,6 +730,18 @@ public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
         return RuntimeSyscallResult.Success();
     }
 
+    private RuntimeSyscallResult PublishSaveEffect(RuntimeSyscallInvocation invocation, IReadOnlyDictionary<string, string?> payload)
+    {
+        PublishEffects(new RuntimeEffect(RuntimeEffectKind.Save, invocation.Id, payload));
+        return RuntimeSyscallResult.Success();
+    }
+
+    private RuntimeSyscallResult PublishSettingsEffect(RuntimeSyscallInvocation invocation, IReadOnlyDictionary<string, string?> payload)
+    {
+        PublishEffects(new RuntimeEffect(RuntimeEffectKind.Settings, invocation.Id, payload));
+        return RuntimeSyscallResult.Success();
+    }
+
     private void PublishEffects(params RuntimeEffect[] effects)
     {
         effectSink?.Publish(new RuntimeEffectBatch(effects, []));
@@ -471,6 +750,17 @@ public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
     private static RuntimeSyscallResult ArgumentFailure(RuntimeSyscallInvocation invocation, string message)
     {
         return RuntimeSyscallResult.Failure(RuntimeFailureKind.Runtime, Error("KESR3402", invocation, message));
+    }
+
+    private RuntimeSyscallResult SetConfig(RuntimeSyscallInvocation invocation, string key, string value)
+    {
+        config[key] = value;
+        return PublishSettingsEffect(invocation, new Dictionary<string, string?> { ["key"] = key, ["value"] = value });
+    }
+
+    private static RuntimeSyscallResult UnknownConfig(RuntimeSyscallInvocation invocation, string key)
+    {
+        return RuntimeSyscallResult.Failure(RuntimeFailureKind.Runtime, Error("KESR3405", invocation, $"Configuration key '{key}' is not supported."));
     }
 
     private static bool TryReadString(RuntimeSyscallInvocation invocation, int index, out string value)
@@ -529,6 +819,24 @@ public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
         }
 
         value = invocation.Arguments[index].ReferenceId!;
+        return true;
+    }
+
+    private static bool TryReadSlot(RuntimeSyscallInvocation invocation, int index, out int value)
+    {
+        value = 0;
+        if (!TryReadNumber(invocation, index, out var number))
+        {
+            return false;
+        }
+
+        var integer = (int)number;
+        if (integer < 0 || Math.Abs(number - integer) > double.Epsilon)
+        {
+            return false;
+        }
+
+        value = integer;
         return true;
     }
 

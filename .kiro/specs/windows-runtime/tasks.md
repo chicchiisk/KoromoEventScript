@@ -115,7 +115,7 @@
   - _Boundary: Runtime Core STL text flow_
   - _Depends: 3.3_
 
-- [ ] 4.4 (P) audio、state、system STL syscall を runtime effect へ変換する
+- [x] 4.4 (P) audio、state、system STL syscall を runtime effect へ変換する
   - BGM、SE、Voice、channel、fade、save、load、autosave、mark_read、is_read、wait、auto、skip、設定取得/更新を effect または return value として提供する
   - 未知の設定 key、不正な skip mode、保存失敗を warning または runtime error として扱う
   - fake host で audio/state/system effect の入出力が確認できる
