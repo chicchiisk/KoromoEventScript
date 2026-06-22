@@ -45,7 +45,7 @@
   - _Boundary: Runtime Core package resolver_
   - _Depends: 2.1_
 
-- [ ] 2.3 (P) locale variant と素材 catalog を解決する
+- [x] 2.3 (P) locale variant と素材 catalog を解決する
   - 選択 locale に応じた `.klib` と素材 entry を runtime package から選べる
   - `data/events/` と `data/assets/` の配布 layout を manifest に基づいて解決する
   - locale が切り替わる test package で、選択された `.klib` が実行候補になる

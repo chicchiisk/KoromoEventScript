@@ -105,7 +105,97 @@ public sealed class RuntimePackageResolverTests
         });
     }
 
+    [Test]
+    public void Resolve_WithSelectedLocale_UsesLocalizedKlibAndAssets()
+    {
+        using var workspace = TestWorkspace.Create();
+        var jaKlibPath = workspace.WriteMinimalKlib("data/events/ja-JP/chapter001.klib", "chapter001");
+        var enKlibPath = workspace.WriteMinimalKlib("data/events/en-US/chapter001.klib", "chapter001");
+        var sharedBackgroundPath = workspace.WriteFile("data/assets/bg/school.png", "shared background");
+        var jaVoicePath = workspace.WriteFile("data/assets/voice/ja/chapter001_001.ogg", "ja voice");
+        var enVoicePath = workspace.WriteFile("data/assets/voice/en/chapter001_001.ogg", "en voice");
+        var manifest = CreateManifest(
+            workspace,
+            [
+                new RuntimeScriptEntry("chapter001", "ja-JP", "events/ja-JP/chapter001.klib", jaKlibPath, IsEntry: true, StartLabel: null),
+                new RuntimeScriptEntry("chapter001", "en-US", "events/en-US/chapter001.klib", enKlibPath, IsEntry: true, StartLabel: null),
+            ],
+            [
+                new RuntimeAssetEntry("bg.school", "background", "assets/bg/school.png", sharedBackgroundPath, Locale: null),
+                new RuntimeAssetEntry("voice.chapter001.001", "voice", "assets/voice/ja/chapter001_001.ogg", jaVoicePath, "ja-JP"),
+                new RuntimeAssetEntry("voice.chapter001.001", "voice", "assets/voice/en/chapter001_001.ogg", enVoicePath, "en-US"),
+            ]);
+
+        var result = new RuntimePackageResolver(new KlibModuleLoader())
+            .Resolve(manifest, new RuntimePackageResolveOptions("en-US"));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Succeeded, Is.True);
+            Assert.That(result.Package!.SelectedLocale, Is.EqualTo("en-US"));
+            Assert.That(result.Package.Scripts.Single().Entry.ResolvedKlibPath, Is.EqualTo(enKlibPath));
+            Assert.That(result.Package.Resources.Assets, Has.Count.EqualTo(2));
+            Assert.That(result.Package.Resources.ResolveAsset("bg.school")!.ResolvedPath, Is.EqualTo(sharedBackgroundPath));
+            Assert.That(result.Package.Resources.ResolveAsset("voice.chapter001.001")!.ResolvedPath, Is.EqualTo(enVoicePath));
+        });
+    }
+
+    [Test]
+    public void Resolve_WithUnknownLocale_FallsBackToDefaultLocale()
+    {
+        using var workspace = TestWorkspace.Create();
+        var jaKlibPath = workspace.WriteMinimalKlib("data/events/ja-JP/chapter001.klib", "chapter001");
+        var enKlibPath = workspace.WriteMinimalKlib("data/events/en-US/chapter001.klib", "chapter001");
+        var manifest = CreateManifest(
+            workspace,
+            [
+                new RuntimeScriptEntry("chapter001", "ja-JP", "events/ja-JP/chapter001.klib", jaKlibPath, IsEntry: true, StartLabel: null),
+                new RuntimeScriptEntry("chapter001", "en-US", "events/en-US/chapter001.klib", enKlibPath, IsEntry: true, StartLabel: null),
+            ],
+            []);
+
+        var result = new RuntimePackageResolver(new KlibModuleLoader())
+            .Resolve(manifest, new RuntimePackageResolveOptions("fr-FR"));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Succeeded, Is.True);
+            Assert.That(result.Package!.SelectedLocale, Is.EqualTo("ja-JP"));
+            Assert.That(result.Package.Scripts.Single().Entry.ResolvedKlibPath, Is.EqualTo(jaKlibPath));
+        });
+    }
+
+    [Test]
+    public void Resolve_WithMissingAsset_ReturnsIoError()
+    {
+        using var workspace = TestWorkspace.Create();
+        var klibPath = workspace.WriteMinimalKlib("data/events/chapter001.klib", "chapter001");
+        var missingAssetPath = Path.Combine(workspace.Root, "data", "assets", "bg", "missing.png");
+        var manifest = CreateManifest(
+            workspace,
+            [new RuntimeScriptEntry("chapter001", "ja-JP", "events/chapter001.klib", klibPath, IsEntry: true, StartLabel: null)],
+            [new RuntimeAssetEntry("bg.missing", "background", "assets/bg/missing.png", missingAssetPath, Locale: null)]);
+
+        var result = new RuntimePackageResolver(new KlibModuleLoader()).Resolve(manifest);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Succeeded, Is.False);
+            Assert.That(result.FailureKind, Is.EqualTo(RuntimeFailureKind.Io));
+            Assert.That(RuntimeExitCodeMapper.Map(result.FailureKind), Is.EqualTo(RuntimeExitCode.FileOrDirectoryError));
+            Assert.That(result.Diagnostics.Select(static diagnostic => diagnostic.Code), Does.Contain("KESR2004"));
+        });
+    }
+
     private static RuntimeManifestDocument CreateManifest(TestWorkspace workspace, params RuntimeScriptEntry[] scripts)
+    {
+        return CreateManifest(workspace, scripts, []);
+    }
+
+    private static RuntimeManifestDocument CreateManifest(
+        TestWorkspace workspace,
+        IReadOnlyList<RuntimeScriptEntry> scripts,
+        IReadOnlyList<RuntimeAssetEntry> assets)
     {
         var manifestPath = Path.Combine(workspace.Root, "data", "manifest.json");
         return new RuntimeManifestDocument(
@@ -114,7 +204,7 @@ public sealed class RuntimePackageResolverTests
             "Sample Game",
             "ja-JP",
             scripts,
-            [],
+            assets,
             new RuntimeSettings(1280, 720, Fullscreen: false),
             new RuntimeBuildInfo("build-001", "0.1.0"),
             manifestPath,
