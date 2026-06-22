@@ -36,6 +36,56 @@ public sealed record RuntimeSyscallResult(
 
 public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
 {
+    public static IReadOnlySet<string> SupportedSyscallIds { get; } = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "core.print",
+        "core.array_len",
+        "core.str_len",
+        "core.range",
+        "core.number_to_string",
+        "core.bool_to_string",
+        "core.assert",
+        "scene.rt_back",
+        "scene.rt_front",
+        "scene.bg",
+        "scene.camera_autofocus",
+        "scene.trans",
+        "actor.cast",
+        "actor.hide",
+        "actor.action_jump",
+        "actor.face",
+        "actor.move",
+        "actor.show",
+        "scenario.say",
+        "scenario.nar",
+        "text.p",
+        "text.l",
+        "text.wait_click",
+        "text.r",
+        "text.cm",
+        "text.vo",
+        "audio.vo_auto",
+        "audio.bgm",
+        "audio.bgm_stop",
+        "audio.se",
+        "audio.se_stop",
+        "audio.se_stop_all",
+        "audio.voice_stop",
+        "state.mark_read",
+        "state.is_read",
+        "state.save",
+        "state.autosave",
+        "state.load",
+        "localize.get",
+        "system.wait",
+        "system.set_auto",
+        "system.set_skip",
+        "system.set_config_string",
+        "system.set_config_number",
+        "system.set_config_bool",
+        "system.get_config",
+    };
+
     private readonly IRuntimeEffectSink? effectSink;
     private readonly HashSet<string> readTags = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> config = new(StringComparer.Ordinal)
@@ -101,6 +151,7 @@ public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
             "state.save" => StateSave(invocation),
             "state.autosave" => SaveNoArgs(invocation),
             "state.load" => StateLoad(invocation),
+            "localize.get" => LocalizeGet(invocation),
             "system.wait" => SystemWait(invocation),
             "system.set_auto" => SystemBool(invocation, "enabled"),
             "system.set_skip" => SystemSetSkip(invocation),
@@ -562,6 +613,16 @@ public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
         }
 
         return PublishSaveEffect(invocation, new Dictionary<string, string?> { ["slot"] = slot.ToString(CultureInfo.InvariantCulture) });
+    }
+
+    private static RuntimeSyscallResult LocalizeGet(RuntimeSyscallInvocation invocation)
+    {
+        if (!TryReadString(invocation, 0, out var tag) || invocation.Arguments.Count != 1)
+        {
+            return ArgumentFailure(invocation, "Syscall 'localize.get' requires one tag:string argument.");
+        }
+
+        return RuntimeSyscallResult.Success(RuntimeValue.String(tag));
     }
 
     private RuntimeSyscallResult SystemWait(RuntimeSyscallInvocation invocation)

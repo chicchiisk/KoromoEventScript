@@ -123,7 +123,7 @@
   - _Boundary: Runtime Core STL audio state system_
   - _Depends: 1.4_
 
-- [ ] 4.5 STL syscall coverage gate を追加する
+- [x] 4.5 STL syscall coverage gate を追加する
   - STL 仕様から作成した syscall fixture と registry の対応を自動検証する
   - 未登録 syscall、未分類 syscall、誤った module 名がテストで検出される
   - STL 追加時に runtime 側実装漏れがテストで分かる
