@@ -109,6 +109,26 @@ public sealed class KesVmExecutor
         return KesVmExecutionResult.Success();
     }
 
+    public KesVmExecutionResult ContinueAdvance(KesVmSession session)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+
+        if (session.Continuation.Kind != RuntimeContinuationKind.WaitingForAdvance)
+        {
+            return Fault(session, "KESR3207", "Session is not waiting for advance input.");
+        }
+
+        if (session.Continuation.ResumeInstructionIndex is not int resumeInstructionIndex)
+        {
+            session.SetContinuation(RuntimeContinuation.Completed);
+            return KesVmExecutionResult.Success();
+        }
+
+        session.SetInstructionIndex(resumeInstructionIndex);
+        session.SetContinuation(RuntimeContinuation.Running);
+        return KesVmExecutionResult.Success();
+    }
+
     private KesVmExecutionResult Execute(KesVmSession session, KlibInstruction instruction)
     {
         switch (instruction.OpCode)
@@ -811,7 +831,18 @@ public sealed class KesVmExecutor
             session.PushOperand(result.ReturnValue);
         }
 
+        var resumeInstructionIndex = FindNextInstructionIndex(session, instruction);
         session.AdvanceAfter(instruction);
+        if (result.WaitForAdvance)
+        {
+            session.SetContinuation(new RuntimeContinuation(
+                RuntimeContinuationKind.WaitingForAdvance,
+                resumeInstructionIndex,
+                [],
+                null,
+                []));
+        }
+
         return KesVmExecutionResult.Success();
     }
 
@@ -942,6 +973,19 @@ public sealed class KesVmExecutor
         }
 
         return 1 + (instruction.Operands.Count * sizeof(int));
+    }
+
+    private static int? FindNextInstructionIndex(KesVmSession session, KlibInstruction instruction)
+    {
+        for (var i = 0; i < session.Document.Instructions.Count - 1; i++)
+        {
+            if (session.Document.Instructions[i].Index == instruction.Index)
+            {
+                return session.Document.Instructions[i + 1].Index;
+            }
+        }
+
+        return null;
     }
 
     private static RuntimeValue ResolveConstant(KlibConstant constant)

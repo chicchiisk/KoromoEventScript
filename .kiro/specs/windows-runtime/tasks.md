@@ -107,7 +107,7 @@
   - _Boundary: Runtime Core STL scene actor_
   - _Depends: 1.4_
 
-- [ ] 4.3 (P) text と flow STL syscall を runtime effect へ変換する
+- [x] 4.3 (P) text と flow STL syscall を runtime effect へ変換する
   - `say` / `nar` 文脈の voice、表情変更、改ページ、改行、行内クリック待ち、メッセージウィンドウ制御、クリック待ちを effect として表現する
   - label、jump、select、case の runtime 連携を VM の進行と選択待ちへ接続する
   - text と flow の fixture が選択待ち、クリック待ち、進行再開を再現できる

@@ -20,11 +20,12 @@ public sealed record RuntimeSyscallResult(
     bool Succeeded,
     RuntimeValue? ReturnValue,
     IReadOnlyList<RuntimeDiagnostic> Diagnostics,
-    RuntimeFailureKind FailureKind)
+    RuntimeFailureKind FailureKind,
+    bool WaitForAdvance = false)
 {
-    public static RuntimeSyscallResult Success(RuntimeValue? returnValue = null)
+    public static RuntimeSyscallResult Success(RuntimeValue? returnValue = null, bool waitForAdvance = false)
     {
-        return new RuntimeSyscallResult(true, returnValue, [], RuntimeFailureKind.None);
+        return new RuntimeSyscallResult(true, returnValue, [], RuntimeFailureKind.None, waitForAdvance);
     }
 
     public static RuntimeSyscallResult Failure(RuntimeFailureKind failureKind, params RuntimeDiagnostic[] diagnostics)
@@ -67,6 +68,15 @@ public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
             "actor.face" => ActorFace(invocation),
             "actor.move" => ActorMove(invocation),
             "actor.show" => ActorShow(invocation),
+            "scenario.say" => ScenarioSay(invocation),
+            "scenario.nar" => ScenarioNar(invocation),
+            "text.p" => TextWait(invocation),
+            "text.l" => TextWait(invocation),
+            "text.wait_click" => TextWait(invocation),
+            "text.r" => TextNoArgs(invocation),
+            "text.cm" => TextNoArgs(invocation),
+            "text.vo" => TextVoice(invocation),
+            "audio.vo_auto" => AutoVoice(invocation),
             _ => RuntimeSyscallResult.Failure(
                 RuntimeFailureKind.Runtime,
                 Error("KESR3400", invocation, $"Runtime syscall '{invocation.Id}' is not supported.")),
@@ -329,6 +339,77 @@ public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
             });
     }
 
+    private RuntimeSyscallResult ScenarioSay(RuntimeSyscallInvocation invocation)
+    {
+        if (!TryReadActor(invocation, 0, out var actor) ||
+            !TryReadString(invocation, 1, out var text) ||
+            invocation.Arguments.Count != 2)
+        {
+            return ArgumentFailure(invocation, "Syscall 'scenario.say' requires actor and text:string arguments.");
+        }
+
+        return PublishUiEffect(
+            invocation,
+            new Dictionary<string, string?>
+            {
+                ["actor"] = actor,
+                ["text"] = text,
+            });
+    }
+
+    private RuntimeSyscallResult ScenarioNar(RuntimeSyscallInvocation invocation)
+    {
+        if (!TryReadString(invocation, 0, out var text) || invocation.Arguments.Count != 1)
+        {
+            return ArgumentFailure(invocation, "Syscall 'scenario.nar' requires one text:string argument.");
+        }
+
+        return PublishUiEffect(invocation, new Dictionary<string, string?> { ["text"] = text });
+    }
+
+    private RuntimeSyscallResult TextNoArgs(RuntimeSyscallInvocation invocation)
+    {
+        if (invocation.Arguments.Count != 0)
+        {
+            return ArgumentFailure(invocation, $"Syscall '{invocation.Id}' does not take arguments.");
+        }
+
+        return PublishUiEffect(invocation, new Dictionary<string, string?>());
+    }
+
+    private RuntimeSyscallResult TextWait(RuntimeSyscallInvocation invocation)
+    {
+        if (invocation.Arguments.Count != 0)
+        {
+            return ArgumentFailure(invocation, $"Syscall '{invocation.Id}' does not take arguments.");
+        }
+
+        PublishEffects(
+            new RuntimeEffect(RuntimeEffectKind.Ui, invocation.Id, new Dictionary<string, string?>()),
+            RuntimeEffect.Wait(RuntimeWaitKind.Click));
+        return RuntimeSyscallResult.Success(waitForAdvance: true);
+    }
+
+    private RuntimeSyscallResult TextVoice(RuntimeSyscallInvocation invocation)
+    {
+        if (!TryReadString(invocation, 0, out var id) || invocation.Arguments.Count != 1)
+        {
+            return ArgumentFailure(invocation, "Syscall 'text.vo' requires one voice id string argument.");
+        }
+
+        return PublishAudioEffect(invocation, new Dictionary<string, string?> { ["id"] = id });
+    }
+
+    private RuntimeSyscallResult AutoVoice(RuntimeSyscallInvocation invocation)
+    {
+        if (invocation.Arguments.Count != 0)
+        {
+            return ArgumentFailure(invocation, "Syscall 'audio.vo_auto' does not take arguments.");
+        }
+
+        return PublishAudioEffect(invocation, new Dictionary<string, string?> { ["auto"] = "true" });
+    }
+
     private static bool TryReadNumberPair(
         RuntimeSyscallInvocation invocation,
         string syscallId,
@@ -366,8 +447,25 @@ public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
 
     private RuntimeSyscallResult PublishSceneEffect(RuntimeSyscallInvocation invocation, IReadOnlyDictionary<string, string?> payload)
     {
-        effectSink?.Publish(new RuntimeEffectBatch([new RuntimeEffect(RuntimeEffectKind.Scene, invocation.Id, payload)], []));
+        PublishEffects(new RuntimeEffect(RuntimeEffectKind.Scene, invocation.Id, payload));
         return RuntimeSyscallResult.Success();
+    }
+
+    private RuntimeSyscallResult PublishUiEffect(RuntimeSyscallInvocation invocation, IReadOnlyDictionary<string, string?> payload)
+    {
+        PublishEffects(new RuntimeEffect(RuntimeEffectKind.Ui, invocation.Id, payload));
+        return RuntimeSyscallResult.Success();
+    }
+
+    private RuntimeSyscallResult PublishAudioEffect(RuntimeSyscallInvocation invocation, IReadOnlyDictionary<string, string?> payload)
+    {
+        PublishEffects(new RuntimeEffect(RuntimeEffectKind.Audio, invocation.Id, payload));
+        return RuntimeSyscallResult.Success();
+    }
+
+    private void PublishEffects(params RuntimeEffect[] effects)
+    {
+        effectSink?.Publish(new RuntimeEffectBatch(effects, []));
     }
 
     private static RuntimeSyscallResult ArgumentFailure(RuntimeSyscallInvocation invocation, string message)
