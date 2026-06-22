@@ -61,7 +61,7 @@
   - _Requirements: 4.2, 8.1, 8.4_
   - _Boundary: Runtime Core VM session_
 
-- [ ] 3.2 stack、定数、変数、演算、比較命令を実行する
+- [x] 3.2 stack、定数、変数、演算、比較命令を実行する
   - stack 操作、literal、変数定義/読取/書込、算術、論理、比較を仕様どおりに処理する
   - schema 違反または VM 状態不整合は runtime error または load error として返す
   - 命令ごとの前後 stack と変数状態が unit test で観測できる

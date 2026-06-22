@@ -44,9 +44,40 @@ public sealed class KesVmSession
         operandStack.Add(value);
     }
 
+    internal bool TryPopOperand(out RuntimeValue value)
+    {
+        if (operandStack.Count == 0)
+        {
+            value = RuntimeValue.Null;
+            return false;
+        }
+
+        var lastIndex = operandStack.Count - 1;
+        value = operandStack[lastIndex];
+        operandStack.RemoveAt(lastIndex);
+        return true;
+    }
+
+    internal bool TryPeekOperand(out RuntimeValue value)
+    {
+        if (operandStack.Count == 0)
+        {
+            value = RuntimeValue.Null;
+            return false;
+        }
+
+        value = operandStack[^1];
+        return true;
+    }
+
     public void SetVariable(int stableId, RuntimeValue value)
     {
         variables[stableId] = value;
+    }
+
+    internal bool TryGetVariable(int stableId, out RuntimeValue value)
+    {
+        return variables.TryGetValue(stableId, out value!);
     }
 
     public RuntimeSaveSnapshot CaptureSnapshot()
@@ -113,6 +144,32 @@ public sealed class KesVmSession
     private bool IsKnownInstructionIndex(int instructionIndex)
     {
         return Document.Instructions.Any(instruction => instruction.Index == instructionIndex);
+    }
+
+    internal KlibInstruction? CurrentInstruction()
+    {
+        return Document.Instructions.FirstOrDefault(instruction => instruction.Index == Position.InstructionIndex);
+    }
+
+    internal void AdvanceAfter(KlibInstruction instruction)
+    {
+        var instructionIndex = -1;
+        for (var i = 0; i < Document.Instructions.Count; i++)
+        {
+            if (Document.Instructions[i].Index == instruction.Index)
+            {
+                instructionIndex = i;
+                break;
+            }
+        }
+
+        if (instructionIndex < 0 || instructionIndex + 1 >= Document.Instructions.Count)
+        {
+            Continuation = new RuntimeContinuation(RuntimeContinuationKind.Completed, null, []);
+            return;
+        }
+
+        SetInstructionIndex(Document.Instructions[instructionIndex + 1].Index);
     }
 }
 
@@ -189,5 +246,18 @@ public sealed record RuntimeValue(
     public static RuntimeValue Reference(string referenceId)
     {
         return new RuntimeValue(RuntimeValueKind.Reference, ReferenceId: referenceId);
+    }
+
+    public object? ToObject()
+    {
+        return Kind switch
+        {
+            RuntimeValueKind.Null => null,
+            RuntimeValueKind.Number => NumberValue,
+            RuntimeValueKind.Bool => BoolValue,
+            RuntimeValueKind.String => StringValue,
+            RuntimeValueKind.Reference => ReferenceId,
+            _ => null,
+        };
     }
 }
