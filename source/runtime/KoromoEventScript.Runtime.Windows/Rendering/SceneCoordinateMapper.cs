@@ -38,6 +38,21 @@ public static class SceneCoordinateMapper
             productionRect.Width * viewport.Scale,
             productionRect.Height * viewport.Scale);
     }
+
+    public static ScenePoint? TryToProductionPoint(SceneViewport viewport, ScenePoint displayPoint)
+    {
+        if (displayPoint.X < viewport.OffsetX ||
+            displayPoint.Y < viewport.OffsetY ||
+            displayPoint.X > viewport.OffsetX + viewport.ContentWidth ||
+            displayPoint.Y > viewport.OffsetY + viewport.ContentHeight)
+        {
+            return null;
+        }
+
+        return new ScenePoint(
+            (displayPoint.X - viewport.OffsetX) / viewport.Scale,
+            (displayPoint.Y - viewport.OffsetY) / viewport.Scale);
+    }
 }
 
 public readonly record struct SceneViewport(
@@ -53,4 +68,15 @@ public readonly record struct SceneRect(
     double X,
     double Y,
     double Width,
-    double Height);
+    double Height)
+{
+    public bool Contains(ScenePoint point)
+    {
+        return point.X >= X &&
+            point.Y >= Y &&
+            point.X <= X + Width &&
+            point.Y <= Y + Height;
+    }
+}
+
+public readonly record struct ScenePoint(double X, double Y);

@@ -146,7 +146,7 @@
   - _Boundary: Windows Runtime rendering_
   - _Depends: 4.2, 4.3_
 
-- [ ] 5.3 入力座標変換と transition controller を実装する
+- [x] 5.3 入力座標変換と transition controller を実装する
   - mouse 表示座標を制作座標へ変換し、選択肢や UI の hit test に使う
   - `fade`、`crossfade`、`none` の transition を表示し、未知 transition を runtime error にする
   - 16:9 と非 16:9 の hit test、および未知 transition の失敗がテストで確認できる
