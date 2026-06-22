@@ -54,7 +54,7 @@
   - _Depends: 2.1_
 
 - [ ] 3. `.klib` VM の全命令実行を完成させる
-- [ ] 3.1 VM session と save snapshot の基本状態を実装する
+- [x] 3.1 VM session と save snapshot の基本状態を実装する
   - instruction pointer、stack、variables、call context、await 状態を Runtime Core で保持する
   - `scriptId` と `instructionIndex` を安定した実行位置として snapshot に含める
   - VM session の状態を capture / restore できることを unit test で確認できる
