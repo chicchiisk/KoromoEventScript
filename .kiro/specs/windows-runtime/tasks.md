@@ -68,7 +68,7 @@
   - _Requirements: 4.1, 4.2, 4.7_
   - _Boundary: Runtime Core VM executor_
 
-- [ ] 3.3 (P) label、jump、select、end の制御フローを実行する
+- [x] 3.3 (P) label、jump、select、end の制御フローを実行する
   - build 済み label と instruction index に基づいて jump する
   - select は選択肢表示 effect と選択確定待ちを生成し、結果に応じて進行先へ移動する
   - END 命令で session が完了状態になることをテストで確認できる

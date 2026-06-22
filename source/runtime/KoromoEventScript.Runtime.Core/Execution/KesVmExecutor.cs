@@ -35,10 +35,66 @@ public sealed class KesVmExecutor
         return KesVmExecutionResult.Success();
     }
 
+    public KesVmExecutionResult ChooseSelection(KesVmSession session, int choiceIndex)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+
+        if (session.Continuation.Kind != RuntimeContinuationKind.WaitingForSelection)
+        {
+            return Fault(session, "KESR3205", "Session is not waiting for a selection.");
+        }
+
+        if (choiceIndex < 0 || choiceIndex >= session.Continuation.PendingChoices.Count)
+        {
+            return Fault(session, "KESR3206", $"Selection choice index '{choiceIndex}' is out of range.");
+        }
+
+        var target = session.Continuation.PendingChoices[choiceIndex].TargetInstructionIndex;
+        session.SetInstructionIndex(target);
+        session.SetContinuation(RuntimeContinuation.Running);
+        return KesVmExecutionResult.Success();
+    }
+
     private static KesVmExecutionResult Execute(KesVmSession session, KlibInstruction instruction)
     {
         switch (instruction.OpCode)
         {
+            case KlibOpCode.Label:
+                session.AdvanceAfter(instruction);
+                return KesVmExecutionResult.Success();
+
+            case KlibOpCode.Jump:
+                if (!TryReadOperand(instruction, 0, out var jumpOffset))
+                {
+                    return Fault(session, "KESR3201", "JUMP target operand is missing.");
+                }
+
+                return JumpToRelativeOffset(session, instruction, jumpOffset);
+
+            case KlibOpCode.JumpFalse:
+                if (!TryReadOperand(instruction, 0, out var jumpFalseOffset))
+                {
+                    return Fault(session, "KESR3201", "JUMP_FALSE target operand is missing.");
+                }
+
+                if (!session.TryPopOperand(out var condition) ||
+                    condition.Kind != RuntimeValueKind.Bool ||
+                    condition.BoolValue is null)
+                {
+                    return Fault(session, "KESR3202", "JUMP_FALSE requires a bool operand.");
+                }
+
+                return condition.BoolValue.Value
+                    ? Advance(session, instruction)
+                    : JumpToRelativeOffset(session, instruction, jumpFalseOffset);
+
+            case KlibOpCode.Select:
+                return WaitForSelection(session, instruction);
+
+            case KlibOpCode.End:
+                session.SetContinuation(RuntimeContinuation.Completed);
+                return KesVmExecutionResult.Success();
+
             case KlibOpCode.PushNull:
                 session.PushOperand(RuntimeValue.Null);
                 session.AdvanceAfter(instruction);
@@ -191,6 +247,80 @@ public sealed class KesVmExecutor
         }
     }
 
+    private static KesVmExecutionResult Advance(KesVmSession session, KlibInstruction instruction)
+    {
+        session.AdvanceAfter(instruction);
+        return KesVmExecutionResult.Success();
+    }
+
+    private static KesVmExecutionResult JumpToRelativeOffset(KesVmSession session, KlibInstruction instruction, int relativeOffset)
+    {
+        var targetOffset = instruction.Offset + GetInstructionSize(instruction) + relativeOffset;
+        var target = session.Document.Instructions.FirstOrDefault(candidate => candidate.Offset == targetOffset);
+        if (target is null)
+        {
+            return Fault(session, "KESR3203", $"Jump target offset '{targetOffset}' does not exist.");
+        }
+
+        session.SetInstructionIndex(target.Index);
+        return KesVmExecutionResult.Success();
+    }
+
+    private static KesVmExecutionResult WaitForSelection(KesVmSession session, KlibInstruction instruction)
+    {
+        if (!session.TryPopOperand(out var promptValue))
+        {
+            return Fault(session, "KESR3101", "Operand stack underflow while executing SELECT.");
+        }
+
+        if (promptValue.Kind is not RuntimeValueKind.Null and not RuntimeValueKind.String)
+        {
+            return Fault(session, "KESR3204", "SELECT prompt must be a string or null.");
+        }
+
+        if (instruction.SelectCases is null || instruction.SelectCases.Count == 0)
+        {
+            return Fault(session, "KESR3204", "SELECT requires at least one case.");
+        }
+
+        var prompt = promptValue.Kind == RuntimeValueKind.String ? promptValue.StringValue : null;
+        var baseOffset = instruction.Offset + GetInstructionSize(instruction);
+        var offsets = new List<int>();
+        var choices = new List<RuntimeSelectionChoice>();
+
+        foreach (var selectCase in instruction.SelectCases)
+        {
+            if (selectCase.TextIndex < 0 || selectCase.TextIndex >= session.Document.Constants.Count)
+            {
+                return Fault(session, "KESR3204", $"SELECT case text index '{selectCase.TextIndex}' is invalid.");
+            }
+
+            var textConstant = session.Document.Constants[selectCase.TextIndex];
+            if (textConstant.Kind != KlibConstantKind.String || textConstant.StringValue is null)
+            {
+                return Fault(session, "KESR3204", "SELECT case text must resolve to a string constant.");
+            }
+
+            var targetOffset = baseOffset + selectCase.Offset;
+            var target = session.Document.Instructions.FirstOrDefault(candidate => candidate.Offset == targetOffset);
+            if (target is null)
+            {
+                return Fault(session, "KESR3203", $"SELECT case target offset '{targetOffset}' does not exist.");
+            }
+
+            offsets.Add(selectCase.Offset);
+            choices.Add(new RuntimeSelectionChoice(textConstant.StringValue, target.Index));
+        }
+
+        session.SetContinuation(new RuntimeContinuation(
+            RuntimeContinuationKind.WaitingForSelection,
+            instruction.Index,
+            offsets,
+            prompt,
+            choices));
+        return KesVmExecutionResult.Success();
+    }
+
     private static KesVmExecutionResult ApplyNumberBinary(
         KesVmSession session,
         KlibInstruction instruction,
@@ -284,6 +414,16 @@ public sealed class KesVmExecutor
 
         value = instruction.Operands[index];
         return true;
+    }
+
+    private static int GetInstructionSize(KlibInstruction instruction)
+    {
+        if (instruction.OpCode == KlibOpCode.Select)
+        {
+            return 1 + sizeof(int) + ((instruction.SelectCases?.Count ?? 0) * 2 * sizeof(int));
+        }
+
+        return 1 + (instruction.Operands.Count * sizeof(int));
     }
 
     private static RuntimeValue ResolveConstant(KlibConstant constant)

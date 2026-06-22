@@ -165,11 +165,16 @@ public sealed class KesVmSession
 
         if (instructionIndex < 0 || instructionIndex + 1 >= Document.Instructions.Count)
         {
-            Continuation = new RuntimeContinuation(RuntimeContinuationKind.Completed, null, []);
+            Continuation = RuntimeContinuation.Completed;
             return;
         }
 
         SetInstructionIndex(Document.Instructions[instructionIndex + 1].Index);
+    }
+
+    internal void SetContinuation(RuntimeContinuation continuation)
+    {
+        Continuation = continuation;
     }
 }
 
@@ -205,10 +210,18 @@ public enum RuntimeContinuationKind
 public sealed record RuntimeContinuation(
     RuntimeContinuationKind Kind,
     int? ResumeInstructionIndex,
-    IReadOnlyList<int> PendingChoiceOffsets)
+    IReadOnlyList<int> PendingChoiceOffsets,
+    string? Prompt,
+    IReadOnlyList<RuntimeSelectionChoice> PendingChoices)
 {
-    public static RuntimeContinuation Running { get; } = new(RuntimeContinuationKind.Running, null, []);
+    public static RuntimeContinuation Running { get; } = new(RuntimeContinuationKind.Running, null, [], null, []);
+
+    public static RuntimeContinuation Completed { get; } = new(RuntimeContinuationKind.Completed, null, [], null, []);
 }
+
+public sealed record RuntimeSelectionChoice(
+    string Text,
+    int TargetInstructionIndex);
 
 public enum RuntimeValueKind
 {
