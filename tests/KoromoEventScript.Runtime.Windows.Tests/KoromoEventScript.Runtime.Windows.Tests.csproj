@@ -27,6 +27,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\source\runtime\KoromoEventScript.Runtime.Core\KoromoEventScript.Runtime.Core.csproj" />
+    <Compile Include="..\..\source\runtime\KoromoEventScript.Runtime.Windows\Bootstrap\*.cs" Link="Bootstrap\%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>

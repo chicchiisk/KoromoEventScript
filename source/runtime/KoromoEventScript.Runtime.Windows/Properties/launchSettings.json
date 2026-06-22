@@ -1,10 +1,12 @@
 {
   "profiles": {
     "KoromoEventScript.Runtime.Windows (Package)": {
-      "commandName": "MsixPackage"
+      "commandName": "MsixPackage",
+      "commandLineArgs": "--manifest ..\\..\\..\\testdata\\projects\\minimal\\build\\windows\\manifest.json"
     },
     "KoromoEventScript.Runtime.Windows (Unpackaged)": {
-      "commandName": "Project"
+      "commandName": "Project",
+      "commandLineArgs": "--manifest ..\\..\\..\\testdata\\projects\\minimal\\build\\windows\\manifest.json"
     }
   }
 }

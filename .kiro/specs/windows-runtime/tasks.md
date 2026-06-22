@@ -131,7 +131,7 @@
   - _Boundary: Runtime Core tests_
 
 - [ ] 5. Windows host の起動、描画、標準 UI を実装する
-- [ ] 5.1 WinUI app の bootstrap と起動引数処理を実装する
+- [x] 5.1 WinUI app の bootstrap と起動引数処理を実装する
   - `--manifest`、既定 manifest 探索、`--locale`、`--start`、`--fullscreen`、`--width`、`--height`、`--debug`、`--profile` を解釈する
   - 不正引数は runtime argument error として終了する
   - `BuildAndRun.ps1` または `winapp run` で sample manifest を渡して MainWindow が起動する

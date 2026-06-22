@@ -4,6 +4,8 @@ using Microsoft.UI.Xaml.Data;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Navigation;
+using KoromoEventScript.Runtime.Core.Diagnostics;
+using KoromoEventScript.Runtime.Windows.Bootstrap;
 
 // To learn more about WinUI, the WinUI project structure,
 // and more about our project templates, see: http://aka.ms/winui-project-info.
@@ -50,7 +52,14 @@ public partial class App : Application
     /// <param name="args">Details about the launch request and process.</param>
     protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
     {
-        Window = new MainWindow();
+        var bootstrap = WindowsRuntimeBootstrapper.Bootstrap(args.Arguments, AppContext.BaseDirectory);
+        if (!bootstrap.Succeeded)
+        {
+            Environment.Exit((int)RuntimeExitCodeMapper.Map(bootstrap.FailureKind));
+            return;
+        }
+
+        Window = new MainWindow(bootstrap.Options);
         DispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
         Window.Activate();
     }
