@@ -92,7 +92,7 @@
   - _Boundary: Runtime Core tests_
 
 - [ ] 4. STL と runtime syscall を実装する
-- [ ] 4.1 core STL syscall を実装する
+- [x] 4.1 core STL syscall を実装する
   - debug 出力、配列長、文字列長、range、stringify、assert の結果または effect を提供する
   - assert 失敗は diagnostic と runtime error の契約に従う
   - core syscall の成功/失敗が unit test で観測できる

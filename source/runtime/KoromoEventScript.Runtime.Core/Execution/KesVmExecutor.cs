@@ -1,11 +1,14 @@
 using KoromoEventScript.Runtime.Core.Diagnostics;
+using KoromoEventScript.Runtime.Core.Effects;
 using KoromoEventScript.Runtime.Core.Klib;
+using KoromoEventScript.Runtime.Core.Stl;
 
 namespace KoromoEventScript.Runtime.Core.Execution;
 
 public sealed class KesVmExecutor
 {
     private const int DefaultMaxInstructionCount = 10_000;
+    private readonly IRuntimeSyscallDispatcher syscallDispatcher;
 
     public static IReadOnlySet<KlibOpCode> DispatchedOpCodes { get; } = new HashSet<KlibOpCode>
     {
@@ -52,6 +55,11 @@ public sealed class KesVmExecutor
         KlibOpCode.CallMethodVoid,
         KlibOpCode.Dispose,
     };
+
+    public KesVmExecutor(IRuntimeSyscallDispatcher? syscallDispatcher = null, IRuntimeEffectSink? effectSink = null)
+    {
+        this.syscallDispatcher = syscallDispatcher ?? new StlSyscallDispatcher(effectSink);
+    }
 
     public KesVmExecutionResult Run(KesVmSession session, int maxInstructionCount = DefaultMaxInstructionCount)
     {
@@ -101,7 +109,7 @@ public sealed class KesVmExecutor
         return KesVmExecutionResult.Success();
     }
 
-    private static KesVmExecutionResult Execute(KesVmSession session, KlibInstruction instruction)
+    private KesVmExecutionResult Execute(KesVmSession session, KlibInstruction instruction)
     {
         switch (instruction.OpCode)
         {
@@ -424,7 +432,7 @@ public sealed class KesVmExecutor
 
             case KlibOpCode.SysCall:
             case KlibOpCode.SysCallVoid:
-                return Fault(session, "KESR3400", "Runtime syscall dispatch is not connected yet.");
+                return ExecuteSyscall(session, instruction);
 
             case KlibOpCode.Dispose:
                 if (!TryPopReference(session, "DISPOSE", out var disposeReferenceId, out var disposeFault))
@@ -754,6 +762,53 @@ public sealed class KesVmExecutor
         if (instruction.OpCode == KlibOpCode.CallMethod)
         {
             session.PushOperand(RuntimeValue.Null);
+        }
+
+        session.AdvanceAfter(instruction);
+        return KesVmExecutionResult.Success();
+    }
+
+    private KesVmExecutionResult ExecuteSyscall(KesVmSession session, KlibInstruction instruction)
+    {
+        if (!TryReadOperand(instruction, 0, out var syscallIndex) ||
+            !TryReadOperand(instruction, 1, out var argc) ||
+            argc < 0)
+        {
+            return Fault(session, "KESR3400", "SYSCALL requires target and argc operands.");
+        }
+
+        if (!TryResolveString(session.Document, syscallIndex, out var syscallId, out var syscallResolveError))
+        {
+            return Fault(session, "KESR3400", syscallResolveError ?? "SYSCALL target could not be resolved.");
+        }
+
+        var arguments = PopArguments(session, argc);
+        if (arguments is null)
+        {
+            return Fault(session, "KESR3101", "Not enough arguments on the stack for syscall execution.");
+        }
+
+        var returnsValue = instruction.OpCode == KlibOpCode.SysCall;
+        var result = syscallDispatcher.Invoke(
+            new RuntimeSyscallInvocation(
+                syscallId!,
+                arguments,
+                returnsValue,
+                new RuntimeSourceLocation(session.Document.Module.ScriptId, session.Position.InstructionIndex, null, null, null)),
+            session);
+        if (!result.Succeeded)
+        {
+            return KesVmExecutionResult.Failure(result.FailureKind, result.Diagnostics.ToArray());
+        }
+
+        if (returnsValue)
+        {
+            if (result.ReturnValue is null)
+            {
+                return Fault(session, "KESR3404", $"Syscall '{syscallId}' did not return a value.");
+            }
+
+            session.PushOperand(result.ReturnValue);
         }
 
         session.AdvanceAfter(instruction);
