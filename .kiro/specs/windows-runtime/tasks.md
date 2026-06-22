@@ -179,7 +179,7 @@
   - _Boundary: Windows Runtime input_
   - _Depends: 5.1, 5.4_
 
-- [ ] 6.3 Save/load/settings UI と user data store を接続する
+- [x] 6.3 Save/load/settings UI と user data store を接続する
   - save、load、settings、title、exit を system menu から操作できる
   - save/settings は配布物ディレクトリではなく game id ごとの user data 領域へ保存する
   - 書き込み不可の配布物 layout でも save、load、settings 保存が継続できる

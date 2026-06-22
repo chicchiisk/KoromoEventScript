@@ -30,7 +30,9 @@
     <Compile Include="..\..\source\runtime\KoromoEventScript.Runtime.Windows\Audio\*.cs" Link="Audio\%(Filename)%(Extension)" />
     <Compile Include="..\..\source\runtime\KoromoEventScript.Runtime.Windows\Bootstrap\*.cs" Link="Bootstrap\%(Filename)%(Extension)" />
     <Compile Include="..\..\source\runtime\KoromoEventScript.Runtime.Windows\Input\*.cs" Link="Input\%(Filename)%(Extension)" />
+    <Compile Include="..\..\source\runtime\KoromoEventScript.Runtime.Windows\Persistence\*.cs" Link="Persistence\%(Filename)%(Extension)" />
     <Compile Include="..\..\source\runtime\KoromoEventScript.Runtime.Windows\Rendering\*.cs" Link="Rendering\%(Filename)%(Extension)" />
+    <Compile Include="..\..\source\runtime\KoromoEventScript.Runtime.Windows\Ui\*.cs" Link="Ui\%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>
