@@ -696,7 +696,7 @@ intro = {
     [Test]
     public void ProcessInvocation_ReturnsCommandLineErrorForUnsupportedCommand()
     {
-        var result = RunCliProcess("run");
+        var result = RunCliProcess("unknown");
 
         Assert.Multiple(() =>
         {

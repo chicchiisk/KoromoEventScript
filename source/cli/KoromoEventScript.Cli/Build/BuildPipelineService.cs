@@ -16,7 +16,8 @@ public sealed record BuildPipelineRequest(
 public sealed record BuildPipelineResult(
     CliExitCode ExitCode,
     IReadOnlyList<Diagnostic> Diagnostics,
-    BuildManifestDocument? Manifest = null);
+    BuildManifestDocument? Manifest = null,
+    string? ManifestPath = null);
 
 public sealed class BuildPipelineService
 {
@@ -174,7 +175,7 @@ public sealed class BuildPipelineService
             return new BuildPipelineResult(manifestResult.ExitCode, manifestResult.Diagnostics);
         }
 
-        return new BuildPipelineResult(CliExitCode.Success, activePreparation.Diagnostics, manifestDocument);
+        return new BuildPipelineResult(CliExitCode.Success, activePreparation.Diagnostics, manifestDocument, manifestPath);
     }
 
     private static BuildManifestDocument BuildManifest(

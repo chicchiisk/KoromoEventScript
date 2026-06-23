@@ -225,7 +225,7 @@
   - _Requirements: 2.1, 10.3, 10.4_
   - _Boundary: CLI build manifest_
 
-- [ ] 8.2 `kes run` から Windows runtime を起動する
+- [x] 8.2 `kes run` から Windows runtime を起動する
   - `kes run` が build 済み manifest と runtime 引数を Windows runtime process へ渡す
   - `--manifest`、`--locale`、`--start`、`--fullscreen`、`--width`、`--height`、`--debug`、`--profile` が runtime に届く
   - fake process launcher test で起動 command line と終了コード伝播を確認できる

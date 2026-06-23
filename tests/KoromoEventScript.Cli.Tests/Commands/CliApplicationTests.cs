@@ -14,7 +14,7 @@ public class CliApplicationTests
         using var output = new StringWriter();
         using var error = new StringWriter();
 
-        var exitCode = new CliApplication().Run(["run"], output, error, TestContext.CurrentContext.WorkDirectory);
+        var exitCode = new CliApplication().Run(["unknown"], output, error, TestContext.CurrentContext.WorkDirectory);
 
         Assert.Multiple(() =>
         {
