@@ -196,7 +196,7 @@
   - _Depends: 3.1, 6.1, 6.3_
 
 - [ ] 7. 診断、profile、エラー表示を統合する
-- [ ] 7.1 debug overlay と runtime log を実装する
+- [x] 7.1 debug overlay と runtime log を実装する
   - `--debug` で FPS、VM 位置、resource state、audio state、input、warning、error を overlay または log に出す
   - 通常配布モードでは VM stack、素材探索詳細、内部位置を画面に出さない
   - debug mode と通常 mode の出力差がテストまたは UI 確認で観測できる
