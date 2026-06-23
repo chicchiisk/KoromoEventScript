@@ -273,7 +273,7 @@
   - _Boundary: CLI integration tests_
   - _Depends: 8.2, 8.4_
 
-- [ ] 9.4 WinUI UI automation script と screenshot 確認を追加する
+- [x] 9.4 WinUI UI automation script と screenshot 確認を追加する
   - `winapp ui` を使う batch UI test script を追加し、message、choice、system menu、backlog、save/load、settings、fullscreen、debug overlay を確認する
   - UI test は AutomationId を使い、主要状態の screenshot を保存して視覚崩れを確認できる
   - UI test 結果の JSON と screenshot で pass/fail が判断できる

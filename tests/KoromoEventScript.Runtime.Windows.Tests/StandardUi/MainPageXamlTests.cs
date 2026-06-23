@@ -36,6 +36,26 @@ public sealed class MainPageXamlTests
         });
     }
 
+    [Test]
+    public void WinUiSmokeScript_ReferencesRuntimeAutomationIdsAndArtifacts()
+    {
+        var script = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "scripts/windows-runtime/Run-WinUiSmokeTests.ps1"));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(script, Does.Contain("RuntimeSystemMenuButton"));
+            Assert.That(script, Does.Contain("RuntimeMenuSave"));
+            Assert.That(script, Does.Contain("RuntimeMenuLoad"));
+            Assert.That(script, Does.Contain("RuntimeMenuSettings"));
+            Assert.That(script, Does.Contain("RuntimeMessageWindow"));
+            Assert.That(script, Does.Contain("RuntimeChoiceList"));
+            Assert.That(script, Does.Contain("RuntimeBacklogPanel"));
+            Assert.That(script, Does.Contain("test-results.json"));
+            Assert.That(script, Does.Contain("01-initial.png"));
+            Assert.That(script, Does.Contain("02-system-menu.png"));
+        });
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(TestContext.CurrentContext.TestDirectory);
