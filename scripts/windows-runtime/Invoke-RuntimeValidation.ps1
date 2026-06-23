@@ -35,14 +35,34 @@ function Invoke-LoggedCommand {
 
     $logPath = Join-Path $OutputDirectory $LogFileName
     $commandText = $Script.ToString().Trim()
-    $output = & $Script 2>&1
-    $exitCode = $LASTEXITCODE
-    if ($null -eq $exitCode) {
-        $exitCode = 0
+    $exitCode = 0
+    try {
+        $output = & $Script 2>&1
+        $exitCode = $LASTEXITCODE
+        if ($null -eq $exitCode) {
+            $exitCode = 0
+        }
+    }
+    catch {
+        $output = $_
+        $exitCode = 1
     }
 
     $output | Out-File $logPath -Encoding utf8
     New-StepResult -Name $Name -Command $commandText -ExitCode $exitCode -LogPath $logPath
+}
+
+function Assert-ValidationFile {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$Description
+    )
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        throw "$Description was not found: $Path"
+    }
+
+    Write-Host "$Description`: $Path"
 }
 
 function Get-ValidationSummary {
@@ -88,15 +108,53 @@ $steps.Add((Invoke-LoggedCommand `
     -Script { dotnet test tests\KoromoEventScript.Runtime.Core.Tests\KoromoEventScript.Runtime.Core.Tests.csproj --filter "FullyQualifiedName~Resolve_WithFullCommandSampleBuildOutput" --logger "console;verbosity=minimal" })) | Out-Null
 
 $steps.Add((Invoke-LoggedCommand `
+    -Name 'Full-command sample CLI build validation' `
+    -LogFileName '03-full-command-sample-build.log' `
+    -Script {
+        $sampleRoot = Join-Path $OutputDirectory 'full-command-sample'
+        if (Test-Path -LiteralPath $sampleRoot) {
+            Remove-Item -LiteralPath $sampleRoot -Recurse -Force
+        }
+
+        Copy-Item -LiteralPath testdata\projects\full-command-sample -Destination $sampleRoot -Recurse -Force
+        $sampleBuildRoot = Join-Path $sampleRoot 'build'
+        if (Test-Path -LiteralPath $sampleBuildRoot) {
+            Remove-Item -LiteralPath $sampleBuildRoot -Recurse -Force
+        }
+
+        dotnet run --project source\cli\KoromoEventScript.Cli\KoromoEventScript.Cli.csproj -- build $sampleRoot --txt-il
+        if ($LASTEXITCODE -ne 0) {
+            return
+        }
+
+        Assert-ValidationFile -Path (Join-Path $sampleRoot 'build\windows\manifest.json') -Description 'Runtime manifest'
+        Assert-ValidationFile -Path (Join-Path $sampleRoot 'build\windows\events\chapter001.klib') -Description 'Entry klib'
+        Assert-ValidationFile -Path (Join-Path $sampleRoot 'build\windows\events\lib\Common.klib') -Description 'Shared klib'
+    })) | Out-Null
+
+$steps.Add((Invoke-LoggedCommand `
     -Name 'CLI build run publish validation' `
-    -LogFileName '03-cli-run-publish-tests.log' `
+    -LogFileName '04-cli-run-publish-tests.log' `
     -Script { dotnet test tests\KoromoEventScript.Cli.Tests\KoromoEventScript.Cli.Tests.csproj --filter "FullyQualifiedName~BuildRuntimeManifestTests|FullyQualifiedName~RunCommandTests|FullyQualifiedName~PublishCommandTests" --logger "console;verbosity=minimal" })) | Out-Null
+
+$steps.Add((Invoke-LoggedCommand `
+    -Name 'WinUI Release build validation' `
+    -LogFileName '05-winui-release-build.log' `
+    -Script {
+        Write-Host 'BuildAndRun.ps1 -SkipRun equivalent: build packaged WinUI app without launching the executable directly.'
+        dotnet build source\runtime\KoromoEventScript.Runtime.Windows\KoromoEventScript.Runtime.Windows.csproj -c Release -p:Platform=x64 -p:RuntimeIdentifier=win-x64
+    })) | Out-Null
+
+$steps.Add((Invoke-LoggedCommand `
+    -Name 'Windows publish artifact validation' `
+    -LogFileName '06-publish-artifact-tests.log' `
+    -Script { dotnet test tests\KoromoEventScript.Cli.Tests\KoromoEventScript.Cli.Tests.csproj --filter "FullyQualifiedName~Publish_WindowsCreatesRuntimeFolderLayoutWithoutSourceFiles|FullyQualifiedName~Publish_WindowsZipCanBeExtractedAndResolvedWithLocaleVariant" --logger "console;verbosity=minimal" })) | Out-Null
 
 if ($AppPid -gt 0) {
     $uiOutput = Join-Path $OutputDirectory 'ui-smoke'
     $steps.Add((Invoke-LoggedCommand `
         -Name 'WinUI smoke validation' `
-        -LogFileName '04-winui-smoke.log' `
+        -LogFileName '07-winui-smoke.log' `
         -Script { powershell -NoProfile -ExecutionPolicy Bypass -File scripts\windows-runtime\Run-WinUiSmokeTests.ps1 -AppPid $AppPid -OutputDirectory $uiOutput })) | Out-Null
 }
 else {

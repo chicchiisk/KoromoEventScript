@@ -1,6 +1,6 @@
 # Implementation Plan
 
-- [ ] 1. Runtime 基盤と WinUI 前提を整える
+- [x] 1. Runtime 基盤と WinUI 前提を整える
 - [x] 1.1 WinUI 3 開発前提を検出し、ビルド手順を固定する
   - .NET SDK、WinApp CLI、WinUI 3 template、Developer Mode の検出結果を開発者が一度に確認できる手順を追加する
   - Developer Mode が無効な場合は実装を進めず、WinUI setup 手順で解消する運用にする
@@ -29,7 +29,7 @@
   - _Requirements: 4.3, 5.10, 9.1, 9.2, 9.7_
   - _Boundary: Runtime Core contracts_
 
-- [ ] 2. manifest、package、素材解決を実装する
+- [x] 2. manifest、package、素材解決を実装する
 - [x] 2.1 Runtime manifest の読み込みと相対パス解決を実装する
   - `manifest.json` を runtime 入力の入口として読み込み、schema version、game id、locale、scripts、assets、runtime defaults、build 情報を検証する
   - 相対パスは manifest の配置ディレクトリ基準で解決する
@@ -53,7 +53,7 @@
   - _Boundary: Runtime Core resource catalog_
   - _Depends: 2.1_
 
-- [ ] 3. `.klib` VM の全命令実行を完成させる
+- [x] 3. `.klib` VM の全命令実行を完成させる
 - [x] 3.1 VM session と save snapshot の基本状態を実装する
   - instruction pointer、stack、variables、call context、await 状態を Runtime Core で保持する
   - `scriptId` と `instructionIndex` を安定した実行位置として snapshot に含める
@@ -91,7 +91,7 @@
   - _Requirements: 4.1, 4.7_
   - _Boundary: Runtime Core tests_
 
-- [ ] 4. STL と runtime syscall を実装する
+- [x] 4. STL と runtime syscall を実装する
 - [x] 4.1 core STL syscall を実装する
   - debug 出力、配列長、文字列長、range、stringify、assert の結果または effect を提供する
   - assert 失敗は diagnostic と runtime error の契約に従う
@@ -130,7 +130,7 @@
   - _Requirements: 5.1, 5.10_
   - _Boundary: Runtime Core tests_
 
-- [ ] 5. Windows host の起動、描画、標準 UI を実装する
+- [x] 5. Windows host の起動、描画、標準 UI を実装する
 - [x] 5.1 WinUI app の bootstrap と起動引数処理を実装する
   - `--manifest`、既定 manifest 探索、`--locale`、`--start`、`--fullscreen`、`--width`、`--height`、`--debug`、`--profile` を解釈する
   - 不正引数は runtime argument error として終了する
@@ -162,7 +162,7 @@
   - _Boundary: Windows Runtime standard UI_
   - _Depends: 4.3_
 
-- [ ] 6. 音声、入力、保存 UI を Windows host に接続する
+- [x] 6. 音声、入力、保存 UI を Windows host に接続する
 - [x] 6.1 Audio channel service を実装する
   - BGM、SE、Voice を別 channel として再生、停止、fade、音量変更できる
   - `say` / `nar` の voice 素材が存在する場合は再生し、欠ける場合は warning のみで継続する
@@ -195,7 +195,7 @@
   - _Boundary: Windows Runtime persistence_
   - _Depends: 3.1, 6.1, 6.3_
 
-- [ ] 7. 診断、profile、エラー表示を統合する
+- [x] 7. 診断、profile、エラー表示を統合する
 - [x] 7.1 debug overlay と runtime log を実装する
   - `--debug` で FPS、VM 位置、resource state、audio state、input、warning、error を overlay または log に出す
   - 通常配布モードでは VM stack、素材探索詳細、内部位置を画面に出さない
@@ -217,7 +217,7 @@
   - _Requirements: 2.4, 2.5, 3.7, 4.7, 5.10, 9.7_
   - _Boundary: Windows Runtime error handling_
 
-- [ ] 8. CLI run と publish を Windows runtime に接続する
+- [x] 8. CLI run と publish を Windows runtime に接続する
 - [x] 8.1 build manifest を runtime manifest へ拡張する
   - CLI build が runtime に必要な script、asset、locale、runtime defaults、build 情報を manifest に含める
   - 既存 build manifest の互換性を壊さず、Windows runtime が必要な情報を読める
@@ -249,7 +249,7 @@
   - _Boundary: CLI publish packaging_
   - _Depends: 2.3, 8.3_
 
-- [ ] 9. 自動テストと WinUI UI 検証を整備する
+- [x] 9. 自動テストと WinUI UI 検証を整備する
 - [x] 9.1 Runtime Core の manifest、VM、STL 自動テストを追加する
   - manifest reader、package resolver、opcode behavior、opcode coverage、STL syscall coverage を NUnit で検証する
   - `testdata/projects/full-command-sample` を runtime core の package として読み込める
@@ -289,8 +289,8 @@
   - _Boundary: Runtime validation_
   - _Depends: 6.1, 8.4_
 
-- [ ] 10. 最終統合と完了検証を行う
-- [ ] 10.1 Runtime Core、Windows app、CLI を統合して full-command sample を実行する
+- [x] 10. 最終統合と完了検証を行う
+- [x] 10.1 Runtime Core、Windows app、CLI を統合して full-command sample を実行する
   - build 済み sample manifest から runtime が entry `.klib` を読み込み、標準 UI で進行できる
   - VM、STL effect、Windows host、audio、save、diagnostics、CLI run が同じ実行契約で接続される
   - sample の通常起動、debug 起動、profile 起動がそれぞれ期待する観測結果を返す
@@ -298,7 +298,7 @@
   - _Boundary: Runtime integration_
   - _Depends: 3.5, 4.5, 5.4, 6.4, 7.3, 8.2_
 
-- [ ] 10.2 Release build と Windows publish 成果物を検証する
+- [x] 10.2 Release build と Windows publish 成果物を検証する
   - WinUI plugin の手順に沿って Release build は `BuildAndRun.ps1 -SkipRun` 相当で確認し、runtime launch は `winapp run` を使う
   - publish folder と zip を展開し、実行ファイルから `data/manifest.json` と資産を読み込める
   - Release build、publish layout、zip 展開後 package 解決が検証ログで確認できる
@@ -306,7 +306,7 @@
   - _Boundary: Release validation_
   - _Depends: 8.4, 9.3_
 
-- [ ] 10.3 全テスト、UI 検証、ADR 棚卸しを完了する
+- [x] 10.3 全テスト、UI 検証、ADR 棚卸しを完了する
   - `dotnet test` で CLI、Runtime Core、Windows host の自動テストを実行する
   - WinUI UI automation と screenshot checklist の結果を確認し、失敗があれば修正対象として戻す
   - 実装判断が ADR 対象か棚卸しし、必要なら `docs/adr/` に記録する
