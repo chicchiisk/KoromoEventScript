@@ -265,7 +265,7 @@
   - _Boundary: Windows Runtime tests_
   - _Depends: 5.3, 6.2, 7.2_
 
-- [ ] 9.3 (P) CLI run/publish integration tests を追加する
+- [x] 9.3 (P) CLI run/publish integration tests を追加する
   - `kes run` の process 起動引数、manifest 受け渡し、終了コード伝播を fake で検証する
   - `kes publish --target windows` の folder と zip に runtime、manifest、`.klib`、assets が含まれることを検証する
   - source 非同梱の publish 成果物でも runtime 入力が揃うことを確認できる
