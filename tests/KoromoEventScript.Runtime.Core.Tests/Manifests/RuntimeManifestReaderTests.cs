@@ -69,7 +69,7 @@ public sealed class RuntimeManifestReaderTests
         {
             Assert.That(result.Succeeded, Is.False);
             Assert.That(result.FailureKind, Is.EqualTo(RuntimeFailureKind.Startup));
-            Assert.That(RuntimeExitCodeMapper.Map(result.FailureKind), Is.EqualTo(RuntimeExitCode.GeneralError));
+            Assert.That(RuntimeExitCodeMapper.Map(result.FailureKind), Is.EqualTo(RuntimeExitCode.RuntimeStartupError));
             Assert.That(result.Diagnostics.Single().Severity, Is.EqualTo(RuntimeDiagnosticSeverity.Error));
         });
     }

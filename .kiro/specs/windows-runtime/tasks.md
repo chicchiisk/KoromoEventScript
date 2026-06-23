@@ -210,7 +210,7 @@
   - _Requirements: 9.4, 9.5, 9.6_
   - _Boundary: Windows Runtime diagnostics_
 
-- [ ] 7.3 起動、IO、実行時エラーの表示と process exit を統合する
+- [x] 7.3 起動、IO、実行時エラーの表示と process exit を統合する
   - manifest、`.klib`、素材、opcode、transition、syscall の fatal error を統一的に UI と exit code へ変換する
   - CLI の終了コード体系と整合した process result を返す
   - representative fatal error fixture が期待 exit code を返す

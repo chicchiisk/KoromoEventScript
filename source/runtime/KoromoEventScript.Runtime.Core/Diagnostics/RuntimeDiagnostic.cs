@@ -24,6 +24,7 @@ public enum RuntimeExitCode
     CommandLineError = 2,
     RuntimeError = 5,
     FileOrDirectoryError = 6,
+    RuntimeStartupError = 7,
 }
 
 public readonly record struct RuntimeSourceLocation(
@@ -70,7 +71,7 @@ public static class RuntimeExitCodeMapper
             RuntimeFailureKind.Argument => RuntimeExitCode.CommandLineError,
             RuntimeFailureKind.Runtime => RuntimeExitCode.RuntimeError,
             RuntimeFailureKind.Io => RuntimeExitCode.FileOrDirectoryError,
-            RuntimeFailureKind.Startup => RuntimeExitCode.GeneralError,
+            RuntimeFailureKind.Startup => RuntimeExitCode.RuntimeStartupError,
             RuntimeFailureKind.General => RuntimeExitCode.GeneralError,
             _ => RuntimeExitCode.GeneralError,
         };

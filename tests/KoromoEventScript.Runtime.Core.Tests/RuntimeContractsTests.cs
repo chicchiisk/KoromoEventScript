@@ -56,7 +56,7 @@ public sealed class RuntimeContractsTests
             Assert.That((int)RuntimeExitCodeMapper.Map(RuntimeFailureKind.Argument), Is.EqualTo(2));
             Assert.That((int)RuntimeExitCodeMapper.Map(RuntimeFailureKind.Runtime), Is.EqualTo(5));
             Assert.That((int)RuntimeExitCodeMapper.Map(RuntimeFailureKind.Io), Is.EqualTo(6));
-            Assert.That((int)RuntimeExitCodeMapper.Map(RuntimeFailureKind.Startup), Is.EqualTo(1));
+            Assert.That((int)RuntimeExitCodeMapper.Map(RuntimeFailureKind.Startup), Is.EqualTo(7));
         });
     }
 
