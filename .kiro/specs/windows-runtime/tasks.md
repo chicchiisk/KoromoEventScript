@@ -233,7 +233,7 @@
   - _Boundary: CLI run integration_
   - _Depends: 5.1_
 
-- [ ] 8.3 `kes publish --target windows` の folder layout を実装する
+- [x] 8.3 `kes publish --target windows` の folder layout を実装する
   - self-contained Windows runtime、`data/manifest.json`、`data/events/**/*.klib`、`data/assets/**` を配布 folder に配置する
   - `--include-source` がない場合に `.kc` / `.kel` を runtime 実行条件にしない
   - 展開済み folder の exe から `data/manifest.json` を探索できる layout が integration test で確認できる

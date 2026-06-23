@@ -3,6 +3,7 @@ using KoromoEventScript.Cli.Commands.Build;
 using KoromoEventScript.Cli.Commands.Correct;
 using KoromoEventScript.Cli.Commands.Init;
 using KoromoEventScript.Cli.Commands.Loc;
+using KoromoEventScript.Cli.Commands.Publish;
 using KoromoEventScript.Cli.Commands.Run;
 using KoromoEventScript.Cli.Diagnostics;
 
@@ -31,6 +32,7 @@ public sealed class RunCommandTests
             new CorrectCommand(),
             new InitCommand(),
             new LocCommand(),
+            new WindowsPublishCommand(),
             runCommand,
             new DiagnosticSink());
 
