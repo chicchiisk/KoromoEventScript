@@ -187,7 +187,7 @@
   - _Boundary: Windows Runtime persistence UI_
   - _Depends: 5.4_
 
-- [ ] 6.4 load 復元と不正 save のプレイヤー通知を実装する
+- [x] 6.4 load 復元と不正 save のプレイヤー通知を実装する
   - 保存時点の画面、実行位置、選択状態、locale、必要な音声状態を復元する
   - 無効な `scriptId` または `instructionIndex` を参照する save は load 失敗として UI に通知する
   - 正常 load と invalid load の両方を Windows host test で確認できる

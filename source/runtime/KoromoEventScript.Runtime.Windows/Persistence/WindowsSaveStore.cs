@@ -8,7 +8,23 @@ public sealed record WindowsSaveEnvelope(
     string Title,
     DateTimeOffset SavedAt,
     RuntimeSaveSnapshot Snapshot,
-    string? Locale);
+    string? Locale,
+    WindowsHostSaveState? HostState = null);
+
+public sealed record WindowsHostSaveState(
+    WindowsUiSaveState Ui,
+    WindowsAudioSaveState Audio,
+    string Locale);
+
+public sealed record WindowsUiSaveState(
+    string? MessageText,
+    string? SpeakerName,
+    IReadOnlyList<string> Choices,
+    int? SelectedChoiceIndex);
+
+public sealed record WindowsAudioSaveState(
+    string? BgmAssetId,
+    string? VoiceAssetId);
 
 public sealed class WindowsSaveStore
 {
