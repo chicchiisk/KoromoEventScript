@@ -9,6 +9,40 @@ namespace KoromoEventScript.Runtime.Core.Tests.Packages;
 public sealed class RuntimePackageResolverTests
 {
     [Test]
+    public void Resolve_WithFullCommandSampleBuildOutput_LoadsRuntimePackage()
+    {
+        var manifestPath = Path.Combine(
+            GetRepositoryRoot(),
+            "testdata",
+            "projects",
+            "full-command-sample",
+            "build",
+            "windows",
+            "manifest.json");
+
+        var manifestResult = new RuntimeManifestReader().Read(manifestPath);
+        var packageResult = manifestResult.Succeeded
+            ? new RuntimePackageResolver(new KlibModuleLoader()).Resolve(manifestResult.Document!)
+            : null;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(manifestResult.Succeeded, Is.True);
+            Assert.That(packageResult!.Succeeded, Is.True);
+            Assert.That(packageResult.Package!.SelectedLocale, Is.EqualTo("ja-JP"));
+            Assert.That(
+                packageResult.Package.Scripts.Select(static script => script.Entry.ScriptId),
+                Is.EqualTo(["events/chapter001", "events/chapter002", "events/lib/Common"]));
+            Assert.That(
+                packageResult.Package.Scripts.Select(static script => script.Entry.KlibPath),
+                Is.EqualTo(["events/chapter001.klib", "events/chapter002.klib", "events/lib/Common.klib"]));
+            Assert.That(
+                packageResult.Package.Scripts.Select(static script => script.Document.Module.ScriptId),
+                Is.EqualTo(["events/chapter001", "events/chapter002", "events/lib/Common"]));
+        });
+    }
+
+    [Test]
     public void Resolve_WithMatchingKlibScriptId_ReturnsPackageModules()
     {
         using var workspace = TestWorkspace.Create();
@@ -284,5 +318,21 @@ public sealed class RuntimePackageResolverTests
             writer.Write(bytes.Length);
             writer.Write(bytes);
         }
+    }
+
+    private static string GetRepositoryRoot()
+    {
+        var directory = new DirectoryInfo(TestContext.CurrentContext.TestDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "KoromoEventScript.slnx")))
+            {
+                return directory.FullName;
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new DirectoryNotFoundException("Repository root was not found.");
     }
 }

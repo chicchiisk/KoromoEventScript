@@ -250,7 +250,7 @@
   - _Depends: 2.3, 8.3_
 
 - [ ] 9. 自動テストと WinUI UI 検証を整備する
-- [ ] 9.1 Runtime Core の manifest、VM、STL 自動テストを追加する
+- [x] 9.1 Runtime Core の manifest、VM、STL 自動テストを追加する
   - manifest reader、package resolver、opcode behavior、opcode coverage、STL syscall coverage を NUnit で検証する
   - `testdata/projects/full-command-sample` を runtime core の package として読み込める
   - `dotnet test` で core tests が CLI tests と同じ solution から実行される
