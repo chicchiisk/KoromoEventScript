@@ -59,6 +59,22 @@ public sealed class WindowsSaveStoreTests
     }
 
     [Test]
+    public void UserDataLocator_WithDifferentGameIds_SeparatesSaveAndSettingsPaths()
+    {
+        var first = new WindowsUserDataLocator(tempRoot, "Koromosoft", "First Game");
+        var second = new WindowsUserDataLocator(tempRoot, "Koromosoft", "Second Game");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(first.GameDataRoot, Is.Not.EqualTo(second.GameDataRoot));
+            Assert.That(first.GetSavePath(new SaveSlot(1)), Is.Not.EqualTo(second.GetSavePath(new SaveSlot(1))));
+            Assert.That(first.SettingsPath, Is.Not.EqualTo(second.SettingsPath));
+            Assert.That(first.GetSavePath(new SaveSlot(1)), Does.StartWith(Path.Combine(tempRoot, "Koromosoft", "First_Game")));
+            Assert.That(second.GetSavePath(new SaveSlot(1)), Does.StartWith(Path.Combine(tempRoot, "Koromosoft", "Second_Game")));
+        });
+    }
+
+    [Test]
     public async Task LoadAsync_ReadsPreviouslySavedEnvelope()
     {
         var locator = new WindowsUserDataLocator(tempRoot, "Koromosoft", "Load Game");

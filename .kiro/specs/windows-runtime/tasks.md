@@ -257,7 +257,7 @@
   - _Requirements: 2.1, 2.2, 2.3, 4.1, 4.2, 4.7, 5.1, 5.10_
   - _Boundary: Runtime Core tests_
 
-- [ ] 9.2 (P) Windows host service tests を追加する
+- [x] 9.2 (P) Windows host service tests を追加する
   - coordinate mapper、transition controller、input router、save store、diagnostics mapper を UI automation なしで検証する
   - 16:9/非 16:9、invalid transition、input mapping、user data separation、debug/profile をテストする
   - Windows host service tests が headless CI で実行可能な範囲を明確に分けて通る
