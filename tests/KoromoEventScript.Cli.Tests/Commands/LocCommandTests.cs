@@ -17,9 +17,12 @@ intro = {
 """);
         fixture.WriteFile("events/main.kc", """
 actor Hero:
-    cast Hero
+    var faceName: string = "normal"
 
-say Hero:
+standby:
+    hero : Hero
+
+say hero:
     hello,{vo}
 nar:
     line1
@@ -48,11 +51,11 @@ label #forest
             Assert.That(exitCode, Is.EqualTo((int)CliExitCode.Success));
             Assert.That(error.ToString(), Is.Empty);
             Assert.That(output.ToString(), Does.Contain("localization.csv"));
-            Assert.That(script, Does.Contain("say Hero #sy_main_0001:"));
+            Assert.That(script, Does.Contain("say hero #sy_main_0001:"));
             Assert.That(script, Does.Contain("nar #na_main_0002:"));
             Assert.That(script, Does.Contain("select #se_main_0003:"));
             Assert.That(csv, Does.Contain("tag,say,original,ja,en"));
-            Assert.That(csv, Does.Contain("sy_main_0001,Hero,\"hello,{vo}\",,"));
+            Assert.That(csv, Does.Contain("sy_main_0001,hero,\"hello,{vo}\",,"));
             Assert.That(csv, Does.Contain("na_main_0002,,\"line1"));
             Assert.That(csv, Does.Contain("se_main_0003_c00,,Go Town,,"));
             Assert.That(csv, Does.Contain("se_main_0003_c01,,Go Forest,,"));
@@ -72,9 +75,12 @@ intro = {
 """);
         fixture.WriteFile("events/main.kc", """
 actor Hero:
-    cast Hero
+    var faceName: string = "normal"
 
-say Hero #sy_main_0001:
+standby:
+    hero : Hero
+
+say hero #sy_main_0001:
     hello
 nar #na_main_0002:
     world
@@ -103,7 +109,7 @@ manual_tag,,Manual entry,Custom
             Assert.That(exitCode, Is.EqualTo((int)CliExitCode.Success));
             Assert.That(error.ToString(), Is.Empty);
             Assert.That(csv, Does.Contain("tag,say,original,en,fr"));
-            Assert.That(csv, Does.Contain("sy_main_0001,Hero,hello,Hello!,"));
+            Assert.That(csv, Does.Contain("sy_main_0001,hero,hello,Hello!,"));
             Assert.That(csv, Does.Contain("manual_tag,,Manual entry,Custom,"));
             Assert.That(csv, Does.Contain("na_main_0002,,world,,"));
             Assert.That(csv, Does.Contain("se_main_0003_c00,,Go,,"));
@@ -123,9 +129,12 @@ intro = {
 """);
         fixture.WriteFile("events/main.kc", """
 actor Hero:
-    cast Hero
+    var faceName: string = "normal"
 
-say Hero #sy_main_0001:
+standby:
+    hero : Hero
+
+say hero #sy_main_0001:
     hello
 """);
         fixture.WriteFile("localization.csv", """

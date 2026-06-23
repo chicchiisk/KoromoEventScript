@@ -17,9 +17,12 @@ intro = {
 """);
         fixture.WriteFile("events/main.kc", """
 actor Hero:
-    cast Hero
+    var faceName: string = "normal"
 
-say Hero:
+standby:
+    hero : Hero
+
+say hero:
     hello
 nar:
     world
@@ -62,9 +65,12 @@ intro = {
 """);
         fixture.WriteFile("events/main.kc", """
 actor Hero:
-    cast Hero
+    var faceName: string = "normal"
 
-say Hero:
+standby:
+    hero : Hero
+
+say hero:
     hello
 nar:
     world
@@ -88,9 +94,12 @@ label #end
             Assert.That(error.ToString(), Is.Empty);
             Assert.That(File.ReadAllText(Path.Combine(fixture.Root, "events/main.kc")).Replace("\r\n", "\n"), Is.EqualTo("""
 actor Hero:
-    cast Hero
+    var faceName: string = "normal"
 
-say Hero #sy_main_0001:
+standby:
+    hero : Hero
+
+say hero #sy_main_0001:
     hello
 nar #na_main_0002:
     world

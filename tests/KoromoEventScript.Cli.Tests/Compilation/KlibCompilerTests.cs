@@ -53,11 +53,11 @@ intro = {
 """);
         fixture.WriteFile("events/main.kc", """
 actor Riku:
-    cast Riku
-var actors: Actor[] = [Riku]
+    var faceName: string = "normal"
+standby:
+    riku : Riku
+var actors: Actor[] = [riku]
 var total: number = 1
-cast:
-    Riku
 if true:
     total = total + 1
 else:
@@ -67,7 +67,7 @@ while total < 3:
 for actor in actors:
     show actor 0
 label #start
-say Riku:
+say riku:
     こんにちは
 nar:
     つづく

@@ -1,0 +1,23 @@
+{
+  "cliVersion": "1.0.0.0",
+  "target": "windows",
+  "entryEventListPath": "events/main.kel",
+  "inputs": [
+    {
+      "path": "events/main.kel",
+      "kind": "kel"
+    },
+    {
+      "path": "events/chapter001.kc",
+      "kind": "kc"
+    }
+  ],
+  "scripts": [
+    {
+      "sourcePath": "events/chapter001.kc",
+      "klibPath": "events/chapter001.klib",
+      "klibTextPath": "events/chapter001.klibtxt"
+    }
+  ],
+  "localizations": []
+}

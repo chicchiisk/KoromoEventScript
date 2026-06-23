@@ -16,7 +16,6 @@ public sealed class NameResolver
         "bgm_stop",
         "bool_to_string",
         "camera_autofocus",
-        "cast",
         "cm",
         "face",
         "get_config",
@@ -41,6 +40,7 @@ public sealed class NameResolver
         "set_config_string",
         "set_skip",
         "show",
+        "standby",
         "str_len",
         "trans",
         "vf",
@@ -53,11 +53,11 @@ public sealed class NameResolver
     private static readonly HashSet<string> ActorFirstArgumentCallables = new(StringComparer.Ordinal)
     {
         "action_jump",
-        "cast",
         "face",
         "hide",
         "move",
         "show",
+        "standby",
         "vf",
     };
 
@@ -241,8 +241,7 @@ public sealed class NameResolver
             ReferenceKind.Variable => definitionKind is DefinitionKind.Variable
                 or DefinitionKind.Parameter
                 or DefinitionKind.ClassField
-                or DefinitionKind.EnumMember
-                or DefinitionKind.Actor,
+                or DefinitionKind.EnumMember,
             ReferenceKind.Actor => definitionKind is DefinitionKind.Actor,
             ReferenceKind.Function => definitionKind is DefinitionKind.Function or DefinitionKind.ClassMethod,
             _ => false,
@@ -308,6 +307,14 @@ public sealed class NameResolver
 
                 break;
 
+            case StandbyStatementSyntax standbyStatement:
+                foreach (var entry in standbyStatement.Entries)
+                {
+                    yield return new Reference(ReferenceKind.Actor, entry.ActorTypeName, documentContext.Document.ProjectRelativePath, entry.ActorTypeLocation.Line, entry.ActorTypeLocation.Column, scopeId);
+                }
+
+                break;
+
             case ClassDeclarationSyntax classDeclaration:
                 if (documentContext.TryFindChildScope(scopeId, ScopeKind.Class, classDeclaration.Name, out var classScope))
                 {
@@ -348,10 +355,7 @@ public sealed class NameResolver
                 break;
 
             case SayStatementSyntax sayStatement:
-                if (documentContext.StrictReferenceKinds)
-                {
-                    yield return new Reference(ReferenceKind.Actor, sayStatement.Speaker, documentContext.Document.ProjectRelativePath, sayStatement.SpeakerLocation.Line, sayStatement.SpeakerLocation.Column, scopeId);
-                }
+                yield return new Reference(ReferenceKind.Variable, sayStatement.Speaker, documentContext.Document.ProjectRelativePath, sayStatement.SpeakerLocation.Line, sayStatement.SpeakerLocation.Column, scopeId);
 
                 break;
 
@@ -519,9 +523,14 @@ public sealed class NameResolver
                 continue;
             }
 
+            if (index > 0 && tokens[index - 1].Kind == TokenKind.Dot)
+            {
+                continue;
+            }
+
             if (index == 0 && ActorFirstArgumentCallables.Contains(commandName))
             {
-                yield return new Reference(ReferenceKind.Actor, token.Lexeme, documentContext.Document.ProjectRelativePath, token.Line, token.Column, scopeId);
+                yield return new Reference(ReferenceKind.Variable, token.Lexeme, documentContext.Document.ProjectRelativePath, token.Line, token.Column, scopeId);
                 continue;
             }
 
@@ -539,6 +548,11 @@ public sealed class NameResolver
         {
             var token = tokens[index];
             if (token.Kind != TokenKind.Identifier)
+            {
+                continue;
+            }
+
+            if (index > 0 && tokens[index - 1].Kind == TokenKind.Dot)
             {
                 continue;
             }

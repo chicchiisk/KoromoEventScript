@@ -51,6 +51,12 @@ public sealed class HeadlessVmCallableDispatcher
             "str_len" => GetStringLength(arguments, observation),
             "range" => CreateRange(arguments, objectStore, observation),
             "assert" => InvokeAssert(arguments, observation),
+            "standby" => InvokeStandby(arguments, objectStore, observation),
+            "show" => InvokeShow(arguments, objectStore, observation),
+            "hide" => InvokeHide(arguments, objectStore, observation),
+            "face" => InvokeFace(arguments, objectStore, observation),
+            "move" => InvokeMove(arguments, objectStore, observation),
+            "action_jump" => Continue(observation),
             _ when !returnsValue => Continue(observation),
             _ => Fault(observation, $"Callable '{name}' is not yet supported in headless mode."),
         };
@@ -105,6 +111,30 @@ public sealed class HeadlessVmCallableDispatcher
         }
 
         return Continue(observation);
+    }
+
+    public HeadlessVmCallableResult InvokeActorPropertyGet(
+        string actorReferenceId,
+        string propertyName,
+        HeadlessVmObjectStore objectStore,
+        HeadlessVmObservationLog observation)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(actorReferenceId);
+        ArgumentException.ThrowIfNullOrEmpty(propertyName);
+        ArgumentNullException.ThrowIfNull(objectStore);
+        ArgumentNullException.ThrowIfNull(observation);
+
+        if (!objectStore.TryGetActorField(actorReferenceId, propertyName, out var value, out var exists, out var error))
+        {
+            return Fault(observation, error ?? $"Actor property '{propertyName}' lookup failed.");
+        }
+
+        if (!exists)
+        {
+            return Fault(observation, $"Dynamic property '{propertyName}' could not be resolved for actor instance '{actorReferenceId}'.");
+        }
+
+        return new HeadlessVmCallableResult(observation, ReturnValue: value, HasReturnValue: true);
     }
 
     private static HeadlessVmCallableResult Continue(HeadlessVmObservationLog observation)
@@ -236,6 +266,100 @@ public sealed class HeadlessVmCallableDispatcher
         return Fault(observation, message);
     }
 
+    private static HeadlessVmCallableResult InvokeStandby(
+        IReadOnlyList<HeadlessVmRuntimeValue> arguments,
+        HeadlessVmObjectStore objectStore,
+        HeadlessVmObservationLog observation)
+    {
+        if (!TryGetActorReference(arguments, "standby", observation, out var actorReferenceId, out var fault))
+        {
+            return fault!;
+        }
+
+        objectStore.EnsureActorReference(actorReferenceId!);
+        return Continue(observation);
+    }
+
+    private static HeadlessVmCallableResult InvokeShow(
+        IReadOnlyList<HeadlessVmRuntimeValue> arguments,
+        HeadlessVmObjectStore objectStore,
+        HeadlessVmObservationLog observation)
+    {
+        if (!TryGetActorReference(arguments, "show", observation, out var actorReferenceId, out var fault))
+        {
+            return fault!;
+        }
+
+        objectStore.EnsureActorReference(actorReferenceId!);
+        objectStore.TrySetField(actorReferenceId!, "isVisible", new HeadlessVmRuntimeValue(HeadlessVmRuntimeValueKind.Bool, BoolValue: true), out _);
+        if (arguments.Count >= 2 && arguments[1].Kind == HeadlessVmRuntimeValueKind.Number)
+        {
+            objectStore.TrySetField(actorReferenceId!, "position", arguments[1], out _);
+        }
+
+        if (arguments.Count >= 3 && arguments[2].Kind == HeadlessVmRuntimeValueKind.String)
+        {
+            objectStore.TrySetField(actorReferenceId!, "face", arguments[2], out _);
+        }
+
+        return Continue(observation);
+    }
+
+    private static HeadlessVmCallableResult InvokeHide(
+        IReadOnlyList<HeadlessVmRuntimeValue> arguments,
+        HeadlessVmObjectStore objectStore,
+        HeadlessVmObservationLog observation)
+    {
+        if (!TryGetActorReference(arguments, "hide", observation, out var actorReferenceId, out var fault))
+        {
+            return fault!;
+        }
+
+        objectStore.EnsureActorReference(actorReferenceId!);
+        objectStore.TrySetField(actorReferenceId!, "isVisible", new HeadlessVmRuntimeValue(HeadlessVmRuntimeValueKind.Bool, BoolValue: false), out _);
+        return Continue(observation);
+    }
+
+    private static HeadlessVmCallableResult InvokeFace(
+        IReadOnlyList<HeadlessVmRuntimeValue> arguments,
+        HeadlessVmObjectStore objectStore,
+        HeadlessVmObservationLog observation)
+    {
+        if (!TryGetActorReference(arguments, "face", observation, out var actorReferenceId, out var fault))
+        {
+            return fault!;
+        }
+
+        if (arguments.Count < 2 || arguments[1].Kind != HeadlessVmRuntimeValueKind.String)
+        {
+            return Fault(observation, "Callable 'face' requires actor and expression arguments.");
+        }
+
+        objectStore.EnsureActorReference(actorReferenceId!);
+        objectStore.TrySetField(actorReferenceId!, "face", arguments[1], out _);
+        return Continue(observation);
+    }
+
+    private static HeadlessVmCallableResult InvokeMove(
+        IReadOnlyList<HeadlessVmRuntimeValue> arguments,
+        HeadlessVmObjectStore objectStore,
+        HeadlessVmObservationLog observation)
+    {
+        if (!TryGetActorReference(arguments, "move", observation, out var actorReferenceId, out var fault))
+        {
+            return fault!;
+        }
+
+        if (arguments.Count < 2 || arguments[1].Kind != HeadlessVmRuntimeValueKind.Number)
+        {
+            return Fault(observation, "Callable 'move' requires actor and position arguments.");
+        }
+
+        objectStore.EnsureActorReference(actorReferenceId!);
+        objectStore.TrySetField(actorReferenceId!, "position", arguments[1], out _);
+        return Continue(observation);
+    }
+
     private static HeadlessVmCallableResult InvokeScenarioSay(IReadOnlyList<HeadlessVmRuntimeValue> arguments, HeadlessVmObservationLog observation)
     {
         if (arguments.Count != 2)
@@ -271,5 +395,26 @@ public sealed class HeadlessVmCallableDispatcher
             HeadlessVmRuntimeValueKind.Reference => value.ReferenceId,
             _ => value.ToString(),
         };
+    }
+
+    private static bool TryGetActorReference(
+        IReadOnlyList<HeadlessVmRuntimeValue> arguments,
+        string callableName,
+        HeadlessVmObservationLog observation,
+        out string? actorReferenceId,
+        out HeadlessVmCallableResult? fault)
+    {
+        if (arguments.Count == 0 ||
+            arguments[0].Kind != HeadlessVmRuntimeValueKind.Reference ||
+            string.IsNullOrEmpty(arguments[0].ReferenceId))
+        {
+            actorReferenceId = null;
+            fault = Fault(observation, $"Callable '{callableName}' requires an actor reference as the first argument.");
+            return false;
+        }
+
+        actorReferenceId = arguments[0].ReferenceId;
+        fault = null;
+        return true;
     }
 }

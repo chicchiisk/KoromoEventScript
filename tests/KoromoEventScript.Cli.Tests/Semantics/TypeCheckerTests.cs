@@ -11,7 +11,9 @@ public class TypeCheckerTests
     {
         const string source = """
 actor Noa:
-    cast Noa
+    var faceName: string = "normal"
+standby:
+    noa : Noa
 var name: string = 1
 var score: number = 1 + "bad"
 var mixed: number[] = [1, "two"]
@@ -42,8 +44,10 @@ show "Noa" 0
     {
         const string source = """
 actor Noa:
-    cast Noa
-var actors: Actor[] = [Noa]
+    var faceName: string = "normal"
+standby:
+    noa : Noa
+var actors: Actor[] = [noa]
 var enabled = true
 var score: number = 1 + 2
 if enabled:

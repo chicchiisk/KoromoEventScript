@@ -1,5 +1,8 @@
 actor Noa:
-    cast Noa
+    var faceName: string = "normal"
+
+standby:
+    noa : Noa
 
 var name: string = 1
 var score: number = 1 + "bad"

@@ -53,8 +53,10 @@ public class HeadlessVmSaveStateTests
         var (fixture, document) = HeadlessVmTestHelper.CreateScenarioDocument(
             """
 actor Riku:
-    cast Riku
-say Riku:
+    var faceName: string = "normal"
+standby:
+    riku : Riku
+say riku:
     こんにちは
 nar:
     つづく
@@ -80,7 +82,7 @@ intro = {
                 Assert.That(snapshot.VariableStates, Is.Empty);
                 Assert.That(snapshot.OperandStack, Is.Empty);
                 Assert.That(snapshot.CallFrames, Is.Empty);
-                Assert.That(snapshot.Objects, Is.Empty);
+                Assert.That(snapshot.Objects.Select(static snapshot => snapshot.ReferenceId), Is.EqualTo(new[] { "actor.riku" }));
             });
         }
     }
@@ -91,8 +93,10 @@ intro = {
         var (fixture, document) = HeadlessVmTestHelper.CreateScenarioDocument(
             """
 actor Riku:
-    cast Riku
-say Riku:
+    var faceName: string = "normal"
+standby:
+    riku : Riku
+say riku:
     こんにちは
 select:
     case "続ける" #continue
@@ -132,8 +136,10 @@ intro = {
         var (fixture, document) = HeadlessVmTestHelper.CreateScenarioDocument(
             """
 actor Riku:
-    cast Riku
-say Riku:
+    var faceName: string = "normal"
+standby:
+    riku : Riku
+say riku:
     こんにちは
 select:
     case "続ける" #continue

@@ -1,0 +1,81 @@
+.klibtxt 1.0
+.module "module.chapter001"
+.script "events/chapter001"
+.source "events/chapter001.kc"
+.imports.count 0
+
+.imports
+{
+  // none
+}
+
+.constants
+{
+  [0] string "chapter001"
+  [1] string "events/chapter001.kc"
+  [2] string "chapter001.kc"
+  [3] string "scenario.say"
+  [4] string "scenario.nar"
+  [5] string "#start"
+  [6] string "#sy_chapter001_0001"
+  [7] string "actor.riku"
+  [8] actorref -> [7] "actor.riku"
+  [9] string "こんにちは"
+  [10] string "続ける"
+  [11] string "終わる"
+  [12] string "#continue"
+  [13] string "#na_chapter001_0003"
+  [14] string "物語は続いていく。"
+  [15] string "#end"
+}
+
+.variables
+{
+}
+
+.instructions
+{
+  IL_0000: LABEL 5 1 // events/chapter001.kc:4:7
+  IL_0009: LABEL 6 1 // events/chapter001.kc:6:10
+  IL_0012: PUSHCONST 8 // events/chapter001.kc:6:5
+  IL_0017: PUSHCONST 9 // events/chapter001.kc:6:5
+  IL_001C: SYSCALLVOID 3 2 // events/chapter001.kc:6:5
+  IL_0025: PUSHNULL // events/chapter001.kc:1:1
+  IL_0026: SELECT 2 [cp[10] => 0, cp[11] => 37] // events/chapter001.kc:1:1
+  IL_003B: LABEL 12 1 // events/chapter001.kc:13:7
+  IL_0044: LABEL 13 1 // events/chapter001.kc:14:5
+  IL_004D: PUSHCONST 14 // events/chapter001.kc:14:5
+  IL_0052: SYSCALLVOID 4 1 // events/chapter001.kc:14:5
+  IL_005B: JUMP 0 // events/chapter001.kc:17:6
+  IL_0060: LABEL 15 1 // events/chapter001.kc:19:7
+  IL_0069: END
+}
+
+.labels
+{
+  cp[5] => 0 flags=1
+  cp[6] => 9 flags=1
+  cp[12] => 59 flags=1
+  cp[13] => 68 flags=1
+  cp[15] => 96 flags=1
+}
+
+.debug
+{
+  .source-map
+  {
+    IL_0000 -> "events/chapter001.kc":4:7
+    IL_0009 -> "events/chapter001.kc":6:10
+    IL_0012 -> "events/chapter001.kc":6:5
+    IL_0017 -> "events/chapter001.kc":6:5
+    IL_001C -> "events/chapter001.kc":6:5
+    IL_0025 -> "events/chapter001.kc":1:1
+    IL_0026 -> "events/chapter001.kc":1:1
+    IL_003B -> "events/chapter001.kc":13:7
+    IL_0044 -> "events/chapter001.kc":14:5
+    IL_004D -> "events/chapter001.kc":14:5
+    IL_0052 -> "events/chapter001.kc":14:5
+    IL_005B -> "events/chapter001.kc":17:6
+    IL_0060 -> "events/chapter001.kc":19:7
+  }
+}

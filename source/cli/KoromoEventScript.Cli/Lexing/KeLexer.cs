@@ -6,7 +6,7 @@ public sealed class KeLexer
 {
     private static readonly HashSet<string> Keywords =
     [
-        "import", "var", "fn", "class", "enum", "actor", "public", "private",
+        "import", "var", "fn", "class", "enum", "actor", "standby", "public", "private",
         "if", "else", "while", "for", "in", "break", "continue", "using",
         "as", "return", "new", "say", "nar", "select", "case", "label", "jump",
         "true", "false", "null",

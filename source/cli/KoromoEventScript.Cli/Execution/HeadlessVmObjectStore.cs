@@ -74,11 +74,19 @@ public sealed class HeadlessVmObjectStore
     {
         ArgumentException.ThrowIfNullOrEmpty(classId);
         var referenceId = $"instance:{nextInstanceId++}";
-        instances[referenceId] = new Dictionary<string, HeadlessVmRuntimeValue>(StringComparer.Ordinal)
-        {
-            ["__class"] = new HeadlessVmRuntimeValue(HeadlessVmRuntimeValueKind.String, StringValue: classId),
-        };
+        instances[referenceId] = CreateInstanceFields(classId);
         return new HeadlessVmRuntimeValue(HeadlessVmRuntimeValueKind.Reference, ReferenceId: referenceId);
+    }
+
+    public void EnsureActorReference(string referenceId)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(referenceId);
+        if (instances.ContainsKey(referenceId))
+        {
+            return;
+        }
+
+        instances[referenceId] = CreateInstanceFields("Actor");
     }
 
     public bool TryGetField(string referenceId, string fieldId, out HeadlessVmRuntimeValue value, out string? error)
@@ -93,6 +101,23 @@ public sealed class HeadlessVmObjectStore
         value = fields.TryGetValue(fieldId, out var storedValue)
             ? storedValue
             : HeadlessVmRuntimeValue.Null();
+        error = null;
+        return true;
+    }
+
+    public bool TryGetActorField(string referenceId, string fieldId, out HeadlessVmRuntimeValue value, out bool exists, out string? error)
+    {
+        EnsureActorReference(referenceId);
+        if (!instances.TryGetValue(referenceId, out var fields))
+        {
+            value = HeadlessVmRuntimeValue.Null();
+            exists = false;
+            error = $"Actor reference '{referenceId}' does not exist.";
+            return false;
+        }
+
+        exists = fields.TryGetValue(fieldId, out var storedValue);
+        value = exists ? storedValue! : HeadlessVmRuntimeValue.Null();
         error = null;
         return true;
     }
@@ -190,5 +215,14 @@ public sealed class HeadlessVmObjectStore
         return int.TryParse(referenceId[prefix.Length..], out var parsedId)
             ? parsedId + 1
             : 1;
+    }
+
+    private static Dictionary<string, HeadlessVmRuntimeValue> CreateInstanceFields(string classId)
+    {
+        return new Dictionary<string, HeadlessVmRuntimeValue>(StringComparer.Ordinal)
+        {
+            ["__class"] = new HeadlessVmRuntimeValue(HeadlessVmRuntimeValueKind.String, StringValue: classId),
+            ["isVisible"] = new HeadlessVmRuntimeValue(HeadlessVmRuntimeValueKind.Bool, BoolValue: false),
+        };
     }
 }

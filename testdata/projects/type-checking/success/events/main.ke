@@ -1,7 +1,10 @@
 actor Noa:
-    cast Noa
+    var faceName: string = "normal"
 
-var actors: Actor[] = [Noa]
+standby:
+    noa : Noa
+
+var actors: Actor[] = [noa]
 var enabled = true
 var score: number = 1 + 2
 

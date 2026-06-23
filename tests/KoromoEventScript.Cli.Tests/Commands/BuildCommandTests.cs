@@ -43,6 +43,49 @@ public class BuildCommandTests
     }
 
     [Test]
+    public void Run_BuildsFullCommandSampleProject()
+    {
+        using var fixture = TemporaryProject.Create();
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+        CopyProject(GetTestDataPath("projects", "full-command-sample"), fixture.Root);
+
+        var exitCode = new CliApplication().Run(
+            ["build", fixture.Root, "--txt-il"],
+            output,
+            error,
+            TestContext.CurrentContext.WorkDirectory);
+
+        var root = Path.Combine(fixture.Root, "build", "windows");
+        var chapter001Klib = Path.Combine(root, "events", "chapter001.klib");
+        var chapter001Text = Path.Combine(root, "events", "chapter001.klibtxt");
+        var chapter002Klib = Path.Combine(root, "events", "chapter002.klib");
+        var chapter002Text = Path.Combine(root, "events", "chapter002.klibtxt");
+        var commonKlib = Path.Combine(root, "events", "lib", "Common.klib");
+        var commonText = Path.Combine(root, "events", "lib", "Common.klibtxt");
+        var diagnosticsPath = Path.Combine(root, "diagnostics.json");
+        var manifestPath = Path.Combine(root, "manifest.json");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(exitCode, Is.EqualTo((int)CliExitCode.Success));
+            Assert.That(output.ToString(), Is.Empty);
+            Assert.That(error.ToString(), Is.Empty);
+            Assert.That(File.Exists(chapter001Klib), Is.True);
+            Assert.That(File.Exists(chapter001Text), Is.True);
+            Assert.That(File.Exists(chapter002Klib), Is.True);
+            Assert.That(File.Exists(chapter002Text), Is.True);
+            Assert.That(File.Exists(commonKlib), Is.True);
+            Assert.That(File.Exists(commonText), Is.True);
+            Assert.That(File.Exists(diagnosticsPath), Is.True);
+            Assert.That(File.Exists(manifestPath), Is.True);
+            Assert.That(File.ReadAllText(chapter001Text), Does.Contain("SELECT"));
+            Assert.That(File.ReadAllText(chapter002Text), Does.Contain("SYSCALLVOID"));
+            Assert.That(File.ReadAllText(commonText), Does.Contain("CALL"));
+        });
+    }
+
+    [Test]
     public void Run_RewritesMissingLocalizationTagsBeforeCompiling()
     {
         using var fixture = TemporaryProject.Create();
@@ -55,9 +98,12 @@ intro = {
 """);
         fixture.WriteFile("events/main.kc", """
 actor Hero:
-    cast Hero
+    var faceName: string = "normal"
 
-say Hero:
+standby:
+    hero : Hero
+
+say hero:
     hello
 nar:
     world
@@ -83,9 +129,12 @@ label #go
             Assert.That(error.ToString(), Is.Empty);
             Assert.That(File.ReadAllText(scriptPath).Replace("\r\n", "\n"), Is.EqualTo("""
 actor Hero:
-    cast Hero
+    var faceName: string = "normal"
 
-say Hero #sy_main_0001:
+standby:
+    hero : Hero
+
+say hero #sy_main_0001:
     hello
 nar #na_main_0002:
     world
@@ -111,9 +160,12 @@ intro = {
 """);
         fixture.WriteFile("events/main.kc", """
 actor Hero:
-    cast Hero
+    var faceName: string = "normal"
 
-say Hero #sy_main_0001:
+standby:
+    hero : Hero
+
+say hero #sy_main_0001:
     hello
 nar #na_main_0002:
     world
@@ -196,9 +248,12 @@ intro = {
 """);
         fixture.WriteFile("events/main.kc", """
 actor Hero:
-    cast Hero
+    var faceName: string = "normal"
 
-say Hero #sy_main_0001:
+standby:
+    hero : Hero
+
+say hero #sy_main_0001:
     hello
 """);
         fixture.WriteFile("localization.csv", """
@@ -244,9 +299,12 @@ intro = {
 """);
         fixture.WriteFile("events/main.kc", """
 actor Hero:
-    cast Hero
+    var faceName: string = "normal"
 
-say Hero #sy_main_0001:
+standby:
+    hero : Hero
+
+say hero #sy_main_0001:
     hello
 """);
         using var output = new StringWriter();

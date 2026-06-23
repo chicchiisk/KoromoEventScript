@@ -1,9 +1,12 @@
 actor Riku:
     var faceName: string = "normal"
 
+standby:
+    riku : Riku
+
 label #start
 
-say Riku #sy_chapter001_0001:
+say riku #sy_chapter001_0001:
     こんにちは
 
 select #se_chapter001_0002:

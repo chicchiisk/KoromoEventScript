@@ -21,20 +21,12 @@
   [7] string "全命令サンプル"
   [8] string "v.common.sharedstep.1"
   [9] string "sharedStep"
-  [10] string "v.common.castmembers.2"
-  [11] string "castMembers"
-  [12] string "actor.riku"
-  [13] actorref -> [12] "actor.riku"
-  [14] string "actor.amane"
-  [15] actorref -> [14] "actor.amane"
-  [16] string "actor.noa"
-  [17] actorref -> [16] "actor.noa"
-  [18] string "v.common.highlightpositions.3"
-  [19] string "highlightPositions"
-  [20] string "#common_boot"
-  [21] string "#common_ready"
-  [22] string "#na_common_0001"
-  [23] string "共通ロジックの初期化が完了した。"
+  [10] string "v.common.highlightpositions.2"
+  [11] string "highlightPositions"
+  [12] string "#common_boot"
+  [13] string "#common_ready"
+  [14] string "#na_common_0001"
+  [15] string "共通ロジックの初期化が完了した。"
 }
 
 .variables
@@ -42,7 +34,6 @@
   [0] id=cp[5] name=cp[6] type=3:string scope=2:script scopeId=0
   [1] id=cp[8] name=cp[9] type=1:number scope=2:script scopeId=1
   [2] id=cp[10] name=cp[11] type=7:array scope=2:script scopeId=2
-  [3] id=cp[18] name=cp[19] type=7:array scope=2:script scopeId=3
 }
 
 .instructions
@@ -51,31 +42,26 @@
   IL_0005: DEFVAR 0 // events/lib/Common.kc:10:5
   IL_000A: PUSHINT 1 // events/lib/Common.kc:11:26
   IL_000F: DEFVAR 1 // events/lib/Common.kc:11:5
-  IL_0014: PUSHCONST 13 // events/lib/Common.kc:12:29
-  IL_0019: PUSHCONST 15 // events/lib/Common.kc:12:35
-  IL_001E: PUSHCONST 17 // events/lib/Common.kc:12:42
-  IL_0023: ARRAYNEW 3 // events/lib/Common.kc:12:28
-  IL_0028: DEFVAR 2 // events/lib/Common.kc:12:5
-  IL_002D: PUSHINT 1 // events/lib/Common.kc:13:38
-  IL_0032: NEG // events/lib/Common.kc:13:37
-  IL_0033: PUSHINT 0 // events/lib/Common.kc:13:41
-  IL_0038: PUSHINT 1 // events/lib/Common.kc:13:44
-  IL_003D: ARRAYNEW 3 // events/lib/Common.kc:13:36
-  IL_0042: DEFVAR 3 // events/lib/Common.kc:13:5
-  IL_0047: LABEL 20 1 // events/lib/Common.kc:15:7
-  IL_0050: JUMP 0 // events/lib/Common.kc:16:6
-  IL_0055: LABEL 21 1 // events/lib/Common.kc:18:7
-  IL_005E: LABEL 22 1 // events/lib/Common.kc:19:5
-  IL_0067: PUSHCONST 23 // events/lib/Common.kc:19:5
-  IL_006C: SYSCALLVOID 4 1 // events/lib/Common.kc:19:5
-  IL_0075: END
+  IL_0014: PUSHINT 1 // events/lib/Common.kc:12:38
+  IL_0019: NEG // events/lib/Common.kc:12:37
+  IL_001A: PUSHINT 0 // events/lib/Common.kc:12:41
+  IL_001F: PUSHINT 1 // events/lib/Common.kc:12:44
+  IL_0024: ARRAYNEW 3 // events/lib/Common.kc:12:36
+  IL_0029: DEFVAR 2 // events/lib/Common.kc:12:5
+  IL_002E: LABEL 12 1 // events/lib/Common.kc:14:7
+  IL_0037: JUMP 0 // events/lib/Common.kc:15:6
+  IL_003C: LABEL 13 1 // events/lib/Common.kc:17:7
+  IL_0045: LABEL 14 1 // events/lib/Common.kc:18:5
+  IL_004E: PUSHCONST 15 // events/lib/Common.kc:18:5
+  IL_0053: SYSCALLVOID 4 1 // events/lib/Common.kc:18:5
+  IL_005C: END
 }
 
 .labels
 {
-  cp[20] => 71 flags=1
-  cp[21] => 85 flags=1
-  cp[22] => 94 flags=1
+  cp[12] => 46 flags=1
+  cp[13] => 60 flags=1
+  cp[14] => 69 flags=1
 }
 
 .debug
@@ -86,22 +72,17 @@
     IL_0005 -> "events/lib/Common.kc":10:5
     IL_000A -> "events/lib/Common.kc":11:26
     IL_000F -> "events/lib/Common.kc":11:5
-    IL_0014 -> "events/lib/Common.kc":12:29
-    IL_0019 -> "events/lib/Common.kc":12:35
-    IL_001E -> "events/lib/Common.kc":12:42
-    IL_0023 -> "events/lib/Common.kc":12:28
-    IL_0028 -> "events/lib/Common.kc":12:5
-    IL_002D -> "events/lib/Common.kc":13:38
-    IL_0032 -> "events/lib/Common.kc":13:37
-    IL_0033 -> "events/lib/Common.kc":13:41
-    IL_0038 -> "events/lib/Common.kc":13:44
-    IL_003D -> "events/lib/Common.kc":13:36
-    IL_0042 -> "events/lib/Common.kc":13:5
-    IL_0047 -> "events/lib/Common.kc":15:7
-    IL_0050 -> "events/lib/Common.kc":16:6
-    IL_0055 -> "events/lib/Common.kc":18:7
-    IL_005E -> "events/lib/Common.kc":19:5
-    IL_0067 -> "events/lib/Common.kc":19:5
-    IL_006C -> "events/lib/Common.kc":19:5
+    IL_0014 -> "events/lib/Common.kc":12:38
+    IL_0019 -> "events/lib/Common.kc":12:37
+    IL_001A -> "events/lib/Common.kc":12:41
+    IL_001F -> "events/lib/Common.kc":12:44
+    IL_0024 -> "events/lib/Common.kc":12:36
+    IL_0029 -> "events/lib/Common.kc":12:5
+    IL_002E -> "events/lib/Common.kc":14:7
+    IL_0037 -> "events/lib/Common.kc":15:6
+    IL_003C -> "events/lib/Common.kc":17:7
+    IL_0045 -> "events/lib/Common.kc":18:5
+    IL_004E -> "events/lib/Common.kc":18:5
+    IL_0053 -> "events/lib/Common.kc":18:5
   }
 }

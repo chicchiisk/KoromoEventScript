@@ -42,10 +42,12 @@ public sealed class KlibCompiler
         private readonly List<VariableSlot> variables = [];
         private readonly List<Diagnostic> diagnostics = [];
         private readonly List<DefinitionScope> scopes;
-        private readonly HashSet<string> actorNames;
+        private readonly Dictionary<string, IReadOnlyList<VarStatementSyntax>> actorFieldsByTypeName;
         private readonly Dictionary<string, int> labelInstructionIndexes = new(StringComparer.Ordinal);
         private readonly Dictionary<string, int> currentLocals = new(StringComparer.Ordinal);
         private readonly Stack<Dictionary<string, int>> localScopes = new();
+        private readonly Stack<Dictionary<string, string>> actorInstanceTypeScopes = new();
+        private readonly Dictionary<string, string> currentActorInstanceTypes = new(StringComparer.Ordinal);
         private readonly Stack<LoopLabels> loops = new();
         private readonly bool embedLocalizedText;
         private int nextScopeId;
@@ -68,11 +70,12 @@ public sealed class KlibCompiler
                 .FirstOrDefault(result => string.Equals(result.Document.ProjectRelativePath, document.ProjectRelativePath, StringComparison.Ordinal))?
                 .DefinitionTable.Scopes
                 .ToList() ?? [];
-            actorNames = semanticResult.DefinitionCollections
-                .SelectMany(static result => result.DefinitionTable.Definitions)
-                .Where(static definition => definition.Kind == DefinitionKind.Actor)
-                .Select(static definition => definition.Name)
-                .ToHashSet(StringComparer.Ordinal);
+            actorFieldsByTypeName = semanticResult.DefinitionCollections
+                .SelectMany(static result => result.Document.Syntax.Statements.OfType<ActorDeclarationSyntax>())
+                .ToDictionary(
+                    static actor => actor.Name,
+                    static actor => (IReadOnlyList<VarStatementSyntax>)actor.Body.Statements.OfType<VarStatementSyntax>().ToArray(),
+                    StringComparer.Ordinal);
         }
 
         public IReadOnlyList<Diagnostic> Diagnostics => diagnostics;
@@ -86,6 +89,7 @@ public sealed class KlibCompiler
             constantPool.GetStringIndex(ScenarioNar);
 
             localScopes.Push(currentLocals);
+            actorInstanceTypeScopes.Push(currentActorInstanceTypes);
 
             foreach (var statement in document.Syntax.Statements)
             {
@@ -174,6 +178,10 @@ public sealed class KlibCompiler
                 case ClassDeclarationSyntax:
                     return;
 
+                case StandbyStatementSyntax standby:
+                    CompileStandby(standby);
+                    return;
+
                 case VarStatementSyntax varStatement:
                     CompileVar(varStatement);
                     return;
@@ -242,6 +250,51 @@ public sealed class KlibCompiler
             }
 
             instructions.Add(new InstructionBuilder(KlibOpCode.DefVar, varStatement.NameLocation, KlibMappingKind.Statement, slot.Index));
+        }
+
+        private void CompileStandby(StandbyStatementSyntax standby)
+        {
+            foreach (var entry in standby.Entries)
+            {
+                var slot = DeclareVariable(entry.InstanceName, KlibVariableType.Actor, KlibScopeKind.Script, GetScopeId(), entry.InstanceLocation);
+                actorInstanceTypeScopes.Peek()[entry.InstanceName] = entry.ActorTypeName;
+
+                var actorId = constantPool.GetActorReferenceIndex($"actor.{NormalizeIdentifier(entry.InstanceName)}");
+                instructions.Add(new InstructionBuilder(KlibOpCode.PushConst, entry.InstanceLocation, KlibMappingKind.Expression, actorId));
+                instructions.Add(new InstructionBuilder(KlibOpCode.DefVar, entry.InstanceLocation, KlibMappingKind.Statement, slot.Index));
+
+                instructions.Add(new InstructionBuilder(KlibOpCode.LoadVar, entry.InstanceLocation, KlibMappingKind.Expression, slot.Index));
+                instructions.Add(new InstructionBuilder(
+                    KlibOpCode.CallVoid,
+                    entry.InstanceLocation,
+                    KlibMappingKind.Statement,
+                    constantPool.GetStringIndex("standby"),
+                    1));
+
+                if (!actorFieldsByTypeName.TryGetValue(entry.ActorTypeName, out var actorFields))
+                {
+                    continue;
+                }
+
+                foreach (var field in actorFields)
+                {
+                    instructions.Add(new InstructionBuilder(KlibOpCode.LoadVar, field.NameLocation, KlibMappingKind.Expression, slot.Index));
+                    if (field.ValueTokens.Count > 0)
+                    {
+                        CompileExpression(field.ValueTokens, requireValue: true);
+                    }
+                    else
+                    {
+                        instructions.Add(new InstructionBuilder(KlibOpCode.PushNull, field.NameLocation, KlibMappingKind.Expression));
+                    }
+
+                    instructions.Add(new InstructionBuilder(
+                        KlibOpCode.SetField,
+                        field.NameLocation,
+                        KlibMappingKind.Statement,
+                        constantPool.GetStringIndex(field.Name)));
+                }
+            }
         }
 
         private void CompileAssignment(AssignmentStatementSyntax assignment)
@@ -467,8 +520,8 @@ public sealed class KlibCompiler
                 return;
             }
 
-            var actorId = constantPool.GetActorReferenceIndex($"actor.{NormalizeIdentifier(actorName)}");
-            instructions.Add(new InstructionBuilder(KlibOpCode.PushConst, location, KlibMappingKind.Expression, actorId));
+            diagnostics.Add(Diagnostic("KES2017", location, $"Unknown actor instance '{actorName}' during .klib compilation."));
+            instructions.Add(new InstructionBuilder(KlibOpCode.PushNull, location, KlibMappingKind.Expression));
         }
 
         private void EmitTextValue(TextLineSyntax line, string? tag, int index, SourceLocation location)
@@ -561,14 +614,30 @@ public sealed class KlibCompiler
             return false;
         }
 
+        private bool TryResolveActorInstanceType(string name, out string actorTypeName)
+        {
+            foreach (var scope in actorInstanceTypeScopes.Reverse())
+            {
+                if (scope.TryGetValue(name, out actorTypeName!))
+                {
+                    return true;
+                }
+            }
+
+            actorTypeName = string.Empty;
+            return false;
+        }
+
         private void PushBlockScope()
         {
             localScopes.Push(new Dictionary<string, int>(StringComparer.Ordinal));
+            actorInstanceTypeScopes.Push(new Dictionary<string, string>(StringComparer.Ordinal));
         }
 
         private void PopBlockScope()
         {
             localScopes.Pop();
+            actorInstanceTypeScopes.Pop();
         }
 
         private int GetScopeId()
@@ -632,7 +701,6 @@ public sealed class KlibCompiler
                 TokenKind.StringLiteral => KlibVariableType.String,
                 TokenKind.OpenBracket => KlibVariableType.Array,
                 TokenKind.Keyword when valueTokens[0].Lexeme is "true" or "false" => KlibVariableType.Bool,
-                TokenKind.Identifier when actorNames.Contains(valueTokens[0].Lexeme) => KlibVariableType.Actor,
                 _ => KlibVariableType.Unknown,
             };
         }
@@ -656,6 +724,7 @@ public sealed class KlibCompiler
                 JumpStatementSyntax jump => jump.TagLocation,
                 CommandStatementSyntax command => command.NameLocation,
                 LessStatementSyntax less => less.NameLocation,
+                StandbyStatementSyntax standby => standby.KeywordLocation,
                 SayStatementSyntax say => say.SpeakerLocation,
                 NarStatementSyntax nar => nar.TagLocation ?? new SourceLocation(1, 1),
                 IfStatementSyntax ifStatement => ifStatement.IfLocation,
@@ -812,21 +881,45 @@ public sealed class KlibCompiler
             private void ParsePostfix()
             {
                 ParsePrimary();
-                while (Match(TokenKind.OpenBracket))
+                while (true)
                 {
-                    var token = Previous;
-                    ParseExpression();
-                    Consume(TokenKind.CloseBracket);
-                    context.instructions.Add(new InstructionBuilder(KlibOpCode.ArrayGet, ToLocation(token), KlibMappingKind.Expression));
+                    if (Match(TokenKind.Dot))
+                    {
+                        var dot = Previous;
+                        var memberToken = AdvanceIf(TokenKind.Identifier) ?? AdvanceIf(TokenKind.Keyword);
+                        if (memberToken is null)
+                        {
+                            context.diagnostics.Add(context.Diagnostic("KES2016", ToLocation(dot), "Expected a member name after '.'."));
+                            return;
+                        }
+
+                        context.instructions.Add(new InstructionBuilder(
+                            KlibOpCode.GetField,
+                            ToLocation(memberToken),
+                            KlibMappingKind.Expression,
+                            context.constantPool.GetStringIndex(memberToken.Lexeme)));
+                        continue;
+                    }
+
+                    if (Match(TokenKind.OpenBracket))
+                    {
+                        var token = Previous;
+                        ParseExpression();
+                        Consume(TokenKind.CloseBracket);
+                        context.instructions.Add(new InstructionBuilder(KlibOpCode.ArrayGet, ToLocation(token), KlibMappingKind.Expression));
+                        continue;
+                    }
+
+                    break;
                 }
             }
 
-            private void ParsePrimary()
+            private string? ParsePrimary()
             {
                 if (IsAtEnd())
                 {
                     context.instructions.Add(new InstructionBuilder(KlibOpCode.PushNull, new SourceLocation(1, 1), KlibMappingKind.Expression));
-                    return;
+                    return null;
                 }
 
                 var token = Advance();
@@ -834,7 +927,7 @@ public sealed class KlibCompiler
                 {
                     case TokenKind.NumberLiteral:
                         EmitNumber(token);
-                        return;
+                        return null;
 
                     case TokenKind.StringLiteral:
                         context.instructions.Add(new InstructionBuilder(
@@ -842,41 +935,40 @@ public sealed class KlibCompiler
                             ToLocation(token),
                             KlibMappingKind.Expression,
                             context.constantPool.GetStringConstantIndex(token.Lexeme)));
-                        return;
+                        return null;
 
                     case TokenKind.Keyword when token.Lexeme == "true":
                         context.instructions.Add(new InstructionBuilder(KlibOpCode.PushTrue, ToLocation(token), KlibMappingKind.Expression));
-                        return;
+                        return null;
 
                     case TokenKind.Keyword when token.Lexeme == "false":
                         context.instructions.Add(new InstructionBuilder(KlibOpCode.PushFalse, ToLocation(token), KlibMappingKind.Expression));
-                        return;
+                        return null;
 
                     case TokenKind.Keyword when token.Lexeme == "null":
                         context.instructions.Add(new InstructionBuilder(KlibOpCode.PushNull, ToLocation(token), KlibMappingKind.Expression));
-                        return;
+                        return null;
 
                     case TokenKind.OpenParen:
                         ParseExpression();
                         Consume(TokenKind.CloseParen);
-                        return;
+                        return null;
 
                     case TokenKind.OpenBracket:
                         ParseArrayLiteral(token);
-                        return;
+                        return null;
 
                     case TokenKind.Identifier or TokenKind.Keyword:
-                        ParseIdentifierLike(token);
-                        return;
+                        return ParseIdentifierLike(token);
 
                     default:
                         context.diagnostics.Add(context.Diagnostic("KES2016", ToLocation(token), $"Unsupported expression token '{token.Lexeme}' for .klib compilation."));
                         context.instructions.Add(new InstructionBuilder(KlibOpCode.PushNull, ToLocation(token), KlibMappingKind.Expression));
-                        return;
+                        return null;
                 }
             }
 
-            private void ParseIdentifierLike(Token token)
+            private string? ParseIdentifierLike(Token token)
             {
                 if (Match(TokenKind.OpenParen))
                 {
@@ -892,7 +984,7 @@ public sealed class KlibCompiler
                         KlibMappingKind.Expression,
                         context.constantPool.GetStringIndex(token.Lexeme),
                         arguments.Count));
-                    return;
+                    return null;
                 }
 
                 if (!IsAtEnd() && !IsBinaryOrDelimiter(Current.Kind) &&
@@ -911,23 +1003,17 @@ public sealed class KlibCompiler
                         KlibMappingKind.Expression,
                         context.constantPool.GetStringIndex(token.Lexeme),
                         arguments.Count));
-                    return;
+                    return null;
                 }
 
                 if (context.TryResolveVariable(token.Lexeme, out var variableIndex))
                 {
                     context.instructions.Add(new InstructionBuilder(KlibOpCode.LoadVar, ToLocation(token), KlibMappingKind.Expression, variableIndex));
-                    return;
-                }
-
-                if (context.actorNames.Contains(token.Lexeme))
-                {
-                    var actorIndex = context.constantPool.GetActorReferenceIndex($"actor.{NormalizeIdentifier(token.Lexeme)}");
-                    context.instructions.Add(new InstructionBuilder(KlibOpCode.PushConst, ToLocation(token), KlibMappingKind.Expression, actorIndex));
-                    return;
+                    return token.Lexeme;
                 }
 
                 context.instructions.Add(new InstructionBuilder(KlibOpCode.PushConst, ToLocation(token), KlibMappingKind.Expression, context.constantPool.GetStringConstantIndex(token.Lexeme)));
+                return null;
             }
 
             private void ParseArrayLiteral(Token token)
@@ -1030,6 +1116,16 @@ public sealed class KlibCompiler
 
                 position++;
                 return true;
+            }
+
+            private Token? AdvanceIf(TokenKind kind)
+            {
+                if (IsAtEnd() || Current.Kind != kind)
+                {
+                    return null;
+                }
+
+                return Advance();
             }
 
             private void Consume(TokenKind kind)

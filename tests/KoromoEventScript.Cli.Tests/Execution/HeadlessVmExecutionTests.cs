@@ -13,9 +13,11 @@ public class HeadlessVmExecutionTests
         var (fixture, document) = HeadlessVmTestHelper.CreateScenarioDocument(
             """
 actor Riku:
-    cast Riku
+    var faceName: string = "normal"
+standby:
+    riku : Riku
 label #start
-say Riku:
+say riku:
     こんにちは
 nar:
     つづく
@@ -47,8 +49,10 @@ intro = {
         var (fixture, document) = HeadlessVmTestHelper.CreateScenarioDocument(
             """
 actor Riku:
-    cast Riku
-say Riku:
+    var faceName: string = "normal"
+standby:
+    riku : Riku
+say riku:
     こんにちは
 select:
     case "続ける" #continue
@@ -87,8 +91,10 @@ intro = {
         var (fixture, document) = HeadlessVmTestHelper.CreateScenarioDocument(
             """
 actor Riku:
-    cast Riku
-say Riku:
+    var faceName: string = "normal"
+standby:
+    riku : Riku
+say riku:
     こんにちは
 select:
     case "続ける" #continue
@@ -160,11 +166,11 @@ intro = {
         var (fixture, document) = HeadlessVmTestHelper.CreateScenarioDocument(
             """
 actor Riku:
-    cast Riku
-var actors: Actor[] = [Riku]
+    var faceName: string = "normal"
+standby:
+    riku : Riku
+var actors: Actor[] = [riku]
 var total: number = 1
-cast:
-    Riku
 if true:
     total = total + 1
 else:
@@ -174,7 +180,7 @@ while total < 3:
 for actor in actors:
     show actor 0
 label #start
-say Riku:
+say riku:
     こんにちは
 nar:
     つづく

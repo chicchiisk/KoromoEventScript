@@ -93,9 +93,12 @@ chapter001_intro = {
 actor Riku:
     var faceName: string = "normal"
 
+standby:
+    riku : Riku
+
 label #start
 
-say Riku:
+say riku:
     こんにちは
 
 select:

@@ -60,6 +60,16 @@ public sealed record ActorDeclarationSyntax(
     SourceLocation NameLocation,
     BlockSyntax Body) : StatementSyntax;
 
+public sealed record StandbyStatementSyntax(
+    IReadOnlyList<StandbyEntrySyntax> Entries,
+    SourceLocation KeywordLocation = default) : StatementSyntax;
+
+public sealed record StandbyEntrySyntax(
+    string InstanceName,
+    string ActorTypeName,
+    SourceLocation InstanceLocation = default,
+    SourceLocation ActorTypeLocation = default);
+
 public sealed record EnumMemberSyntax(
     string Name,
     SourceLocation NameLocation = default);

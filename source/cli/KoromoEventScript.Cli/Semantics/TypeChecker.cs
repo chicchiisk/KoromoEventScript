@@ -139,7 +139,24 @@ public sealed class TypeChecker
                     break;
 
                 case ActorDeclarationSyntax actor:
-                    CheckBlock(actor.Body);
+                    foreach (var actorStatement in actor.Body.Statements)
+                    {
+                        if (actorStatement is not VarStatementSyntax)
+                        {
+                            diagnostics.Add(Diagnostic(document.Document.ProjectRelativePath, GetStatementLocation(actorStatement), "Actor declarations may only contain var statements."));
+                            continue;
+                        }
+
+                        CheckStatement(actorStatement);
+                    }
+                    break;
+
+                case StandbyStatementSyntax standby:
+                    foreach (var entry in standby.Entries)
+                    {
+                        locals.Peek()[entry.InstanceName] = KesType.Actor;
+                    }
+
                     break;
 
                 case ClassDeclarationSyntax classDeclaration:
@@ -406,6 +423,31 @@ public sealed class TypeChecker
             }
         }
 
+        private static SourceLocation GetStatementLocation(StatementSyntax statement)
+        {
+            return statement switch
+            {
+                VarStatementSyntax varStatement => varStatement.NameLocation,
+                AssignmentStatementSyntax assignment => assignment.TargetLocation,
+                FunctionDeclarationSyntax function => function.NameLocation,
+                ActorDeclarationSyntax actor => actor.NameLocation,
+                StandbyStatementSyntax standby => standby.KeywordLocation,
+                EnumDeclarationSyntax @enum => @enum.NameLocation,
+                ClassDeclarationSyntax @class => @class.NameLocation,
+                LabelStatementSyntax label => label.TagLocation,
+                JumpStatementSyntax jump => jump.TagLocation,
+                CommandStatementSyntax command => command.NameLocation,
+                LessStatementSyntax less => less.NameLocation,
+                SayStatementSyntax say => say.SpeakerLocation,
+                NarStatementSyntax nar => nar.TagLocation ?? nar.KeywordLocation,
+                SelectStatementSyntax select => select.TagLocation ?? select.KeywordLocation,
+                IfStatementSyntax ifStatement => ifStatement.IfLocation,
+                WhileStatementSyntax whileStatement => whileStatement.WhileLocation,
+                ForStatementSyntax forStatement => forStatement.ForLocation,
+                _ => new SourceLocation(1, 1),
+            };
+        }
+
         private static IReadOnlyList<CallArgument> SplitArguments(IReadOnlyList<Token> tokens)
         {
             var arguments = new List<CallArgument>();
@@ -601,21 +643,42 @@ public sealed class TypeChecker
             private KesType ParsePostfix()
             {
                 var value = ParsePrimary();
-                while (Match(TokenKind.OpenBracket))
+                while (true)
                 {
-                    var bracket = Previous;
-                    var indexType = ParseExpression();
-                    Consume(TokenKind.CloseBracket);
-                    checker.RequireAssignable(KesType.Number, indexType, Location(bracket), "Array index must be number.");
-                    if (value.Kind == KesTypeKind.Array)
+                    if (Match(TokenKind.Dot))
                     {
-                        value = value.ElementType!;
-                    }
-                    else if (value.Kind != KesTypeKind.Unknown)
-                    {
-                        checker.diagnostics.Add(Diagnostic(checker.document.Document.ProjectRelativePath, Location(bracket), $"Cannot index non-array type {value}."));
+                        var dot = Previous;
+                        var memberToken = AdvanceIf(TokenKind.Identifier) ?? AdvanceIf(TokenKind.Keyword);
+                        if (memberToken is null)
+                        {
+                            checker.diagnostics.Add(Diagnostic(checker.document.Document.ProjectRelativePath, Location(dot), "Expected a member name after '.'."));
+                            return KesType.Unknown;
+                        }
+
                         value = KesType.Unknown;
+                        continue;
                     }
+
+                    if (Match(TokenKind.OpenBracket))
+                    {
+                        var bracket = Previous;
+                        var indexType = ParseExpression();
+                        Consume(TokenKind.CloseBracket);
+                        checker.RequireAssignable(KesType.Number, indexType, Location(bracket), "Array index must be number.");
+                        if (value.Kind == KesTypeKind.Array)
+                        {
+                            value = value.ElementType!;
+                        }
+                        else if (value.Kind != KesTypeKind.Unknown)
+                        {
+                            checker.diagnostics.Add(Diagnostic(checker.document.Document.ProjectRelativePath, Location(bracket), $"Cannot index non-array type {value}."));
+                            value = KesType.Unknown;
+                        }
+
+                        continue;
+                    }
+
+                    break;
                 }
 
                 return value;
@@ -731,6 +794,16 @@ public sealed class TypeChecker
                 return true;
             }
 
+            private Token? AdvanceIf(TokenKind kind)
+            {
+                if (IsAtEnd() || Current.Kind != kind)
+                {
+                    return null;
+                }
+
+                return Advance();
+            }
+
             private void Consume(TokenKind kind)
             {
                 if (!Match(kind))
@@ -798,14 +871,18 @@ public sealed class TypeChecker
             {
                 switch (statement)
                 {
-                    case ActorDeclarationSyntax actor:
-                        variables[actor.Name] = KesType.Actor;
-                        break;
-
                     case VarStatementSyntax varStatement:
                         variables[varStatement.Name] = varStatement.TypeTokens.Count > 0
                             ? ParseType(varStatement.TypeTokens)
                             : KesType.Unknown;
+                        break;
+
+                    case StandbyStatementSyntax standby:
+                        foreach (var entry in standby.Entries)
+                        {
+                            variables[entry.InstanceName] = KesType.Actor;
+                        }
+
                         break;
 
                     case FunctionDeclarationSyntax function:

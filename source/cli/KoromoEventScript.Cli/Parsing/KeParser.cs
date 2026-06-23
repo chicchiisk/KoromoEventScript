@@ -78,6 +78,11 @@ public sealed class KeParser
             return ParseActorDeclaration();
         }
 
+        if (IsKeyword("standby"))
+        {
+            return ParseStandbyStatement();
+        }
+
         if (IsKeyword("label"))
         {
             return ParseLabelStatement();
@@ -309,6 +314,40 @@ public sealed class KeParser
         Consume(TokenKind.Colon, "KES2002", "Actor declarations must end with ':'.");
         var body = ParseStatementBlock("KES2004", "Actor declarations must have an indented body.");
         return new ActorDeclarationSyntax(nameToken.Lexeme, ToLocation(nameToken), body);
+    }
+
+    private StandbyStatementSyntax ParseStandbyStatement()
+    {
+        var standbyToken = ConsumeKeyword("standby");
+        Consume(TokenKind.Colon, "KES2002", "Standby statements must end with ':'.");
+        ExpectIndentedBlock("KES2004", "Standby statements must have an indented body.");
+
+        var entries = new List<StandbyEntrySyntax>();
+        while (!IsAtEnd() && !Check(TokenKind.Dedent))
+        {
+            if (Match(TokenKind.Newline))
+            {
+                continue;
+            }
+
+            var instanceToken = Consume(TokenKind.Identifier, "KES2001", "Standby entries require an instance name.");
+            Consume(TokenKind.Colon, "KES2001", "Standby entries require ':' between instance and actor type.");
+            var actorTypeToken = Consume(TokenKind.Identifier, "KES2001", "Standby entries require an actor type name.");
+            EnsureLineEndsNow("KES2001", "Standby entries only support '<identifier> : <actor_type>'.");
+            entries.Add(new StandbyEntrySyntax(
+                instanceToken.Lexeme,
+                actorTypeToken.Lexeme,
+                ToLocation(instanceToken),
+                ToLocation(actorTypeToken)));
+        }
+
+        Consume(TokenKind.Dedent, "KES2004", "Standby statements must end their block with a dedent.");
+        if (entries.Count == 0)
+        {
+            ThrowPrevious("KES2004", "Standby blocks must contain at least one entry.");
+        }
+
+        return new StandbyStatementSyntax(entries, ToLocation(standbyToken));
     }
 
     private string? TryConsumeAccessModifier()

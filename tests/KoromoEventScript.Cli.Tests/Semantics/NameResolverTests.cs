@@ -160,9 +160,10 @@ public class NameResolverTests
                 new CaseClauseSyntax("Go", "#choice", new SourceLocation(2, 15)),
             ],
                 KeywordLocation: new SourceLocation(1, 1)),
+            new VarStatementSyntax("speaker", [Identifier("Actor", 3, 14)], [] , new SourceLocation(3, 5)),
             new LabelStatementSyntax("#choice", new SourceLocation(3, 7)),
             new JumpStatementSyntax("#ending", new SourceLocation(4, 6)),
-            new SayStatementSyntax("Noa", "#ending", [new TextLineSyntax("end", false)], new SourceLocation(5, 9)));
+            new SayStatementSyntax("speaker", "#ending", [new TextLineSyntax("end", false)], new SourceLocation(5, 13), new SourceLocation(5, 5)));
         var graph = Graph([main], new Dictionary<string, IReadOnlyList<string>>
         {
             ["Main"] = [],
@@ -171,6 +172,7 @@ public class NameResolverTests
         var result = new NameResolver().ResolveNames(
             graph,
             Symbols(
+                Definition("speaker", "Main", 3, 5),
                 Definition("#choice", "Main", 3, 7),
                 Definition("#ending", "Main", 5, 9)));
 

@@ -198,7 +198,9 @@ intro = {
 """);
         fixture.WriteFile("events/main.ke", """
 actor Riku:
-    cast Riku
+    var faceName: string = "normal"
+standby:
+    riku : Riku
 fn setup():
     var localValue = 1
 class Counter:
@@ -404,7 +406,7 @@ say MissingSpeaker:
     こんにちは
 
 show MissingActor 0
-missing_command Riku
+missing_command
 var result = missing_call()
 """);
 

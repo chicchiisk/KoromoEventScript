@@ -9,7 +9,6 @@ actor Noa:
 
 var sharedTitle: string = "全命令サンプル"
 var sharedStep: number = 1
-var castMembers: Actor[] = [Riku, Amane, Noa]
 var highlightPositions: number[] = [-1, 0, 1]
 
 label #common_boot

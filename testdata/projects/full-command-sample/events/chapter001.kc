@@ -1,35 +1,35 @@
 import Common
 
-cast:
-    Riku
-    Amane
-    Noa
+standby:
+    riku : Riku
+    amane : Amane
+    noa : Noa
 
 var score: number = 0
 var isMorning: bool = true
 var selectedIndex: number = 0
-var localCast: Actor[] = [Riku, Amane, Noa]
+var localCast: Actor[] = [riku, amane, noa]
 var bonusValues: number[] = [1, 2, 3]
 
 score = score + sharedStep
 
 bg "bg_morning"
-show Riku 0 "normal"
+show riku 0 "normal"
 trans "crossfade"
 
-say Riku #sy_chapter001_0001:
+say riku #sy_chapter001_0001:
     {sharedTitle}の一章目を始めよう
 
 nar #na_chapter001_0002:
     章立てサンプルの朝パート。
 
 if isMorning && score < 3:
-    face Riku "smile"
-    action_jump Riku
+    face riku "smile"
+    action_jump riku
 else if score == 3:
-    face Amane "think"
+    face amane "think"
 else:
-    face Noa "normal"
+    face noa "normal"
 
 while score < 3:
     score = score + 1
@@ -42,7 +42,7 @@ select #se_chapter001_0003:
     case "教室へ戻る" #classroom
 
 label #courtyard
-say Amane #sy_chapter001_0004:
+say amane #sy_chapter001_0004:
     中庭から二章へ進もう
 jump #end
 

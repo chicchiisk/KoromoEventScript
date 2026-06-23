@@ -363,6 +363,24 @@ public sealed class HeadlessVmExecutor
                         }
 
                         var fieldId = ResolveString(document, instruction.Operands[0]);
+                        if (receiver.ReferenceId.StartsWith("actor.", StringComparison.Ordinal))
+                        {
+                            var actorResult = callableDispatcher.InvokeActorPropertyGet(receiver.ReferenceId, fieldId, runtimeState.ObjectStore, currentObservation);
+                            if (actorResult.Outcome == HeadlessVmCallableOutcomeKind.Fault)
+                            {
+                                return Fault(document, instruction.Offset, actorResult.FaultMessage ?? "GET_FIELD failed.", currentObservation);
+                            }
+
+                            currentObservation = actorResult.Observation;
+                            if (actorResult.HasReturnValue && actorResult.ReturnValue is not null)
+                            {
+                                runtimeState.PushOperand(actorResult.ReturnValue);
+                            }
+
+                            offset = GetNextOffset(document, instruction);
+                            break;
+                        }
+
                         if (!runtimeState.ObjectStore.TryGetField(receiver.ReferenceId, fieldId, out var fieldValue, out var error))
                         {
                             return Fault(document, instruction.Offset, error ?? "GET_FIELD failed.", currentObservation);

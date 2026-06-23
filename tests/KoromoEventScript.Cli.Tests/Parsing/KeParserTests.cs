@@ -13,9 +13,9 @@ import Common
 
 var hp: number = 10
 show Noa 0 face="normal"
-cast exp="eye_open":
-    Riku
-    Amane
+standby:
+    riku : Riku
+    amane : Amane
 say Riku #line_1:
     こんにちは
     @vf Riku "smile"
@@ -46,12 +46,16 @@ jump #end
             Assert.That(commandStatement.NameLocation, Is.EqualTo(new SourceLocation(4, 1)));
             Assert.That(commandStatement.Arguments.Select(static token => token.Lexeme), Is.EqualTo(["Noa", "0", "face", "=", "normal"]));
 
-            var lessStatement = (LessStatementSyntax)syntax.Statements[3];
-            Assert.That(lessStatement.Name, Is.EqualTo("cast"));
-            Assert.That(lessStatement.NameLocation, Is.EqualTo(new SourceLocation(5, 1)));
-            Assert.That(lessStatement.SharedArguments.Select(static token => token.Lexeme), Is.EqualTo(["exp", "=", "eye_open"]));
-            Assert.That(lessStatement.Items.Cast<LessCommandItemSyntax>().Select(static item => string.Join(' ', item.Arguments.Select(static token => token.Lexeme))),
-                Is.EqualTo(["Riku", "Amane"]));
+            var standbyStatement = (StandbyStatementSyntax)syntax.Statements[3];
+            Assert.That(standbyStatement.KeywordLocation, Is.EqualTo(new SourceLocation(5, 1)));
+            Assert.That(standbyStatement.Entries.Select(static entry => (entry.InstanceName, entry.ActorTypeName)),
+                Is.EqualTo(new[] { ("riku", "Riku"), ("amane", "Amane") }));
+            Assert.That(standbyStatement.Entries.Select(static entry => (entry.InstanceLocation, entry.ActorTypeLocation)),
+                Is.EqualTo(new[]
+                {
+                    (new SourceLocation(6, 5), new SourceLocation(6, 12)),
+                    (new SourceLocation(7, 5), new SourceLocation(7, 13)),
+                }));
 
             var sayStatement = (SayStatementSyntax)syntax.Statements[4];
             Assert.That(sayStatement.Speaker, Is.EqualTo("Riku"));

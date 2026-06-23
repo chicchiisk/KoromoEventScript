@@ -113,6 +113,23 @@ public sealed class DefinitionCollector
                 CollectBlock(document, actor.Body, actorBlockScope, symbols, definitions, scopes, definitionsByScope, diagnostics, legacyDefinitionsByName);
                 break;
 
+            case StandbyStatementSyntax standby:
+                foreach (var entry in standby.Entries)
+                {
+                    AddScopedDefinition(
+                        document,
+                        definitions,
+                        definitionsByScope,
+                        scopes,
+                        diagnostics,
+                        scopeId,
+                        entry.InstanceName,
+                        GetVariableKind(scopes, scopeId),
+                        entry.InstanceLocation);
+                }
+
+                break;
+
             case LabelStatementSyntax labelStatement:
                 AddLegacySymbol(document, symbols, diagnostics, legacyDefinitionsByName, labelStatement.Tag, labelStatement.TagLocation);
                 break;

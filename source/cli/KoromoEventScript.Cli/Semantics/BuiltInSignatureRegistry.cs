@@ -33,7 +33,7 @@ public sealed class BuiltInSignatureRegistry
             ["trans"] = Void("trans", Param("effect", KesType.String, isOptional: true), Param("duration", KesType.Number, isOptional: true)),
             ["camera_autofocus"] = Void("camera_autofocus", Param("enabled", KesType.Bool)),
 
-            ["cast"] = Void("cast", Param("actor", KesType.Actor)),
+            ["standby"] = Void("standby", Param("actor", KesType.Actor)),
             ["show"] = Void("show", Param("actor", KesType.Actor), Param("pos", KesType.Number, isOptional: true), Param("face", KesType.String, isOptional: true), Param("layer", KesType.Number, isOptional: true), Param("z", KesType.Number, isOptional: true), Param("bustup", KesType.Bool, isOptional: true)),
             ["hide"] = Void("hide", Param("actor", KesType.Actor)),
             ["face"] = Void("face", Param("actor", KesType.Actor), Param("exp", KesType.String)),
