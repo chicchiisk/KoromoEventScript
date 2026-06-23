@@ -203,7 +203,7 @@
   - _Requirements: 9.1, 9.2, 9.3_
   - _Boundary: Windows Runtime diagnostics_
 
-- [ ] 7.2 profile 計測と source mapping 表示を実装する
+- [x] 7.2 profile 計測と source mapping 表示を実装する
   - `--profile` で draw、VM、asset load の時間を収集する
   - source mapping がある場合は file、line、column を表示し、ない場合は script id と instruction index を fallback 表示する
   - profile log に timing と source location fallback が記録される
