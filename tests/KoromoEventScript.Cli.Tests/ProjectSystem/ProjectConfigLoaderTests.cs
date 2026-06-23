@@ -15,11 +15,15 @@ public class ProjectConfigLoaderTests
         {
             Assert.That(result.Succeeded, Is.True);
             Assert.That(result.Config!.ProjectRoot, Is.EqualTo(projectRoot));
+            Assert.That(result.Config.ProjectName, Is.EqualTo("MinimalProject"));
+            Assert.That(result.Config.ProjectVersion, Is.EqualTo("0.1.0"));
             Assert.That(result.Config.EntryPath, Is.EqualTo("events/main.kel"));
             Assert.That(result.Config.EventsPath, Is.EqualTo("events"));
             Assert.That(result.Config.BuildPath, Is.EqualTo("build"));
             Assert.That(result.Config.DistPath, Is.EqualTo("dist"));
             Assert.That(result.Config.WarningsAsErrors, Is.False);
+            Assert.That(result.Config.RuntimeWindowWidth, Is.EqualTo(1280));
+            Assert.That(result.Config.RuntimeWindowHeight, Is.EqualTo(720));
         });
     }
 

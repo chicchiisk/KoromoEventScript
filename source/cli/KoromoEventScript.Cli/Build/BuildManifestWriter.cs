@@ -26,6 +26,10 @@ public sealed class BuildManifestWriter
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             var payload = new
             {
+                schemaVersion = "1.0",
+                gameId = document.GameId,
+                title = document.Title,
+                defaultLocale = document.DefaultLocale,
                 cliVersion = document.CliVersion,
                 target = document.Target,
                 entryEventListPath = document.EntryEventListPath,
@@ -36,15 +40,42 @@ public sealed class BuildManifestWriter
                 }),
                 scripts = document.Scripts.Select(static script => new
                 {
+                    scriptId = script.ScriptId,
+                    locale = script.Locale,
+                    isEntry = script.IsEntry,
+                    startLabel = script.StartLabel,
                     sourcePath = script.SourcePath,
                     klibPath = script.KlibPath,
                     klibTextPath = script.KlibTextPath,
                 }),
+                assets = document.Assets.Select(static asset => new
+                {
+                    assetId = asset.AssetId,
+                    kind = asset.Kind,
+                    path = asset.Path,
+                    locale = asset.Locale,
+                }),
+                defaults = new
+                {
+                    width = document.Defaults.Width,
+                    height = document.Defaults.Height,
+                    fullscreen = document.Defaults.Fullscreen,
+                },
+                build = new
+                {
+                    buildId = document.Build.BuildId,
+                    cliVersion = document.Build.CliVersion,
+                    target = document.Target,
+                },
                 localizations = document.Localizations.Select(localization => new
                 {
                     locale = localization.Locale,
                     scripts = localization.Scripts.Select(static script => new
                     {
+                        scriptId = script.ScriptId,
+                        locale = script.Locale,
+                        isEntry = script.IsEntry,
+                        startLabel = script.StartLabel,
                         sourcePath = script.SourcePath,
                         klibPath = script.KlibPath,
                         klibTextPath = script.KlibTextPath,

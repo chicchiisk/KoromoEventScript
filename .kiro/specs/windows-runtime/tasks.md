@@ -218,7 +218,7 @@
   - _Boundary: Windows Runtime error handling_
 
 - [ ] 8. CLI run と publish を Windows runtime に接続する
-- [ ] 8.1 build manifest を runtime manifest へ拡張する
+- [x] 8.1 build manifest を runtime manifest へ拡張する
   - CLI build が runtime に必要な script、asset、locale、runtime defaults、build 情報を manifest に含める
   - 既存 build manifest の互換性を壊さず、Windows runtime が必要な情報を読める
   - sample project の build 出力に runtime manifest fields が現れる

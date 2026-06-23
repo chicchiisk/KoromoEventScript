@@ -1,4 +1,8 @@
 {
+  "schemaVersion": "1.0",
+  "gameId": "fullcommandsample",
+  "title": "FullCommandSample",
+  "defaultLocale": "ja-JP",
   "cliVersion": "1.0.0.0",
   "target": "windows",
   "entryEventListPath": "events/main.kel",
@@ -22,20 +26,43 @@
   ],
   "scripts": [
     {
+      "scriptId": "events/chapter001",
+      "locale": "ja-JP",
+      "isEntry": true,
+      "startLabel": "#sy_chapter001_0001",
       "sourcePath": "events/chapter001.kc",
       "klibPath": "events/chapter001.klib",
       "klibTextPath": "events/chapter001.klibtxt"
     },
     {
+      "scriptId": "events/chapter002",
+      "locale": "ja-JP",
+      "isEntry": false,
+      "startLabel": "#chapter2_start",
       "sourcePath": "events/chapter002.kc",
       "klibPath": "events/chapter002.klib",
       "klibTextPath": "events/chapter002.klibtxt"
     },
     {
+      "scriptId": "events/lib/Common",
+      "locale": "ja-JP",
+      "isEntry": false,
+      "startLabel": "#common_boot",
       "sourcePath": "events/lib/Common.kc",
       "klibPath": "events/lib/Common.klib",
       "klibTextPath": "events/lib/Common.klibtxt"
     }
   ],
+  "assets": [],
+  "defaults": {
+    "width": 1280,
+    "height": 720,
+    "fullscreen": false
+  },
+  "build": {
+    "buildId": "windows-fullcommandsample-3",
+    "cliVersion": "1.0.0.0",
+    "target": "windows"
+  },
   "localizations": []
 }

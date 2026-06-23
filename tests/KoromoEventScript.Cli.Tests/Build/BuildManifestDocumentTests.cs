@@ -43,6 +43,9 @@ public class BuildManifestDocumentTests
             Assert.That(document.EntryEventListPath, Is.EqualTo("events/main.kel"));
             Assert.That(document.Inputs.Select(static input => input.Path), Is.EqualTo(["events/main.kel", "events/chapter001.kc"]));
             Assert.That(document.Scripts.Single().KlibPath, Is.EqualTo("events/chapter001.klib"));
+            Assert.That(document.Scripts.Single().ScriptId, Is.EqualTo("events/chapter001"));
+            Assert.That(document.Defaults.Width, Is.EqualTo(1280));
+            Assert.That(document.Defaults.Height, Is.EqualTo(720));
             Assert.That(document.Localizations.Single().Locale, Is.EqualTo("en"));
             Assert.That(document.Localizations.Single().Scripts.Single().KlibPath, Is.EqualTo("events/loc/en/chapter001.klib"));
         });

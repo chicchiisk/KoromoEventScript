@@ -224,7 +224,8 @@ sy_main_0001,Hero,hello,Hello
         {
             Assert.That(exitCode, Is.EqualTo((int)CliExitCode.Success));
             Assert.That(File.Exists(Path.Combine(root, "events", "loc", "en", "main.klib")), Is.True);
-            Assert.That(manifest.RootElement.GetProperty("scripts").GetArrayLength(), Is.EqualTo(0));
+            Assert.That(manifest.RootElement.GetProperty("scripts").GetArrayLength(), Is.EqualTo(1));
+            Assert.That(manifest.RootElement.GetProperty("scripts")[0].GetProperty("locale").GetString(), Is.EqualTo("en"));
             Assert.That(manifest.RootElement.GetProperty("localizations")[0].GetProperty("locale").GetString(), Is.EqualTo("en"));
             Assert.That(diagnostics.RootElement.GetArrayLength(), Is.EqualTo(0));
         });

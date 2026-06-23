@@ -3,6 +3,7 @@ using KoromoEventScript.Cli.Commands.Build;
 using KoromoEventScript.Cli.Compilation;
 using KoromoEventScript.Cli.Diagnostics;
 using KoromoEventScript.Cli.Localization;
+using KoromoEventScript.Cli.ProjectSystem;
 using KoromoEventScript.Cli.Semantics;
 
 namespace KoromoEventScript.Cli.Build;
@@ -117,8 +118,9 @@ public sealed class BuildPipelineService
         }
 
         var artifactRecords = new List<BuildManifestScriptArtifact>();
-        foreach (var document in documents)
+        for (var index = 0; index < documents.Count; index++)
         {
+            var document = documents[index];
             var compilation = compiler.Compile(
                 config,
                 semanticResult,
@@ -150,11 +152,15 @@ public sealed class BuildPipelineService
                 Path.GetRelativePath(Path.GetDirectoryName(artifactPaths.ManifestPath)!, artifactPaths.KlibPath).Replace('\\', '/'),
                 artifactPaths.KlibTextPath is null
                     ? null
-                    : Path.GetRelativePath(Path.GetDirectoryName(artifactPaths.ManifestPath)!, artifactPaths.KlibTextPath).Replace('\\', '/')));
+                    : Path.GetRelativePath(Path.GetDirectoryName(artifactPaths.ManifestPath)!, artifactPaths.KlibTextPath).Replace('\\', '/'),
+                compilation.Document!.Module.ScriptId,
+                string.IsNullOrWhiteSpace(request.Options.Locale) ? "ja-JP" : request.Options.Locale!,
+                index == 0,
+                compilation.Document.Module.EntryLabel));
         }
 
-        var manifestDocument = BuildManifest(activePreparation.EntryPath!, request.Options, artifactRecords);
         var outputPaths = outputPlanner.Resolve(config, request.Options, documents[0].ProjectRelativePath);
+        var manifestDocument = BuildManifest(config, activePreparation.EntryPath!, request.Options, artifactRecords, outputPaths.ManifestPath);
         var diagnosticsResult = diagnosticsWriter.Write(outputPaths.DiagnosticsPath, activePreparation.Diagnostics);
         if (!diagnosticsResult.Succeeded)
         {
@@ -172,9 +178,11 @@ public sealed class BuildPipelineService
     }
 
     private static BuildManifestDocument BuildManifest(
+        ProjectConfig config,
         string entryEventListPath,
         BuildCommandOptions options,
-        IReadOnlyList<BuildManifestScriptArtifact> artifacts)
+        IReadOnlyList<BuildManifestScriptArtifact> artifacts,
+        string manifestPath)
     {
         var inputs = new List<BuildManifestInputFile>
         {
@@ -190,12 +198,80 @@ public sealed class BuildPipelineService
             ? Array.Empty<BuildManifestLocalizationArtifact>()
             : [new BuildManifestLocalizationArtifact(options.Locale!, artifacts)];
 
+        var cliVersion = typeof(BuildPipelineService).Assembly.GetName().Version?.ToString() ?? "0.0.0";
+
         return new BuildManifestDocument(
-            typeof(BuildPipelineService).Assembly.GetName().Version?.ToString() ?? "0.0.0",
+            cliVersion,
             options.Target,
+            NormalizeIdentifier(config.ProjectName),
+            config.ProjectName,
+            string.IsNullOrWhiteSpace(options.Locale) ? "ja-JP" : options.Locale!,
             entryEventListPath,
             inputs,
-            string.IsNullOrWhiteSpace(options.Locale) ? artifacts : [],
+            artifacts,
+            BuildAssetArtifacts(config, manifestPath),
+            new BuildManifestRuntimeDefaults(config.RuntimeWindowWidth, config.RuntimeWindowHeight, false),
+            new BuildManifestBuildInfo($"{options.Target}-{NormalizeIdentifier(config.ProjectName)}-{artifacts.Count}", cliVersion),
             localizations);
+    }
+
+    private static IReadOnlyList<BuildManifestAssetArtifact> BuildAssetArtifacts(ProjectConfig config, string manifestPath)
+    {
+        var assetsRoot = Path.GetFullPath(Path.Combine(config.ProjectRoot, config.AssetsPath));
+        if (!Directory.Exists(assetsRoot))
+        {
+            return [];
+        }
+
+        var manifestDirectory = Path.GetDirectoryName(manifestPath)!;
+        return Directory.EnumerateFiles(assetsRoot, "*", SearchOption.AllDirectories)
+            .Order(StringComparer.Ordinal)
+            .Select(path =>
+            {
+                var projectRelativePath = Path.GetRelativePath(config.ProjectRoot, path).Replace('\\', '/');
+                var manifestRelativePath = Path.GetRelativePath(manifestDirectory, path).Replace('\\', '/');
+                return new BuildManifestAssetArtifact(
+                    Path.ChangeExtension(projectRelativePath, null)!.Replace('/', '.'),
+                    ResolveAssetKind(projectRelativePath),
+                    manifestRelativePath,
+                    null);
+            })
+            .ToArray();
+    }
+
+    private static string ResolveAssetKind(string projectRelativePath)
+    {
+        var normalized = projectRelativePath.Replace('\\', '/');
+        if (normalized.StartsWith("assets/bg/", StringComparison.OrdinalIgnoreCase))
+        {
+            return "background";
+        }
+
+        if (normalized.StartsWith("assets/bgm/", StringComparison.OrdinalIgnoreCase))
+        {
+            return "bgm";
+        }
+
+        if (normalized.StartsWith("assets/se/", StringComparison.OrdinalIgnoreCase))
+        {
+            return "sound-effect";
+        }
+
+        if (normalized.StartsWith("assets/voice/", StringComparison.OrdinalIgnoreCase))
+        {
+            return "voice";
+        }
+
+        if (normalized.StartsWith("assets/actor/", StringComparison.OrdinalIgnoreCase))
+        {
+            return "actor";
+        }
+
+        return "asset";
+    }
+
+    private static string NormalizeIdentifier(string value)
+    {
+        return string.Concat(value.Select(static character => char.IsLetterOrDigit(character) ? char.ToLowerInvariant(character) : '-')).Trim('-');
     }
 }
