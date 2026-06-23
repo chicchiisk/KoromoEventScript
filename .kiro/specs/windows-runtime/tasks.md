@@ -281,7 +281,7 @@
   - _Boundary: WinUI UI testing_
   - _Depends: 5.4, 6.3, 7.1_
 
-- [ ] 9.5 Audio と end-to-end sample の手動検証手順を自動化寄りに整える
+- [x] 9.5 Audio と end-to-end sample の手動検証手順を自動化寄りに整える
   - sample project で BGM、SE、Voice、voice 欠落 warning、skip 時 voice stop、volume 変更を確認できる test fixture または scripted check を追加する
   - full-command sample を build、run、publish の流れで検証できる手順を CI またはローカル test artifact として残す
   - 音声と sample end-to-end の確認結果がテストログまたは検証ログに残る
