@@ -739,7 +739,7 @@ public sealed class CliApplication
         string? locale = null;
         var target = "windows";
         var configuration = "release";
-        var archive = "none";
+        var archive = "zip";
         var includeSource = false;
         var clean = false;
         var outputFormat = DiagnosticOutputFormat.Text;

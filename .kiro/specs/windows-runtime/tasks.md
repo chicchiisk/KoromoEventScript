@@ -241,7 +241,7 @@
   - _Boundary: CLI publish integration_
   - _Depends: 8.1_
 
-- [ ] 8.4 Windows 配布 zip と locale variant を検証可能にする
+- [x] 8.4 Windows 配布 zip と locale variant を検証可能にする
   - publish 成果物を zip 化し、展開後も実行ファイルから manifest と資産を読める
   - locale 別 `.klib` variant を含む成果物で選択 locale の script が使われる
   - zip 展開先から runtime package resolver が同じ manifest を解決できる

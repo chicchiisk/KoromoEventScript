@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.IO.Compression;
 using KoromoEventScript.Cli.Build;
 using KoromoEventScript.Cli.Commands.Build;
 using KoromoEventScript.Cli.Diagnostics;
@@ -45,9 +46,10 @@ public sealed class WindowsPublishCommand
             return Failure(CliExitCode.CommandLineError, "KES9001", string.Empty, $"Unsupported publish target '{options.Target}'. Expected 'windows'.");
         }
 
-        if (!string.Equals(options.Archive, "none", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(options.Archive, "none", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(options.Archive, "zip", StringComparison.OrdinalIgnoreCase))
         {
-            return Failure(CliExitCode.CommandLineError, "KES9001", string.Empty, "Only '--archive none' is supported until zip packaging is enabled.");
+            return Failure(CliExitCode.CommandLineError, "KES9001", string.Empty, $"Unsupported archive format '{options.Archive}'. Expected 'none' or 'zip'.");
         }
 
         var rootResult = projectRootResolver.Resolve(options.ProjectDirectory, currentDirectory);
@@ -79,9 +81,15 @@ public sealed class WindowsPublishCommand
         try
         {
             var packageRoot = ResolvePackageRoot(config, options);
+            var archivePath = ResolveArchivePath(config, options);
             if (options.Clean && Directory.Exists(packageRoot))
             {
                 Directory.Delete(packageRoot, recursive: true);
+            }
+
+            if (options.Clean && File.Exists(archivePath))
+            {
+                File.Delete(archivePath);
             }
 
             Directory.CreateDirectory(packageRoot);
@@ -99,7 +107,16 @@ public sealed class WindowsPublishCommand
                 CopySources(config, Path.Combine(packageRoot, "source"));
             }
 
-            return new PublishCommandResult(CliExitCode.Success, buildResult.Diagnostics, packageRoot);
+            if (string.Equals(options.Archive, "zip", StringComparison.OrdinalIgnoreCase))
+            {
+                CreateZipPackage(packageRoot, archivePath);
+            }
+
+            return new PublishCommandResult(
+                CliExitCode.Success,
+                buildResult.Diagnostics,
+                packageRoot,
+                string.Equals(options.Archive, "zip", StringComparison.OrdinalIgnoreCase) ? archivePath : null);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException or InvalidOperationException)
         {
@@ -116,6 +133,35 @@ public sealed class WindowsPublishCommand
                 : Path.Combine(config.ProjectRoot, options.OutputDirectory);
 
         return Path.Combine(outputRoot, "windows", config.ProjectName);
+    }
+
+    private static string ResolveArchivePath(ProjectConfig config, PublishCommandOptions options)
+    {
+        var outputRoot = string.IsNullOrWhiteSpace(options.OutputDirectory)
+            ? Path.Combine(config.ProjectRoot, config.DistPath)
+            : Path.IsPathRooted(options.OutputDirectory)
+                ? options.OutputDirectory
+                : Path.Combine(config.ProjectRoot, options.OutputDirectory);
+
+        return Path.Combine(outputRoot, "windows", $"{config.ProjectName}-{config.ProjectVersion}-windows.zip");
+    }
+
+    private static void CreateZipPackage(string packageRoot, string archivePath)
+    {
+        if (File.Exists(archivePath))
+        {
+            File.Delete(archivePath);
+        }
+
+        Directory.CreateDirectory(Path.GetDirectoryName(archivePath)!);
+        using var archive = ZipFile.Open(archivePath, ZipArchiveMode.Create);
+        var packageName = Path.GetFileName(packageRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        foreach (var file in Directory.EnumerateFiles(packageRoot, "*", SearchOption.AllDirectories).Order(StringComparer.Ordinal))
+        {
+            var relativePath = Path.GetRelativePath(packageRoot, file).Replace('\\', '/');
+            var entryName = $"{packageName}/{relativePath}";
+            archive.CreateEntryFromFile(file, entryName, CompressionLevel.Optimal);
+        }
     }
 
     private static void CopyRuntimeBundle(string runtimeBundlePath, string packageRoot, string executableName)
@@ -263,4 +309,5 @@ public sealed class WindowsPublishCommand
 public sealed record PublishCommandResult(
     CliExitCode ExitCode,
     IReadOnlyList<Diagnostic> Diagnostics,
-    string? PackageRoot);
+    string? PackageRoot,
+    string? ArchivePath = null);
