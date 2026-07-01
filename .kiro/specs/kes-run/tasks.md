@@ -9,7 +9,7 @@
   - _Requirements: 2.4, 4.1, 4.3, 4.4, 7.3_
   - _Boundary: RunCommandOptions, RunBuildMode, CliExitCode_
 
-- [ ] 1.2 CLI parser を `kes run [PROJECT_DIR]` の仕様へ合わせる
+- [x] 1.2 CLI parser を `kes run [PROJECT_DIR]` の仕様へ合わせる
   - `--target windows` と target 省略を受け付け、`windows` 以外は command line diagnostic にする。
   - `--build` と `--no-build` を排他として解析し、同時指定時は runtime を起動しない parse error にする。
   - `--manifest` は unsupported option として扱い、project-first 実行へ暗黙変換しない。

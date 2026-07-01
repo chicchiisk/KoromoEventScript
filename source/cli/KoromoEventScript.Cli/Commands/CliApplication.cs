@@ -590,6 +590,8 @@ public sealed class CliApplication
         string? start = null;
         int? width = null;
         int? height = null;
+        var target = "windows";
+        var build = false;
         var noBuild = false;
         var fullscreen = false;
         var debug = false;
@@ -608,8 +610,40 @@ public sealed class CliApplication
                     index = args.Count;
                     break;
 
+                case "--target":
+                    if (++index >= args.Count)
+                    {
+                        diagnostics.Add(CommandLineDiagnostic("--target requires a value."));
+                        break;
+                    }
+
+                    var targetValue = args[index];
+                    if (string.Equals(targetValue, "windows", StringComparison.OrdinalIgnoreCase))
+                    {
+                        target = "windows";
+                    }
+                    else
+                    {
+                        diagnostics.Add(CommandLineDiagnostic($"Unsupported --target value '{targetValue}'. Expected 'windows'."));
+                    }
+
+                    break;
+
+                case "--build":
+                    build = true;
+                    break;
+
                 case "--no-build":
                     noBuild = true;
+                    break;
+
+                case "--manifest":
+                    diagnostics.Add(CommandLineDiagnostic("Unsupported option '--manifest'."));
+                    if (index + 1 < args.Count && !args[index + 1].StartsWith("-", StringComparison.Ordinal))
+                    {
+                        index++;
+                    }
+
                     break;
 
                 case "--locale":
@@ -701,6 +735,11 @@ public sealed class CliApplication
             }
         }
 
+        if (build && noBuild)
+        {
+            diagnostics.Add(CommandLineDiagnostic("--build cannot be combined with --no-build."));
+        }
+
         if (diagnostics.Count > 0)
         {
             return CommandParseResult.Failure(outputFormat, diagnostics);
@@ -709,8 +748,8 @@ public sealed class CliApplication
         return CommandParseResult.RunSuccess(new RunCommandOptions(
             ProjectDirectory: positionalProject,
             OutputFormat: outputFormat,
-            Target: "windows",
-            BuildMode: noBuild ? RunBuildMode.Never : RunBuildMode.IfStale,
+            Target: target,
+            BuildMode: build ? RunBuildMode.Always : noBuild ? RunBuildMode.Never : RunBuildMode.IfStale,
             Locale: locale,
             Start: start,
             Fullscreen: fullscreen,

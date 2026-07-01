@@ -2,7 +2,9 @@ using KoromoEventScript.Cli.Commands;
 using KoromoEventScript.Cli.Commands.Init;
 using KoromoEventScript.Cli.Commands.Correct;
 using KoromoEventScript.Cli.Commands.Loc;
+using KoromoEventScript.Cli.Commands.Run;
 using KoromoEventScript.Cli.Diagnostics;
+using System.Reflection;
 
 namespace KoromoEventScript.Cli.Tests.Commands;
 
@@ -352,6 +354,120 @@ intro = {
             Assert.That(error.ToString(), Does.Contain("KES9001"));
             Assert.That(error.ToString(), Does.Contain("--out"));
         });
+    }
+
+    [TestCase(new[] { "run" }, "windows")]
+    [TestCase(new[] { "run", "--target", "windows" }, "windows")]
+    [TestCase(new[] { "run", "--target", "Windows" }, "windows")]
+    public void ParseRun_AcceptsWindowsTargetAndDefaultTarget(string[] args, string expectedTarget)
+    {
+        var result = ParseCli(args);
+
+        var options = GetRunOptions(result);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(GetDiagnostics(result), Is.Empty);
+            Assert.That(options, Is.Not.Null);
+            Assert.That(options!.Target, Is.EqualTo(expectedTarget));
+            Assert.That(options.BuildMode, Is.EqualTo(RunBuildMode.IfStale));
+        });
+    }
+
+    [Test]
+    public void ParseRun_AcceptsBuildAndNoBuildModes()
+    {
+        var buildResult = ParseCli(["run", "--build"]);
+        var noBuildResult = ParseCli(["run", "--no-build"]);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(GetRunOptions(buildResult)!.BuildMode, Is.EqualTo(RunBuildMode.Always));
+            Assert.That(GetRunOptions(noBuildResult)!.BuildMode, Is.EqualTo(RunBuildMode.Never));
+        });
+    }
+
+    [Test]
+    public void ParseRun_RejectsUnsupportedTarget()
+    {
+        var result = ParseCli(["run", "--target", "unity"]);
+
+        var diagnostics = GetDiagnostics(result);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(GetRunOptions(result), Is.Null);
+            Assert.That(diagnostics, Has.Count.EqualTo(1));
+            Assert.That(diagnostics[0].Code, Is.EqualTo("KES9001"));
+            Assert.That(diagnostics[0].Message, Does.Contain("Unsupported --target value 'unity'"));
+        });
+    }
+
+    [Test]
+    public void ParseRun_RejectsBuildAndNoBuildTogether()
+    {
+        var result = ParseCli(["run", "--build", "--no-build"]);
+
+        var diagnostics = GetDiagnostics(result);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(GetRunOptions(result), Is.Null);
+            Assert.That(diagnostics, Has.Count.EqualTo(1));
+            Assert.That(diagnostics[0].Code, Is.EqualTo("KES9001"));
+            Assert.That(diagnostics[0].Message, Does.Contain("--build"));
+            Assert.That(diagnostics[0].Message, Does.Contain("--no-build"));
+        });
+    }
+
+    [Test]
+    public void ParseRun_RejectsManifestOption()
+    {
+        var result = ParseCli(["run", "--manifest", "build/windows/manifest.json"]);
+
+        var diagnostics = GetDiagnostics(result);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(GetRunOptions(result), Is.Null);
+            Assert.That(diagnostics, Has.Count.EqualTo(1));
+            Assert.That(diagnostics[0].Code, Is.EqualTo("KES9001"));
+            Assert.That(diagnostics[0].Message, Does.Contain("--manifest"));
+        });
+    }
+
+    [Test]
+    public void ParseRun_PreservesRuntimeArgumentsAfterSeparator()
+    {
+        var result = ParseCli(["run", "ProjectA", "--debug", "--", "--target", "unity", "--build", "value"]);
+
+        var options = GetRunOptions(result);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(GetDiagnostics(result), Is.Empty);
+            Assert.That(options, Is.Not.Null);
+            Assert.That(options!.ProjectDirectory, Is.EqualTo("ProjectA"));
+            Assert.That(options.Debug, Is.True);
+            Assert.That(options.RuntimeArguments, Is.EqualTo(new[] { "--target", "unity", "--build", "value" }));
+        });
+    }
+
+    private static object ParseCli(string[] args)
+    {
+        var parse = typeof(CliApplication).GetMethod("Parse", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.That(parse, Is.Not.Null);
+        return parse!.Invoke(null, [args])!;
+    }
+
+    private static RunCommandOptions? GetRunOptions(object parseResult)
+    {
+        return (RunCommandOptions?)parseResult.GetType().GetProperty("RunOptions")!.GetValue(parseResult);
+    }
+
+    private static IReadOnlyList<Diagnostic> GetDiagnostics(object parseResult)
+    {
+        return (IReadOnlyList<Diagnostic>)parseResult.GetType().GetProperty("Diagnostics")!.GetValue(parseResult)!;
     }
 
     private sealed class RecordingInitCommand : InitCommand
