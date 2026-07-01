@@ -5,8 +5,8 @@ namespace KoromoEventScript.Cli.Commands.Run;
 public sealed record RunCommandOptions(
     string? ProjectDirectory,
     DiagnosticOutputFormat OutputFormat,
-    bool NoBuild = false,
-    string? ManifestPath = null,
+    string Target = "windows",
+    RunBuildMode BuildMode = RunBuildMode.IfStale,
     string? Locale = null,
     string? Start = null,
     bool Fullscreen = false,

@@ -89,33 +89,35 @@ public sealed class RunCommandTests
     }
 
     [Test]
-    public void Run_WithExplicitManifestSkipsProjectBuildAndPropagatesExitCode()
+    public void RunCommandOptions_UsesProjectFirstBuildModeModel()
     {
-        using var fixture = TemporaryProject.Create();
-        fixture.WriteFile("custom/manifest.json", "{}");
-        var manifestPath = Path.Combine(fixture.Root, "custom", "manifest.json");
-        using var output = new StringWriter();
-        using var error = new StringWriter();
-        var launcher = new RecordingProcessLauncher(exitCode: 5);
-        var command = new RunCommand(
-            new KoromoEventScript.Cli.Build.BuildPipelineService(),
-            new KoromoEventScript.Cli.ProjectSystem.ProjectRootResolver(),
-            new KoromoEventScript.Cli.ProjectSystem.ProjectConfigLoader(),
-            launcher,
-            () => "RuntimeStub.exe");
-
-        var result = command.Execute(new RunCommandOptions(
-            ProjectDirectory: null,
+        var runtimeArguments = new[] { "--trace-frame", "--seed", "42" };
+        var options = new RunCommandOptions(
+            ProjectDirectory: "sample-project",
             OutputFormat: DiagnosticOutputFormat.Text,
-            ManifestPath: manifestPath,
-            Debug: true),
-            fixture.Root);
+            Target: "windows",
+            BuildMode: RunBuildMode.Always,
+            RuntimeArguments: runtimeArguments);
 
         Assert.Multiple(() =>
         {
-            Assert.That(result.ExitCode, Is.EqualTo(5));
-            Assert.That(result.Diagnostics, Is.Empty);
-            Assert.That(launcher.LastRequest!.Arguments, Is.EqualTo(new[] { "--manifest", manifestPath, "--debug" }));
+            Assert.That(options.ProjectDirectory, Is.EqualTo("sample-project"));
+            Assert.That(options.Target, Is.EqualTo("windows"));
+            Assert.That(options.BuildMode, Is.EqualTo(RunBuildMode.Always));
+            Assert.That(options.RuntimeArguments, Is.EqualTo(runtimeArguments));
+        });
+    }
+
+    [Test]
+    public void CliExitCode_AssignsRuntimeLaunchErrorWithoutChangingExistingValues()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That((int)CliExitCode.Success, Is.EqualTo(0));
+            Assert.That((int)CliExitCode.CommandLineError, Is.EqualTo(2));
+            Assert.That((int)CliExitCode.FileOrDirectoryError, Is.EqualTo(6));
+            Assert.That((int)CliExitCode.RuntimeLaunchError, Is.EqualTo(7));
+            Assert.That((int)CliExitCode.WarningsAsErrors, Is.EqualTo(9));
         });
     }
 
@@ -136,4 +138,5 @@ public sealed class RunCommandTests
             return exitCode;
         }
     }
+
 }

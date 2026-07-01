@@ -586,7 +586,6 @@ public sealed class CliApplication
     private static CommandParseResult ParseRun(IReadOnlyList<string> args)
     {
         string? positionalProject = null;
-        string? manifestPath = null;
         string? locale = null;
         string? start = null;
         int? width = null;
@@ -611,16 +610,6 @@ public sealed class CliApplication
 
                 case "--no-build":
                     noBuild = true;
-                    break;
-
-                case "--manifest":
-                    if (++index >= args.Count)
-                    {
-                        diagnostics.Add(CommandLineDiagnostic("--manifest requires a value."));
-                        break;
-                    }
-
-                    manifestPath = args[index];
                     break;
 
                 case "--locale":
@@ -718,18 +707,18 @@ public sealed class CliApplication
         }
 
         return CommandParseResult.RunSuccess(new RunCommandOptions(
-            positionalProject,
-            outputFormat,
-            noBuild,
-            manifestPath,
-            locale,
-            start,
-            fullscreen,
-            width,
-            height,
-            debug,
-            profile,
-            runtimeArguments));
+            ProjectDirectory: positionalProject,
+            OutputFormat: outputFormat,
+            Target: "windows",
+            BuildMode: noBuild ? RunBuildMode.Never : RunBuildMode.IfStale,
+            Locale: locale,
+            Start: start,
+            Fullscreen: fullscreen,
+            Width: width,
+            Height: height,
+            Debug: debug,
+            Profile: profile,
+            RuntimeArguments: runtimeArguments));
     }
 
     private static CommandParseResult ParsePublish(IReadOnlyList<string> args)

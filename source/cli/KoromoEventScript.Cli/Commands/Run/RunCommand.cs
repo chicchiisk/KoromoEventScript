@@ -68,19 +68,12 @@ public sealed class RunCommand
 
     private RunManifestResolveResult ResolveManifestPath(RunCommandOptions options, string currentDirectory)
     {
-        if (!string.IsNullOrWhiteSpace(options.ManifestPath))
-        {
-            return RunManifestResolveResult.Success(Path.GetFullPath(Path.IsPathRooted(options.ManifestPath)
-                ? options.ManifestPath
-                : Path.Combine(currentDirectory, options.ManifestPath)));
-        }
-
-        if (!options.NoBuild)
+        if (options.BuildMode != RunBuildMode.Never)
         {
             var buildOptions = new BuildCommandOptions(
                 options.ProjectDirectory,
                 options.OutputFormat,
-                Target: "windows");
+                Target: options.Target);
             var buildResult = pipelineService.Run(new BuildPipelineRequest(buildOptions, currentDirectory, ValidateOnly: false));
             if (buildResult.ExitCode != CliExitCode.Success)
             {
