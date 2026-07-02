@@ -9,8 +9,10 @@ namespace KoromoEventScript.Cli.Commands.Run;
 public sealed class RunCommand
 {
     private readonly BuildPipelineService pipelineService;
-    private readonly ProjectRootResolver projectRootResolver;
-    private readonly ProjectConfigLoader projectConfigLoader;
+    private readonly RunProjectInputResolver inputResolver;
+    private readonly RunStalenessChecker stalenessChecker;
+    private readonly RunArtifactValidator artifactValidator;
+    private readonly RuntimeLaunchAdapter launchAdapter;
     private readonly IProcessLauncher processLauncher;
     private readonly Func<string> runtimeExecutablePathProvider;
 
@@ -30,11 +32,32 @@ public sealed class RunCommand
         ProjectConfigLoader projectConfigLoader,
         IProcessLauncher processLauncher,
         Func<string>? runtimeExecutablePathProvider = null)
+        : this(
+            pipelineService,
+            new RunProjectInputResolver(projectRootResolver, projectConfigLoader),
+            new RunStalenessChecker(),
+            new RunArtifactValidator(),
+            new RuntimeLaunchAdapter(),
+            processLauncher,
+            runtimeExecutablePathProvider)
     {
-        this.pipelineService = pipelineService;
-        this.projectRootResolver = projectRootResolver;
-        this.projectConfigLoader = projectConfigLoader;
-        this.processLauncher = processLauncher;
+    }
+
+    public RunCommand(
+        BuildPipelineService pipelineService,
+        RunProjectInputResolver inputResolver,
+        RunStalenessChecker stalenessChecker,
+        RunArtifactValidator artifactValidator,
+        RuntimeLaunchAdapter launchAdapter,
+        IProcessLauncher processLauncher,
+        Func<string>? runtimeExecutablePathProvider = null)
+    {
+        this.pipelineService = pipelineService ?? throw new ArgumentNullException(nameof(pipelineService));
+        this.inputResolver = inputResolver ?? throw new ArgumentNullException(nameof(inputResolver));
+        this.stalenessChecker = stalenessChecker ?? throw new ArgumentNullException(nameof(stalenessChecker));
+        this.artifactValidator = artifactValidator ?? throw new ArgumentNullException(nameof(artifactValidator));
+        this.launchAdapter = launchAdapter ?? throw new ArgumentNullException(nameof(launchAdapter));
+        this.processLauncher = processLauncher ?? throw new ArgumentNullException(nameof(processLauncher));
         this.runtimeExecutablePathProvider = runtimeExecutablePathProvider ?? (() => new RuntimeCommandResolver().Resolve());
     }
 
@@ -43,7 +66,13 @@ public sealed class RunCommand
         ArgumentNullException.ThrowIfNull(options);
         ArgumentException.ThrowIfNullOrWhiteSpace(currentDirectory);
 
-        var manifestResult = ResolveManifestPath(options, currentDirectory);
+        var inputResult = inputResolver.Resolve(options.ProjectDirectory, currentDirectory);
+        if (!inputResult.Succeeded)
+        {
+            return new RunCommandResult((int)inputResult.ExitCode, inputResult.Diagnostics);
+        }
+
+        var manifestResult = ResolveManifestPath(options, currentDirectory, inputResult.Input!);
         if (!manifestResult.Succeeded)
         {
             return new RunCommandResult((int)manifestResult.ExitCode, manifestResult.Diagnostics);
@@ -51,7 +80,7 @@ public sealed class RunCommand
 
         try
         {
-            var request = new RuntimeLaunchAdapter().Create(
+            var request = launchAdapter.Create(
                 runtimeExecutablePathProvider(),
                 manifestResult.ManifestPath!,
                 options,
@@ -68,36 +97,60 @@ public sealed class RunCommand
         }
     }
 
-    private RunManifestResolveResult ResolveManifestPath(RunCommandOptions options, string currentDirectory)
+    private RunManifestResolveResult ResolveManifestPath(
+        RunCommandOptions options,
+        string currentDirectory,
+        RunProjectInput input)
     {
-        if (options.BuildMode != RunBuildMode.Never)
+        return options.BuildMode switch
         {
-            var buildOptions = new BuildCommandOptions(
-                options.ProjectDirectory,
-                options.OutputFormat,
-                Target: options.Target);
-            var buildResult = pipelineService.Run(new BuildPipelineRequest(buildOptions, currentDirectory, ValidateOnly: false));
-            if (buildResult.ExitCode != CliExitCode.Success)
-            {
-                return RunManifestResolveResult.Failure(buildResult.ExitCode, buildResult.Diagnostics);
-            }
+            RunBuildMode.Always => BuildThenValidate(options, currentDirectory, input),
+            RunBuildMode.Never => ValidateExistingArtifacts(input.ManifestPath),
+            RunBuildMode.IfStale => ResolveIfStale(options, currentDirectory, input),
+            _ => throw new InvalidOperationException($"Unsupported run build mode: {options.BuildMode}"),
+        };
+    }
 
-            return RunManifestResolveResult.Success(buildResult.ManifestPath!);
+    private RunManifestResolveResult ResolveIfStale(
+        RunCommandOptions options,
+        string currentDirectory,
+        RunProjectInput input)
+    {
+        var stalenessResult = stalenessChecker.Check(input);
+        if (!stalenessResult.Succeeded)
+        {
+            return RunManifestResolveResult.Failure(stalenessResult.ExitCode, stalenessResult.Diagnostics);
         }
 
-        var rootResult = projectRootResolver.Resolve(options.ProjectDirectory, currentDirectory);
-        if (!rootResult.Succeeded)
+        return stalenessResult.IsStale
+            ? BuildThenValidate(options, currentDirectory, input)
+            : ValidateExistingArtifacts(input.ManifestPath);
+    }
+
+    private RunManifestResolveResult BuildThenValidate(
+        RunCommandOptions options,
+        string currentDirectory,
+        RunProjectInput input)
+    {
+        var buildOptions = new BuildCommandOptions(
+            options.ProjectDirectory,
+            options.OutputFormat,
+            Target: options.Target);
+        var buildResult = pipelineService.Run(new BuildPipelineRequest(buildOptions, currentDirectory, ValidateOnly: false));
+        if (buildResult.ExitCode != CliExitCode.Success)
         {
-            return RunManifestResolveResult.Failure(CliExitCode.FileOrDirectoryError, [rootResult.Diagnostic!]);
+            return RunManifestResolveResult.Failure(buildResult.ExitCode, buildResult.Diagnostics);
         }
 
-        var configResult = projectConfigLoader.Load(rootResult.ProjectRoot!);
-        if (!configResult.Succeeded)
-        {
-            return RunManifestResolveResult.Failure(CliExitCode.FileOrDirectoryError, [configResult.Diagnostic!]);
-        }
+        return ValidateExistingArtifacts(buildResult.ManifestPath ?? input.ManifestPath);
+    }
 
-        return RunManifestResolveResult.Success(Path.Combine(configResult.Config!.ProjectRoot, configResult.Config.BuildPath, "windows", "manifest.json"));
+    private RunManifestResolveResult ValidateExistingArtifacts(string manifestPath)
+    {
+        var validationResult = artifactValidator.Validate(manifestPath);
+        return validationResult.Succeeded
+            ? RunManifestResolveResult.Success(manifestPath)
+            : RunManifestResolveResult.Failure(validationResult.ExitCode, validationResult.Diagnostics);
     }
 
     private sealed record RunManifestResolveResult(

@@ -58,7 +58,7 @@
   - _Depends: 1.1_
 
 - [ ] 3. Integration: `RunCommand` に実行フローを統合する
-- [ ] 3.1 build 方針と成果物検証を `RunCommand` に統合する
+- [x] 3.1 build 方針と成果物検証を `RunCommand` に統合する
   - project input 解決後、`Always` では必ず Windows build、`Never` では build せず artifact validation、`IfStale` では stale のときだけ build を行う。
   - build failure は `BuildPipelineService` の diagnostics と exit code をそのまま返し、runtime を起動しない。
   - fresh 判定後または `--no-build` 時には manifest と `.klib` 検証を通過した場合だけ runtime 起動へ進む。
