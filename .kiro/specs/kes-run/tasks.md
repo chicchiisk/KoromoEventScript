@@ -19,7 +19,7 @@
   - _Boundary: CliApplication.ParseRun_
 
 - [ ] 2. Core: run 用の解決・検証コンポーネントを実装する
-- [ ] 2.1 (P) project root と entry 解決を実装する
+- [x] 2.1 (P) project root と entry 解決を実装する
   - `PROJECT_DIR` 省略時は現在ディレクトリから親方向に `kes.xml` を探索する。
   - `PROJECT_DIR` 指定時は指定ディレクトリ直下の `kes.xml` を使い、`.kc` / `.kel` / その他ファイル指定は廃止済み入力として診断する。
   - `Project.Entry` の未指定、不正 `kes.xml`、entry ファイル不在を runtime 起動前の diagnostic として返す。
