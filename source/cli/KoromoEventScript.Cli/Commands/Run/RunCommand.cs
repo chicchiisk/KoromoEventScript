@@ -2,6 +2,7 @@ using KoromoEventScript.Cli.Build;
 using KoromoEventScript.Cli.Commands.Build;
 using KoromoEventScript.Cli.Diagnostics;
 using KoromoEventScript.Cli.ProjectSystem;
+using System.ComponentModel;
 
 namespace KoromoEventScript.Cli.Commands.Run;
 
@@ -19,7 +20,7 @@ public sealed class RunCommand
             new ProjectRootResolver(),
             new ProjectConfigLoader(),
             new ProcessLauncher(),
-            DefaultRuntimeExecutablePath)
+            () => new RuntimeCommandResolver().Resolve())
     {
     }
 
@@ -34,7 +35,7 @@ public sealed class RunCommand
         this.projectRootResolver = projectRootResolver;
         this.projectConfigLoader = projectConfigLoader;
         this.processLauncher = processLauncher;
-        this.runtimeExecutablePathProvider = runtimeExecutablePathProvider ?? DefaultRuntimeExecutablePath;
+        this.runtimeExecutablePathProvider = runtimeExecutablePathProvider ?? (() => new RuntimeCommandResolver().Resolve());
     }
 
     public RunCommandResult Execute(RunCommandOptions options, string currentDirectory)
@@ -48,20 +49,21 @@ public sealed class RunCommand
             return new RunCommandResult((int)manifestResult.ExitCode, manifestResult.Diagnostics);
         }
 
-        var arguments = BuildRuntimeArguments(options, manifestResult.ManifestPath!);
         try
         {
-            var exitCode = processLauncher.Launch(new ProcessLaunchRequest(
+            var request = new RuntimeLaunchAdapter().Create(
                 runtimeExecutablePathProvider(),
-                arguments,
-                Path.GetDirectoryName(manifestResult.ManifestPath!)!));
+                manifestResult.ManifestPath!,
+                options,
+                currentDirectory);
+            var exitCode = processLauncher.Launch(request);
 
             return new RunCommandResult(exitCode, manifestResult.Diagnostics);
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException or Win32Exception)
         {
             return new RunCommandResult(
-                (int)CliExitCode.FileOrDirectoryError,
+                (int)CliExitCode.RuntimeLaunchError,
                 [new Diagnostic(DiagnosticLevel.Error, "KES9004", manifestResult.ManifestPath!, 1, 1, $"Could not launch Windows runtime: {exception.Message}")]);
         }
     }
@@ -96,54 +98,6 @@ public sealed class RunCommand
         }
 
         return RunManifestResolveResult.Success(Path.Combine(configResult.Config!.ProjectRoot, configResult.Config.BuildPath, "windows", "manifest.json"));
-    }
-
-    private static IReadOnlyList<string> BuildRuntimeArguments(RunCommandOptions options, string manifestPath)
-    {
-        var arguments = new List<string>
-        {
-            "--manifest",
-            manifestPath,
-        };
-
-        AddValue(arguments, "--locale", options.Locale);
-        AddValue(arguments, "--start", options.Start);
-        if (options.Fullscreen)
-        {
-            arguments.Add("--fullscreen");
-        }
-
-        AddValue(arguments, "--width", options.Width?.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        AddValue(arguments, "--height", options.Height?.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        if (options.Debug)
-        {
-            arguments.Add("--debug");
-        }
-
-        if (options.Profile)
-        {
-            arguments.Add("--profile");
-        }
-
-        arguments.AddRange(options.RuntimeArguments ?? []);
-        return arguments;
-    }
-
-    private static void AddValue(List<string> arguments, string name, string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return;
-        }
-
-        arguments.Add(name);
-        arguments.Add(value);
-    }
-
-    private static string DefaultRuntimeExecutablePath()
-    {
-        var candidate = Path.Combine(AppContext.BaseDirectory, "KoromoEventScript.Runtime.Windows.exe");
-        return File.Exists(candidate) ? candidate : "KoromoEventScript.Runtime.Windows.exe";
     }
 
     private sealed record RunManifestResolveResult(

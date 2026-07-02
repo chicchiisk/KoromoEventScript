@@ -47,7 +47,7 @@
   - _Boundary: RunStalenessChecker_
   - _Depends: 2.1, 2.2_
 
-- [ ] 2.4 (P) runtime 起動対象解決と起動引数構築を分離する
+- [x] 2.4 (P) runtime 起動対象解決と起動引数構築を分離する
   - 既存の Windows runtime exe / csproj 探索順を専用 resolver に移す。
   - runtime 引数は `--manifest <path>` を先頭にし、locale/start/fullscreen/width/height/debug/profile を指定時のみ追加する。
   - `--` 以降の runtime arguments を順序どおり末尾へ渡す。

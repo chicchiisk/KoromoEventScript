@@ -19,13 +19,14 @@ public sealed class RunCommandTests
         fixture.WriteFile("build/windows/manifest.json", "{}");
         using var output = new StringWriter();
         using var error = new StringWriter();
+        var runtimePath = Path.Combine(fixture.Root, "runtime", "RuntimeStub.exe");
         var launcher = new RecordingProcessLauncher(exitCode: 7);
         var runCommand = new RunCommand(
             new KoromoEventScript.Cli.Build.BuildPipelineService(),
             new KoromoEventScript.Cli.ProjectSystem.ProjectRootResolver(),
             new KoromoEventScript.Cli.ProjectSystem.ProjectConfigLoader(),
             launcher,
-            () => "RuntimeStub.exe");
+            () => runtimePath);
         var app = new CliApplication(
             new BuildCheckOnlyCommand(),
             new BuildCommand(),
@@ -66,8 +67,8 @@ public sealed class RunCommandTests
             Assert.That(output.ToString(), Is.Empty);
             Assert.That(error.ToString(), Is.Empty);
             Assert.That(launcher.LastRequest, Is.Not.Null);
-            Assert.That(launcher.LastRequest!.FileName, Is.EqualTo("RuntimeStub.exe"));
-            Assert.That(launcher.LastRequest.WorkingDirectory, Is.EqualTo(Path.GetDirectoryName(expectedManifest)));
+            Assert.That(launcher.LastRequest!.FileName, Is.EqualTo(runtimePath));
+            Assert.That(launcher.LastRequest.WorkingDirectory, Is.EqualTo(Path.GetDirectoryName(runtimePath)));
             Assert.That(launcher.LastRequest.Arguments, Is.EqualTo(new[]
             {
                 "--manifest",
@@ -85,6 +86,99 @@ public sealed class RunCommandTests
                 "--profile",
                 "--trace-frame",
             }));
+        });
+    }
+
+    [Test]
+    public void Run_WithCsprojRuntimePathLaunchesThroughDotnetRun()
+    {
+        using var fixture = TemporaryProject.Create();
+        fixture.WriteConfig(entry: "events/main.kel");
+        fixture.WriteFile("build/windows/manifest.json", "{}");
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+        var runtimeProjectPath = Path.Combine(fixture.Root, "source", "runtime", "KoromoEventScript.Runtime.Windows", "KoromoEventScript.Runtime.Windows.csproj");
+        var launcher = new RecordingProcessLauncher(exitCode: 0);
+        var runCommand = new RunCommand(
+            new KoromoEventScript.Cli.Build.BuildPipelineService(),
+            new KoromoEventScript.Cli.ProjectSystem.ProjectRootResolver(),
+            new KoromoEventScript.Cli.ProjectSystem.ProjectConfigLoader(),
+            launcher,
+            () => runtimeProjectPath);
+        var app = new CliApplication(
+            new BuildCheckOnlyCommand(),
+            new BuildCommand(),
+            new CorrectCommand(),
+            new InitCommand(),
+            new LocCommand(),
+            new WindowsPublishCommand(),
+            runCommand,
+            new DiagnosticSink());
+
+        var exitCode = app.Run(
+            [
+                "run",
+                fixture.Root,
+                "--no-build",
+                "--start",
+                "tag with space",
+                "--",
+                "",
+                "plain",
+                "with space",
+                """quote"inside""",
+                @"C:\assets\",
+            ],
+            output,
+            error,
+            TestContext.CurrentContext.WorkDirectory);
+
+        var expectedManifest = Path.Combine(fixture.Root, "build", "windows", "manifest.json");
+        Assert.Multiple(() =>
+        {
+            Assert.That(exitCode, Is.EqualTo(0));
+            Assert.That(output.ToString(), Is.Empty);
+            Assert.That(error.ToString(), Is.Empty);
+            Assert.That(launcher.LastRequest, Is.Not.Null);
+            Assert.That(launcher.LastRequest!.FileName, Is.EqualTo("dotnet"));
+            Assert.That(launcher.LastRequest.WorkingDirectory, Is.EqualTo(Path.GetDirectoryName(runtimeProjectPath)));
+            Assert.That(launcher.LastRequest.Arguments, Is.EqualTo(new[]
+            {
+                "run",
+                "--project",
+                runtimeProjectPath,
+                "--no-launch-profile",
+                "--",
+                "--args",
+                $@"""--manifest"" ""{expectedManifest}"" ""--start"" ""tag with space"" """" ""plain"" ""with space"" ""quote\""inside"" ""C:\assets\\""",
+            }));
+        });
+    }
+
+    [Test]
+    public void Execute_WhenRuntimeLaunchThrowsReturnsRuntimeLaunchErrorDiagnostic()
+    {
+        using var fixture = TemporaryProject.Create();
+        fixture.WriteConfig(entry: "events/main.kel");
+        var runCommand = new RunCommand(
+            new KoromoEventScript.Cli.Build.BuildPipelineService(),
+            new KoromoEventScript.Cli.ProjectSystem.ProjectRootResolver(),
+            new KoromoEventScript.Cli.ProjectSystem.ProjectConfigLoader(),
+            new ThrowingProcessLauncher(new System.ComponentModel.Win32Exception("simulated launch failure")),
+            () => "MissingRuntime.exe");
+        var options = new RunCommandOptions(
+            ProjectDirectory: fixture.Root,
+            OutputFormat: DiagnosticOutputFormat.Text,
+            BuildMode: RunBuildMode.Never);
+
+        var result = runCommand.Execute(options, TestContext.CurrentContext.WorkDirectory);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.ExitCode, Is.EqualTo((int)CliExitCode.RuntimeLaunchError));
+            Assert.That(result.Diagnostics.Single().Code, Is.EqualTo("KES9004"));
+            Assert.That(result.Diagnostics.Single().Message, Does.Contain("Could not launch Windows runtime"));
+            Assert.That(result.Diagnostics.Single().Message, Does.Contain("simulated launch failure"));
         });
     }
 
@@ -136,6 +230,21 @@ public sealed class RunCommandTests
         {
             LastRequest = request;
             return exitCode;
+        }
+    }
+
+    private sealed class ThrowingProcessLauncher : IProcessLauncher
+    {
+        private readonly Exception exception;
+
+        public ThrowingProcessLauncher(Exception exception)
+        {
+            this.exception = exception;
+        }
+
+        public int Launch(ProcessLaunchRequest request)
+        {
+            throw exception;
         }
     }
 
