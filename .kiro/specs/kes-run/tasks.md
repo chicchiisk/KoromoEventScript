@@ -28,7 +28,7 @@
   - _Boundary: RunProjectInputResolver, RunProjectInput_
   - _Depends: 1.1_
 
-- [ ] 2.2 (P) manifest 読み取りと成果物存在検証を実装する
+- [x] 2.2 (P) manifest 読み取りと成果物存在検証を実装する
   - build が生成した `manifest.json` を run 側で読み取り、JSON 不正や読み取り不能を diagnostic に変換する。
   - Windows target の manifest であることを確認し、manifest directory から `scripts[].klibPath` を解決する。
   - manifest 不在または `.klib` 不在のときは build を行わず runtime 起動前に停止できる結果を返す。
