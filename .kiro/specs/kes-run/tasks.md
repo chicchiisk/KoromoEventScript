@@ -37,7 +37,7 @@
   - _Boundary: BuildManifestReader, RunArtifactValidator_
   - _Depends: 1.1_
 
-- [ ] 2.3 stale 判定を実装する
+- [x] 2.3 stale 判定を実装する
   - manifest 不在または `.klib` 不足を stale として扱う。
   - `kes.xml`、entry `.kel`、`EventsPath` 配下 `.kc`、`AssetsPath`、`LocalePath` 配下ファイルを入力候補として列挙する。
   - 入力候補が manifest または `.klib` より新しい場合だけ既定 run の build が必要であると判定する。
