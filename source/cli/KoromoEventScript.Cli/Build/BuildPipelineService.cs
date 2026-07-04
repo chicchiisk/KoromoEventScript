@@ -3,6 +3,7 @@ using KoromoEventScript.Cli.Commands.Build;
 using KoromoEventScript.Cli.Compilation;
 using KoromoEventScript.Cli.Diagnostics;
 using KoromoEventScript.Cli.Localization;
+using KoromoEventScript.Cli.Parsing;
 using KoromoEventScript.Cli.ProjectSystem;
 using KoromoEventScript.Cli.Semantics;
 
@@ -161,7 +162,8 @@ public sealed class BuildPipelineService
         }
 
         var outputPaths = outputPlanner.Resolve(config, request.Options, documents[0].ProjectRelativePath);
-        var manifestDocument = BuildManifest(config, activePreparation.EntryPath!, request.Options, artifactRecords, outputPaths.ManifestPath);
+        var events = BuildEventEntries(config, activePreparation.EntryPath!, artifactRecords);
+        var manifestDocument = BuildManifest(config, activePreparation.EntryPath!, request.Options, artifactRecords, events, outputPaths.ManifestPath);
         var diagnosticsResult = diagnosticsWriter.Write(outputPaths.DiagnosticsPath, activePreparation.Diagnostics);
         if (!diagnosticsResult.Succeeded)
         {
@@ -183,6 +185,7 @@ public sealed class BuildPipelineService
         string entryEventListPath,
         BuildCommandOptions options,
         IReadOnlyList<BuildManifestScriptArtifact> artifacts,
+        IReadOnlyList<BuildManifestEventEntry> events,
         string manifestPath)
     {
         var inputs = new List<BuildManifestInputFile>
@@ -210,10 +213,22 @@ public sealed class BuildPipelineService
             entryEventListPath,
             inputs,
             artifacts,
+            events,
             BuildAssetArtifacts(config, manifestPath),
             new BuildManifestRuntimeDefaults(config.RuntimeWindowWidth, config.RuntimeWindowHeight, false),
             new BuildManifestBuildInfo($"{options.Target}-{NormalizeIdentifier(config.ProjectName)}-{artifacts.Count}", cliVersion),
             localizations);
+    }
+
+    private static IReadOnlyList<BuildManifestEventEntry> BuildEventEntries(
+        ProjectConfig config,
+        string entryEventListPath,
+        IReadOnlyList<BuildManifestScriptArtifact> artifacts)
+    {
+        var kelPath = Path.GetFullPath(Path.Combine(config.ProjectRoot, entryEventListPath));
+        var source = File.ReadAllText(kelPath);
+        var syntax = KelParser.Parse(source);
+        return new KelEventManifestBuilder().BuildEvents(syntax, artifacts);
     }
 
     private static IReadOnlyList<BuildManifestAssetArtifact> BuildAssetArtifacts(ProjectConfig config, string manifestPath)
@@ -248,14 +263,16 @@ public sealed class BuildPipelineService
             return "background";
         }
 
-        if (normalized.StartsWith("assets/bgm/", StringComparison.OrdinalIgnoreCase))
+        if (normalized.StartsWith("assets/bgm/", StringComparison.OrdinalIgnoreCase) ||
+            normalized.StartsWith("assets/audio/bgm/", StringComparison.OrdinalIgnoreCase))
         {
             return "bgm";
         }
 
-        if (normalized.StartsWith("assets/se/", StringComparison.OrdinalIgnoreCase))
+        if (normalized.StartsWith("assets/se/", StringComparison.OrdinalIgnoreCase) ||
+            normalized.StartsWith("assets/audio/se/", StringComparison.OrdinalIgnoreCase))
         {
-            return "sound-effect";
+            return "se";
         }
 
         if (normalized.StartsWith("assets/voice/", StringComparison.OrdinalIgnoreCase))

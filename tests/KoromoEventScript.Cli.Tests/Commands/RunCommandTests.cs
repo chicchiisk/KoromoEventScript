@@ -159,6 +159,64 @@ public sealed class RunCommandTests
     }
 
     [Test]
+    public void Run_WithFullCommandSampleAndNoBuildReachesRuntimeLaunchRequest()
+    {
+        using var fixture = TemporaryProject.Create();
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+        CopyProject(GetTestDataPath("projects", "full-command-sample"), fixture.Root);
+        var runtimePath = Path.Combine(fixture.Root, "runtime", "RuntimeStub.exe");
+        var launcher = new RecordingProcessLauncher(exitCode: 0);
+        var app = CreateApplication(CreateRunCommand(launcher, runtimePath));
+
+        var exitCode = app.Run(
+            ["run", fixture.Root, "--no-build"],
+            output,
+            error,
+            TestContext.CurrentContext.WorkDirectory);
+
+        var expectedManifest = Path.Combine(fixture.Root, "build", "windows", "manifest.json");
+        Assert.Multiple(() =>
+        {
+            Assert.That(exitCode, Is.EqualTo((int)CliExitCode.Success));
+            Assert.That(output.ToString(), Is.Empty);
+            Assert.That(error.ToString(), Is.Empty);
+            Assert.That(launcher.LastRequest, Is.Not.Null);
+            Assert.That(launcher.LastRequest!.Arguments.Take(2), Is.EqualTo(new[] { "--manifest", expectedManifest }));
+        });
+    }
+
+    [Test]
+    public void Run_WithFullCommandSampleAndMissingArtifactsBuildsThenReachesRuntimeLaunchRequest()
+    {
+        using var fixture = TemporaryProject.Create();
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+        CopyProject(GetTestDataPath("projects", "full-command-sample"), fixture.Root);
+        Directory.Delete(Path.Combine(fixture.Root, "build"), recursive: true);
+        var runtimePath = Path.Combine(fixture.Root, "runtime", "RuntimeStub.exe");
+        var launcher = new RecordingProcessLauncher(exitCode: 0);
+        var app = CreateApplication(CreateRunCommand(launcher, runtimePath));
+
+        var exitCode = app.Run(
+            ["run", fixture.Root],
+            output,
+            error,
+            TestContext.CurrentContext.WorkDirectory);
+
+        var expectedManifest = Path.Combine(fixture.Root, "build", "windows", "manifest.json");
+        Assert.Multiple(() =>
+        {
+            Assert.That(exitCode, Is.EqualTo((int)CliExitCode.Success));
+            Assert.That(output.ToString(), Is.Empty);
+            Assert.That(error.ToString(), Is.Empty);
+            Assert.That(File.Exists(expectedManifest), Is.True);
+            Assert.That(launcher.LastRequest, Is.Not.Null);
+            Assert.That(launcher.LastRequest!.Arguments.Take(2), Is.EqualTo(new[] { "--manifest", expectedManifest }));
+        });
+    }
+
+    [Test]
     public void Execute_WhenRuntimeLaunchThrowsReturnsRuntimeLaunchErrorDiagnostic()
     {
         using var fixture = TemporaryProject.Create();
@@ -462,5 +520,53 @@ say hero #sy_main_0001:
     {
         File.SetLastWriteTimeUtc(Path.Combine(fixture.Root, "build", "windows", "manifest.json"), timestamp.UtcDateTime);
         File.SetLastWriteTimeUtc(Path.Combine(fixture.Root, "build", "windows", "scripts", "main.klib"), timestamp.UtcDateTime);
+    }
+
+    private static RunCommand CreateRunCommand(RecordingProcessLauncher launcher, string runtimePath)
+    {
+        return new RunCommand(
+            new KoromoEventScript.Cli.Build.BuildPipelineService(),
+            new KoromoEventScript.Cli.ProjectSystem.ProjectRootResolver(),
+            new KoromoEventScript.Cli.ProjectSystem.ProjectConfigLoader(),
+            launcher,
+            () => runtimePath);
+    }
+
+    private static CliApplication CreateApplication(RunCommand runCommand)
+    {
+        return new CliApplication(
+            new BuildCheckOnlyCommand(),
+            new BuildCommand(),
+            new CorrectCommand(),
+            new InitCommand(),
+            new LocCommand(),
+            new WindowsPublishCommand(),
+            runCommand,
+            new DiagnosticSink());
+    }
+
+    private static string GetTestDataPath(params string[] segments)
+    {
+        return Path.GetFullPath(Path.Combine(GetRepositoryRoot(), "testdata", Path.Combine(segments)));
+    }
+
+    private static void CopyProject(string sourceRoot, string destinationRoot)
+    {
+        foreach (var directory in Directory.EnumerateDirectories(sourceRoot, "*", SearchOption.AllDirectories))
+        {
+            Directory.CreateDirectory(Path.Combine(destinationRoot, Path.GetRelativePath(sourceRoot, directory)));
+        }
+
+        foreach (var file in Directory.EnumerateFiles(sourceRoot, "*", SearchOption.AllDirectories))
+        {
+            var destination = Path.Combine(destinationRoot, Path.GetRelativePath(sourceRoot, file));
+            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+            File.Copy(file, destination, overwrite: true);
+        }
+    }
+
+    private static string GetRepositoryRoot()
+    {
+        return Path.GetFullPath(Path.Combine(TestContext.CurrentContext.TestDirectory, "..", "..", "..", "..", ".."));
     }
 }

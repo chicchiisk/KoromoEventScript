@@ -10,7 +10,6 @@ public sealed class DiagnosticSink
         var formatted = format switch
         {
             DiagnosticOutputFormat.Text => DiagnosticFormatter.FormatText(diagnostics),
-            DiagnosticOutputFormat.JsonLines => DiagnosticFormatter.FormatJsonLines(diagnostics),
             _ => throw new ArgumentOutOfRangeException(nameof(format), format, null),
         };
 

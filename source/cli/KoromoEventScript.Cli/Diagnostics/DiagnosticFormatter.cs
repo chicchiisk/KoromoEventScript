@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 namespace KoromoEventScript.Cli.Diagnostics;
 
 public static class DiagnosticFormatter
@@ -23,44 +21,6 @@ public static class DiagnosticFormatter
     public static string FormatText(IEnumerable<Diagnostic> diagnostics)
     {
         return string.Join(Environment.NewLine, diagnostics.Select(FormatText));
-    }
-
-    public static string FormatJsonLine(Diagnostic diagnostic)
-    {
-        if (diagnostic.RelatedLocations.Count > 0)
-        {
-            return JsonSerializer.Serialize(new
-            {
-                level = FormatLevel(diagnostic.Level),
-                code = diagnostic.Code,
-                file = diagnostic.File,
-                line = diagnostic.Line,
-                column = diagnostic.Column,
-                message = diagnostic.Message,
-                relatedLocations = diagnostic.RelatedLocations.Select(static location => new
-                {
-                    file = location.File,
-                    line = location.Line,
-                    column = location.Column,
-                    message = location.Message,
-                }),
-            });
-        }
-
-        return JsonSerializer.Serialize(new
-        {
-            level = FormatLevel(diagnostic.Level),
-            code = diagnostic.Code,
-            file = diagnostic.File,
-            line = diagnostic.Line,
-            column = diagnostic.Column,
-            message = diagnostic.Message,
-        });
-    }
-
-    public static string FormatJsonLines(IEnumerable<Diagnostic> diagnostics)
-    {
-        return string.Join(Environment.NewLine, diagnostics.Select(FormatJsonLine));
     }
 
     private static string FormatLevel(DiagnosticLevel level)

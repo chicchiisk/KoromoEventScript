@@ -1,0 +1,22 @@
+{
+  "feature_name": "kes-run",
+  "created_at": "2026-07-01T10:30:09.4026779+09:00",
+  "updated_at": "2026-07-02T00:41:26.1451236+09:00",
+  "language": "ja",
+  "phase": "tasks-generated",
+  "approvals": {
+    "requirements": {
+      "generated": true,
+      "approved": true
+    },
+    "design": {
+      "generated": true,
+      "approved": true
+    },
+    "tasks": {
+      "generated": true,
+      "approved": true
+    }
+  },
+  "ready_for_implementation": true
+}

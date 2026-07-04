@@ -37,7 +37,7 @@ kes correct [PROJECT_DIR] [options]
 kes loc [PROJECT_DIR] [options]
 kes build [PROJECT_DIR] [options]
 kes clean [PROJECT_DIR] [options]
-kes run [PATH_TO_EVENT_LIST] [options] [-- runtime-arguments]
+kes run [PROJECT_DIR] [options] [-- runtime-arguments]
 kes publish [PROJECT_DIR] [options]
 ```
 
@@ -50,7 +50,7 @@ kes publish [PROJECT_DIR] [options]
 | `loc` | プロジェクト内の `.kc` / `.kel` を解析し、ローカライズ辞書テンプレート `.csv` を生成する |
 | `build` | プロジェクト内の `.kc` / `.kel` を解析・検証し、必要な書き戻しを行ってから `.kc` を VM 向け `.klib` にコンパイルする |
 | `clean` | ビルド成果物と一時ファイルを削除する |
-| `run` | `.kel` を起点に、単体実行ランタイムでイベントを実行する |
+| `run` | `kes.xml` を起点に、単体実行ランタイムでプロジェクトを実行する |
 | `publish` | 配布用成果物を生成する |
 
 ## 共通オプション
@@ -60,13 +60,8 @@ kes publish [PROJECT_DIR] [options]
 | `-h`, `--help` | ヘルプを表示して終了する |
 | `-v`, `--version` | CLI のバージョンを表示して終了する |
 | `--verbose` | 詳細ログを出力する |
-| `--quiet` | エラー以外のログを抑制する |
-| `--no-color` | ANSI カラー出力を無効化する |
-| `--log-format <text\|json>` | ログ形式を指定する。既定値は `text` |
-| `--project <PROJECT_DIR>` | プロジェクトルートを明示する |
 
-`--verbose` と `--quiet` が同時に指定された場合はエラーとする。
-`--log-format json` の場合、1行ごとに JSON オブジェクトを出力する JSON Lines 形式とする。
+ログ形式は `text` のみをサポートする。ログ形式を切り替える CLI オプションは提供しない。
 
 ## プロジェクト構成
 
@@ -156,19 +151,6 @@ CLI は構文エラー、コンパイルエラー、実行時エラー、警告�
 
 ```txt
 events/chapter001.kc:12:5 error KES1001: 未定義の識別子 'Noaa'
-```
-
-JSON 形式の例:
-
-```json
-{
-    "level":"error",
-    "code":"KES1001",
-    "file":"events/chapter001.kc",
-    "line":12,
-    "column":5,
-    "message":"未定義の識別子 'Noaa'"
-}
 ```
 
 診断コードの分類は次の通りとする。
@@ -369,7 +351,6 @@ kes build [PROJECT_DIR] [options]
 | `--out-dir <DIR>` | ビルド成果物の出力先を指定する |
 | `--loc <LOCALE>` | ビルド対象の言語タグを指定する |
 | `--warnings-as-errors` | 警告をエラーとして扱う |
-| `--no-incremental` | インクリメンタルビルドを無効化する |
 | `--txt-il` | `.klib` と同じ論理内容を人間可読な `.klibtxt` としても出力する |
 | `--check-only` | 成果物を生成せず検証のみ行う |
 
@@ -466,13 +447,15 @@ kes clean --dist --dry-run
 
 ## `kes run`
 
-`.kel` を起点に、単体実行ランタイムでイベントを実行する。
+`kes.xml` を起点に、単体実行ランタイムでプロジェクトを実行する。
 
 ```txt
-kes run [PATH_TO_EVENT_LIST] [options] [-- runtime-arguments]
+kes run [PROJECT_DIR] [options] [-- runtime-arguments]
 ```
 
-`PATH_TO_EVENT_LIST` を省略した場合は、`kes.xml` の `Project.Entry` を使用する。
+`PROJECT_DIR` を省略した場合は、現在のディレクトリまたは親ディレクトリから `kes.xml` を探索してプロジェクトルートを解決する。
+`kes run` は `.kc` ファイル単体や `.kel` ファイルを直接指定する実行をサポートしない。
+実行対象のイベントマスタは常に `kes.xml` の `Project.Entry` で指定する。
 
 ### オプション
 
@@ -490,12 +473,13 @@ kes run [PATH_TO_EVENT_LIST] [options] [-- runtime-arguments]
 
 ### 挙動
 
-1. `.kel` を解決する。
-2. `--build` が指定されている場合、実行前にビルドを行う。
-3. `--no-build` が指定されていない場合、ビルド成果物が存在しない、または入力ファイルより古ければ自動的にビルドする。
-4. 単体実行ランタイムを起動し、`manifest.json`、`.klib` ファイル、実行オプションを渡す。
-5. ランタイム内の VM が `.klib` ファイルを読み取り、イベントを実行する。
-6. ランタイムの終了コードを CLI の終了コードへ反映する。
+1. プロジェクトルートを解決し、`kes.xml` を読み込む。
+2. `kes.xml` の `Project.Entry` から実行対象の `.kel` を解決する。
+3. `--build` が指定されている場合、実行前にビルドを行う。
+4. `--no-build` が指定されていない場合、ビルド成果物が存在しない、または入力ファイルより古ければ自動的にビルドする。
+5. 単体実行ランタイムを起動し、`manifest.json`、`.klib` ファイル、実行オプションを渡す。
+6. ランタイム内の VM が `.klib` ファイルを読み取り、イベントを実行する。
+7. ランタイムの終了コードを CLI の終了コードへ反映する。
 
 `kes run` が `--build` または自動ビルドで生成する `.klib` は `kes build` と同じ成果物契約に従う。
 `.klib` の読み取り時に VM が検証する instruction schema と manifest 参照契約は [`.klib` 中間表現仕様](k-intermediate-representation-spec.md)を参照する。
@@ -506,8 +490,8 @@ kes run [PATH_TO_EVENT_LIST] [options] [-- runtime-arguments]
 
 ```txt
 kes run
-kes run events/main.kel --debug
-kes run events/main.kel --start "#se_sample_0002" -- --profile
+kes run . --debug
+kes run testdata/projects/full-command-sample --start "#se_sample_0002" -- --profile
 ```
 
 ## `kes publish`
@@ -608,13 +592,12 @@ kes publish --out-dir releases --archive zip
 | `loc` | `kes.xml`, `.kel` | `.kc`, 既存ローカライズ辞書 |
 | `build` | `kes.xml`, `.kel` | `.kc`, 素材, ローカライズ辞書 |
 | `clean` | `kes.xml` | なし |
-| `run` | `.kel` | `.klib`, `manifest.json`, 素材 |
+| `run` | `kes.xml` | `.kel`, `.kc`, `.klib`, `manifest.json`, 素材 |
 | `publish` | `kes.xml`, `.kel` | `.kc`, `.klib`, `windows` 向け素材・ランタイム |
 
 ## パス解決
 
 - 相対パスは、原則としてプロジェクトルートから解決する。
-- `--project` が指定された場合、プロジェクトルート探索より優先する。
 - `kes.xml` が必要なコマンドでプロジェクトルートを解決できない場合はエラーとする。
 
 ## バージョン表示
@@ -628,8 +611,6 @@ kes --version
 ```txt
 kes 0.1.0
 ```
-
-`--log-format json` が指定された場合でも、`--version` の出力はテキスト形式とする。
 
 ## ヘルプ表示
 

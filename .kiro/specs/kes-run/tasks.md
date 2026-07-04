@@ -57,7 +57,7 @@
   - _Boundary: RuntimeCommandResolver, RuntimeLaunchAdapter_
   - _Depends: 1.1_
 
-- [ ] 3. Integration: `RunCommand` に実行フローを統合する
+- [x] 3. Integration: `RunCommand` に実行フローを統合する
 - [x] 3.1 build 方針と成果物検証を `RunCommand` に統合する
   - project input 解決後、`Always` では必ず Windows build、`Never` では build せず artifact validation、`IfStale` では stale のときだけ build を行う。
   - build failure は `BuildPipelineService` の diagnostics と exit code をそのまま返し、runtime を起動しない。
@@ -67,7 +67,7 @@
   - _Boundary: RunCommand_
   - _Depends: 2.1, 2.2, 2.3, 2.4_
 
-- [ ] 3.2 runtime 起動結果と起動失敗の終了コードを統合する
+- [x] 3.2 runtime 起動結果と起動失敗の終了コードを統合する
   - process が起動した後は正常・非ゼロを問わず runtime の終了コードを CLI の終了コードとして返す。
   - process start failure、runtime executable 起動不能、csproj 起動不能は runtime 起動エラー diagnostic と終了コード `7` に変換する。
   - project / build / artifact の起動前 error はそれぞれの処理段階の終了コードを維持する。
@@ -76,8 +76,8 @@
   - _Boundary: RunCommand, ProcessLauncher_
   - _Depends: 3.1_
 
-- [ ] 4. Validation: CLI 仕様差分を自動テストで固定する
-- [ ] 4.1 parser と廃止済み入力の CLI テストを追加・更新する
+- [x] 4. Validation: CLI 仕様差分を自動テストで固定する
+- [x] 4.1 parser と廃止済み入力の CLI テストを追加・更新する
   - `--target windows`、unknown target、`--build` / `--no-build` 同時指定、`--manifest` unsupported を検証する。
   - `.kc`、`.kel`、その他ファイル指定が project root として扱われず診断されることを検証する。
   - `--` 以降の runtime arguments が CLI parse で保持されることを検証する。
@@ -86,7 +86,7 @@
   - _Boundary: CliApplicationTests_
   - _Depends: 1.2, 2.1_
 
-- [ ] 4.2 run 用 core component の unit test を追加する
+- [x] 4.2 run 用 core component の unit test を追加する
   - project root 探索、明示 project root、`kes.xml` 不在、不正 `kes.xml`、entry 不在を検証する。
   - manifest 読み取り、manifest 不在、target mismatch、`.klib` 不足、writer 出力 manifest の round-trip を検証する。
   - fresh / stale / file error の stale 判定を検証する。
@@ -95,7 +95,7 @@
   - _Boundary: Commands.Run unit tests_
   - _Depends: 2.1, 2.2, 2.3_
 
-- [ ] 4.3 runtime adapter と process 起動境界の unit test を追加する
+- [x] 4.3 runtime adapter と process 起動境界の unit test を追加する
   - locale/start/fullscreen/width/height/debug/profile が指定時だけ runtime args に現れることを検証する。
   - runtime arguments passthrough の順序保持を検証する。
   - exe 起動と csproj 起動の request、空白・引用符・backslash を含む serialized args を検証する。
@@ -104,7 +104,7 @@
   - _Boundary: RuntimeLaunchAdapterTests, RuntimeCommandResolverTests_
   - _Depends: 2.4_
 
-- [ ] 4.4 `RunCommand` の integration test を project-first 仕様へ更新する
+- [x] 4.4 `RunCommand` の integration test を project-first 仕様へ更新する
   - `--build` が build 後に runtime を起動すること、`--no-build` が build せず既存成果物を検証することを確認する。
   - 既定 fresh では build しないこと、既定 stale では build することを確認する。
   - build failure、artifact failure、runtime launch failure、runtime 非ゼロ終了の終了コードを確認する。
@@ -113,7 +113,7 @@
   - _Boundary: RunCommandTests_
   - _Depends: 3.1, 3.2_
 
-- [ ] 4.5 full-command-sample の smoke 経路を確認する
+- [x] 4.5 full-command-sample の smoke 経路を確認する
   - `testdata/projects/full-command-sample` を project root として、既存成果物ありの `--no-build` 経路が runtime launch request へ到達することを確認する。
   - build 成果物がない既定実行で build 後 runtime launch request へ到達することを確認する。
   - 完了時には sample project を使った `kes run` の代表経路が自動テストで回帰検出できる。

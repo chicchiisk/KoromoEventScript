@@ -1,4 +1,3 @@
-using System.Text.Json;
 using System.Diagnostics;
 using KoromoEventScript.Cli.Commands;
 using KoromoEventScript.Cli.Commands.Build;
@@ -41,7 +40,7 @@ public class BuildCheckOnlyCommandTests
     }
 
     [Test]
-    public void Run_OutputsJsonLinesDiagnosticsWhenRequested()
+    public void Run_OutputsTextDiagnostics()
     {
         using var fixture = TemporaryProject.Create();
         fixture.WriteConfig(entry: "events/main.kel");
@@ -49,14 +48,14 @@ public class BuildCheckOnlyCommandTests
         using var output = new StringWriter();
         using var error = new StringWriter();
 
-        var exitCode = new CliApplication().Run(["build", fixture.Root, "--check-only", "--log-format", "json"], output, error, TestContext.CurrentContext.WorkDirectory);
+        var exitCode = new CliApplication().Run(["build", fixture.Root, "--check-only"], output, error, TestContext.CurrentContext.WorkDirectory);
 
-        using var document = JsonDocument.Parse(error.ToString());
         Assert.Multiple(() =>
         {
             Assert.That(exitCode, Is.EqualTo((int)CliExitCode.SyntaxError));
-            Assert.That(document.RootElement.GetProperty("code").GetString(), Does.StartWith("KES1"));
-            Assert.That(document.RootElement.GetProperty("file").GetString(), Is.EqualTo("events/main.kel"));
+            Assert.That(output.ToString(), Is.Empty);
+            Assert.That(error.ToString(), Does.Contain("events/main.kel"));
+            Assert.That(error.ToString(), Does.Contain("error KES1"));
         });
     }
 
@@ -122,29 +121,27 @@ jump #start
     }
 
     [Test]
-    public void Run_OutputsImportAndNameDiagnosticsAsOrderedJsonLines()
+    public void Run_OutputsImportAndNameDiagnosticsAsOrderedText()
     {
         using var output = new StringWriter();
         using var error = new StringWriter();
         var projectRoot = GetTestDataPath("projects", "import-resolution", "name-resolution-failure");
 
         var exitCode = new CliApplication().Run(
-            ["build", projectRoot, "--check-only", "--log-format", "json"],
+            ["build", projectRoot, "--check-only"],
             output,
             error,
             TestContext.CurrentContext.WorkDirectory);
 
         var lines = error.ToString().Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
-        using var first = JsonDocument.Parse(lines[0]);
-        using var second = JsonDocument.Parse(lines[1]);
 
         Assert.Multiple(() =>
         {
             Assert.That(exitCode, Is.EqualTo((int)CliExitCode.CompileError));
             Assert.That(output.ToString(), Is.Empty);
             Assert.That(lines, Has.Length.EqualTo(2));
-            AssertJsonDiagnostic(first.RootElement, "KES2010", "events/main.ke", 7, 17);
-            AssertJsonDiagnostic(second.RootElement, "KES2012", "events/main.ke", 7, 28);
+            Assert.That(lines[0], Does.Contain("events/main.ke:7:17 error KES2010"));
+            Assert.That(lines[1], Does.Contain("events/main.ke:7:28 error KES2012"));
         });
     }
 
@@ -298,7 +295,7 @@ intro = {
     }
 
     [Test]
-    public void Run_OutputsWarningDiagnosticsAsJsonLines()
+    public void Run_OutputsWarningDiagnosticsAsText()
     {
         using var fixture = TemporaryProject.Create();
         fixture.WriteConfig(entry: "events/main.kel");
@@ -313,17 +310,16 @@ intro = {
         using var error = new StringWriter();
 
         var exitCode = new CliApplication().Run(
-            ["build", fixture.Root, "--check-only", "--log-format", "json"],
+            ["build", fixture.Root, "--check-only"],
             output,
             error,
             TestContext.CurrentContext.WorkDirectory);
 
-        using var document = JsonDocument.Parse(error.ToString());
         Assert.Multiple(() =>
         {
             Assert.That(exitCode, Is.EqualTo((int)CliExitCode.Success));
             Assert.That(output.ToString(), Is.Empty);
-            AssertJsonDiagnostic(document.RootElement, "warning", "KES4001", "events/main.ke", 1, 1);
+            Assert.That(error.ToString(), Does.Contain("events/main.ke:1:1 warning KES4001"));
         });
     }
 
@@ -486,7 +482,7 @@ var score: number = "bad"
     }
 
     [Test]
-    public void Run_OutputsTypeDiagnosticsAsJsonLines()
+    public void Run_OutputsTypeDiagnosticsAsText()
     {
         using var fixture = TemporaryProject.Create();
         fixture.WriteConfig(entry: "events/main.kel");
@@ -503,17 +499,16 @@ var score: number = "bad"
         using var error = new StringWriter();
 
         var exitCode = new CliApplication().Run(
-            ["build", fixture.Root, "--check-only", "--log-format", "json"],
+            ["build", fixture.Root, "--check-only"],
             output,
             error,
             TestContext.CurrentContext.WorkDirectory);
 
-        using var document = JsonDocument.Parse(error.ToString());
         Assert.Multiple(() =>
         {
             Assert.That(exitCode, Is.EqualTo((int)CliExitCode.CompileError));
             Assert.That(output.ToString(), Is.Empty);
-            AssertJsonDiagnostic(document.RootElement, "KES2015", "events/main.ke", 1, 5);
+            Assert.That(error.ToString(), Does.Contain("events/main.ke:1:5 error KES2015"));
         });
     }
 
@@ -583,7 +578,7 @@ nar #start:
     }
 
     [Test]
-    public void Run_OutputsDefinitionDiagnosticsAsJsonLines()
+    public void Run_OutputsDefinitionDiagnosticsAsText()
     {
         using var fixture = TemporaryProject.Create();
         fixture.WriteConfig(entry: "events/main.kel");
@@ -603,23 +598,19 @@ class Counter:
         using var error = new StringWriter();
 
         var exitCode = new CliApplication().Run(
-            ["build", fixture.Root, "--check-only", "--log-format", "json"],
+            ["build", fixture.Root, "--check-only"],
             output,
             error,
             TestContext.CurrentContext.WorkDirectory);
 
         var lines = error.ToString().Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
-        using var document = JsonDocument.Parse(lines.Single());
 
         Assert.Multiple(() =>
         {
             Assert.That(exitCode, Is.EqualTo((int)CliExitCode.CompileError));
             Assert.That(output.ToString(), Is.Empty);
-            AssertJsonDiagnostic(document.RootElement, "KES2009", "events/main.ke", 3, 8);
-            var relatedLocation = document.RootElement.GetProperty("relatedLocations")[0];
-            Assert.That(relatedLocation.GetProperty("file").GetString(), Is.EqualTo("events/main.ke"));
-            Assert.That(relatedLocation.GetProperty("line").GetInt32(), Is.EqualTo(2));
-            Assert.That(relatedLocation.GetProperty("column").GetInt32(), Is.EqualTo(9));
+            Assert.That(lines.Single(), Does.Contain("events/main.ke:3:8 error KES2009"));
+            Assert.That(lines.Single(), Does.Contain("events/main.ke:2:9"));
         });
     }
 
@@ -668,6 +659,33 @@ var score = 1
         {
             Assert.That(result.ExitCode, Is.EqualTo((int)CliExitCode.Success));
             Assert.That(result.StandardOutput, Is.Empty);
+            Assert.That(result.StandardError, Is.Empty);
+        });
+    }
+
+    [Test]
+    public void ProcessInvocation_PrintsVersion()
+    {
+        var result = RunCliProcess("--version");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.ExitCode, Is.EqualTo((int)CliExitCode.Success));
+            Assert.That(result.StandardOutput, Is.EqualTo($"kes 0.1.0{Environment.NewLine}"));
+            Assert.That(result.StandardError, Is.Empty);
+        });
+    }
+
+    [Test]
+    public void ProcessInvocation_PrintsHelp()
+    {
+        var result = RunCliProcess("--help");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.ExitCode, Is.EqualTo((int)CliExitCode.Success));
+            Assert.That(result.StandardOutput, Does.Contain("Usage:"));
+            Assert.That(result.StandardOutput, Does.Contain("Commands:"));
             Assert.That(result.StandardError, Is.Empty);
         });
     }
@@ -726,24 +744,6 @@ intro = {
     }
 
     private sealed record ProcessResult(int ExitCode, string StandardOutput, string StandardError);
-
-    private static void AssertJsonDiagnostic(JsonElement root, string code, string file, int line, int column)
-    {
-        AssertJsonDiagnostic(root, "error", code, file, line, column);
-    }
-
-    private static void AssertJsonDiagnostic(JsonElement root, string level, string code, string file, int line, int column)
-    {
-        Assert.Multiple(() =>
-        {
-            Assert.That(root.GetProperty("level").GetString(), Is.EqualTo(level));
-            Assert.That(root.GetProperty("code").GetString(), Is.EqualTo(code));
-            Assert.That(root.GetProperty("file").GetString(), Is.EqualTo(file));
-            Assert.That(root.GetProperty("line").GetInt32(), Is.EqualTo(line));
-            Assert.That(root.GetProperty("column").GetInt32(), Is.EqualTo(column));
-            Assert.That(root.GetProperty("message").GetString(), Is.Not.Empty);
-        });
-    }
 
     private static string GetTestDataPath(params string[] segments)
     {

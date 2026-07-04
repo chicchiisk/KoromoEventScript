@@ -10,6 +10,81 @@ namespace KoromoEventScript.Cli.Tests.Commands;
 
 public class CliApplicationTests
 {
+    [TestCase("--version")]
+    [TestCase("-v")]
+    public void Run_PrintsVersion(string versionOption)
+    {
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+
+        var exitCode = new CliApplication().Run([versionOption], output, error, TestContext.CurrentContext.WorkDirectory);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(exitCode, Is.EqualTo((int)CliExitCode.Success));
+            Assert.That(output.ToString(), Is.EqualTo($"kes 0.1.0{Environment.NewLine}"));
+            Assert.That(error.ToString(), Is.Empty);
+        });
+    }
+
+    [TestCase("--help")]
+    [TestCase("-h")]
+    public void Run_PrintsTopLevelHelp(string helpOption)
+    {
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+
+        var exitCode = new CliApplication().Run([helpOption], output, error, TestContext.CurrentContext.WorkDirectory);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(exitCode, Is.EqualTo((int)CliExitCode.Success));
+            Assert.That(output.ToString(), Does.Contain("Usage:"));
+            Assert.That(output.ToString(), Does.Contain("kes <COMMAND> [-h|--help]"));
+            Assert.That(output.ToString(), Does.Contain("Commands:"));
+            Assert.That(error.ToString(), Is.Empty);
+        });
+    }
+
+    [TestCase("build", "kes build [PROJECT_DIR] [options]")]
+    [TestCase("clean", "kes clean [PROJECT_DIR] [options]")]
+    [TestCase("correct", "kes correct [PROJECT_DIR] [options]")]
+    [TestCase("init", "kes init [PROJECT_DIR] [options]")]
+    [TestCase("loc", "kes loc [PROJECT_DIR] [options]")]
+    [TestCase("publish", "kes publish [PROJECT_DIR] [options]")]
+    [TestCase("run", "kes run [PROJECT_DIR] [options]")]
+    public void Run_PrintsCommandHelpBeforeExecutingCommand(string command, string expectedUsage)
+    {
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+
+        var exitCode = new CliApplication().Run([command, "--help", "--unsupported"], output, error, TestContext.CurrentContext.WorkDirectory);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(exitCode, Is.EqualTo((int)CliExitCode.Success));
+            Assert.That(output.ToString(), Does.Contain(expectedUsage));
+            Assert.That(output.ToString(), Does.Contain("Options:"));
+            Assert.That(output.ToString(), Does.Contain("Examples:"));
+            Assert.That(error.ToString(), Is.Empty);
+        });
+    }
+
+    [Test]
+    public void Run_DoesNotTreatHelpAfterRunSeparatorAsCliHelp()
+    {
+        var result = ParseCli(["run", "--", "--help"]);
+
+        var options = GetRunOptions(result);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(GetDiagnostics(result), Is.Empty);
+            Assert.That(options, Is.Not.Null);
+            Assert.That(options!.RuntimeArguments, Is.EqualTo(new[] { "--help" }));
+        });
+    }
+
     [Test]
     public void Run_RejectsUnsupportedCommandBeforeFileAccess()
     {
@@ -27,17 +102,19 @@ public class CliApplicationTests
     }
 
     [Test]
-    public void Run_RejectsInvalidLogFormat()
+    public void Run_RejectsLogFormatOption()
     {
         using var output = new StringWriter();
         using var error = new StringWriter();
 
-        var exitCode = new CliApplication().Run(["build", "--check-only", "--log-format", "yaml"], output, error, TestContext.CurrentContext.WorkDirectory);
+        var exitCode = new CliApplication().Run(["build", "--check-only", "--log-format", "json"], output, error, TestContext.CurrentContext.WorkDirectory);
 
         Assert.Multiple(() =>
         {
             Assert.That(exitCode, Is.EqualTo((int)CliExitCode.CommandLineError));
+            Assert.That(output.ToString(), Is.Empty);
             Assert.That(error.ToString(), Does.Contain("KES9001"));
+            Assert.That(error.ToString(), Does.Contain("Unsupported option '--log-format'"));
         });
     }
 
@@ -100,7 +177,7 @@ intro = {
     }
 
     [Test]
-    public void Run_AcceptsBuildOutDirAndNoIncrementalOptions()
+    public void Run_AcceptsVerboseAsCommonCommandOption()
     {
         using var fixture = TemporaryProject.Create();
         fixture.WriteConfig(entry: "events/main.kel");
@@ -115,7 +192,7 @@ intro = {
         using var error = new StringWriter();
 
         var exitCode = new CliApplication().Run(
-            ["build", fixture.Root, "--check-only", "--out-dir", "custom-build", "--no-incremental"],
+            ["build", fixture.Root, "--check-only", "--verbose"],
             output,
             error,
             TestContext.CurrentContext.WorkDirectory);
@@ -126,6 +203,57 @@ intro = {
             Assert.That(output.ToString(), Is.Empty);
             Assert.That(error.ToString(), Does.Contain("warning KES4001"));
             Assert.That(error.ToString(), Does.Not.Contain("KES9001"));
+        });
+    }
+
+    [Test]
+    public void Run_AcceptsBuildOutDirOption()
+    {
+        using var fixture = TemporaryProject.Create();
+        fixture.WriteConfig(entry: "events/main.kel");
+        fixture.WriteFile("events/main.kel", """
+entry = intro
+intro = {
+    chapter = "events/main.ke"
+}
+""");
+        fixture.WriteFile("events/main.ke", string.Empty);
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+
+        var exitCode = new CliApplication().Run(
+            ["build", fixture.Root, "--check-only", "--out-dir", "custom-build"],
+            output,
+            error,
+            TestContext.CurrentContext.WorkDirectory);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(exitCode, Is.EqualTo((int)CliExitCode.Success));
+            Assert.That(output.ToString(), Is.Empty);
+            Assert.That(error.ToString(), Does.Contain("warning KES4001"));
+            Assert.That(error.ToString(), Does.Not.Contain("KES9001"));
+        });
+    }
+
+    [Test]
+    public void Run_RejectsBuildNoIncrementalOption()
+    {
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+
+        var exitCode = new CliApplication().Run(
+            ["build", "--no-incremental"],
+            output,
+            error,
+            TestContext.CurrentContext.WorkDirectory);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(exitCode, Is.EqualTo((int)CliExitCode.CommandLineError));
+            Assert.That(output.ToString(), Is.Empty);
+            Assert.That(error.ToString(), Does.Contain("KES9001"));
+            Assert.That(error.ToString(), Does.Contain("Unsupported option '--no-incremental'"));
         });
     }
 
@@ -294,7 +422,7 @@ intro = {
     }
 
     [Test]
-    public void Run_OutputsJsonDiagnosticWhenInitFailsWithJsonLogFormat()
+    public void Run_RejectsLogFormatOptionBeforeInitFileAccess()
     {
         using var fixture = TemporaryProject.Create();
         File.WriteAllText(Path.Combine(fixture.Root, "TakenPath"), "not a directory");
@@ -309,9 +437,10 @@ intro = {
 
         Assert.Multiple(() =>
         {
-            Assert.That(exitCode, Is.EqualTo((int)CliExitCode.FileOrDirectoryError));
+            Assert.That(exitCode, Is.EqualTo((int)CliExitCode.CommandLineError));
             Assert.That(output.ToString(), Is.Empty);
-            Assert.That(error.ToString(), Does.Contain("\"code\":\"KES9002\""));
+            Assert.That(error.ToString(), Does.Contain("Unsupported option '--log-format'"));
+            Assert.That(error.ToString(), Does.Not.Contain("KES9002"));
         });
     }
 

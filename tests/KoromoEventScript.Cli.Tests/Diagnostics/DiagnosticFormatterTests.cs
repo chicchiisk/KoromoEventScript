@@ -1,4 +1,3 @@
-using System.Text.Json;
 using KoromoEventScript.Cli.Diagnostics;
 
 namespace KoromoEventScript.Cli.Tests.Diagnostics;
@@ -22,33 +21,7 @@ public class DiagnosticFormatterTests
     }
 
     [Test]
-    public void FormatJsonLine_UsesJsonLinesFields()
-    {
-        var diagnostic = new Diagnostic(
-            DiagnosticLevel.Error,
-            "KES1001",
-            "events/chapter001.ke",
-            12,
-            5,
-            "未定義の識別子 'Noaa'");
-
-        var json = DiagnosticFormatter.FormatJsonLine(diagnostic);
-        using var document = JsonDocument.Parse(json);
-        var root = document.RootElement;
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(root.GetProperty("level").GetString(), Is.EqualTo("error"));
-            Assert.That(root.GetProperty("code").GetString(), Is.EqualTo("KES1001"));
-            Assert.That(root.GetProperty("file").GetString(), Is.EqualTo("events/chapter001.ke"));
-            Assert.That(root.GetProperty("line").GetInt32(), Is.EqualTo(12));
-            Assert.That(root.GetProperty("column").GetInt32(), Is.EqualTo(5));
-            Assert.That(root.GetProperty("message").GetString(), Is.EqualTo("未定義の識別子 'Noaa'"));
-        });
-    }
-
-    [Test]
-    public void Formatters_PreserveDiagnosticOrder()
+    public void FormatText_PreservesDiagnosticOrder()
     {
         Diagnostic[] diagnostics =
         [
@@ -57,19 +30,12 @@ public class DiagnosticFormatterTests
         ];
 
         var text = DiagnosticFormatter.FormatText(diagnostics).Split(Environment.NewLine);
-        var jsonLines = DiagnosticFormatter.FormatJsonLines(diagnostics).Split(Environment.NewLine);
 
-        Assert.Multiple(() =>
-        {
-            Assert.That(text, Is.EqualTo(
-            [
-                "events/chapter001.ke:12:5 error KES1001: first",
-                "events/chapter001.ke:18:3 warning KES4001: second",
-            ]));
-            Assert.That(jsonLines, Has.Length.EqualTo(2));
-            Assert.That(jsonLines[0], Does.Contain("\"code\":\"KES1001\""));
-            Assert.That(jsonLines[1], Does.Contain("\"code\":\"KES4001\""));
-        });
+        Assert.That(text, Is.EqualTo(
+        [
+            "events/chapter001.ke:12:5 error KES1001: first",
+            "events/chapter001.ke:18:3 warning KES4001: second",
+        ]));
     }
 
     [Test]
@@ -100,49 +66,4 @@ public class DiagnosticFormatterTests
         });
     }
 
-    [Test]
-    public void FormatJsonLine_IncludesRelatedLocationsOnlyWhenPresent()
-    {
-        var diagnostic = new Diagnostic(
-            DiagnosticLevel.Error,
-            "KES2009",
-            "events/main.ke",
-            3,
-            5,
-            "Duplicate definition 'score'.",
-            [
-                new DiagnosticRelatedLocation(
-                    "events/main.ke",
-                    1,
-                    5,
-                    "Original definition is here.")
-            ]);
-
-        var json = DiagnosticFormatter.FormatJsonLine(diagnostic);
-        using var document = JsonDocument.Parse(json);
-        var root = document.RootElement;
-        var relatedLocation = root.GetProperty("relatedLocations")[0];
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(root.GetProperty("file").GetString(), Is.EqualTo("events/main.ke"));
-            Assert.That(root.GetProperty("line").GetInt32(), Is.EqualTo(3));
-            Assert.That(root.GetProperty("column").GetInt32(), Is.EqualTo(5));
-            Assert.That(relatedLocation.GetProperty("file").GetString(), Is.EqualTo("events/main.ke"));
-            Assert.That(relatedLocation.GetProperty("line").GetInt32(), Is.EqualTo(1));
-            Assert.That(relatedLocation.GetProperty("column").GetInt32(), Is.EqualTo(5));
-            Assert.That(relatedLocation.GetProperty("message").GetString(), Is.EqualTo("Original definition is here."));
-        });
-
-        var withoutRelated = new Diagnostic(
-            DiagnosticLevel.Error,
-            "KES1001",
-            "events/main.ke",
-            1,
-            1,
-            "plain");
-        using var plainDocument = JsonDocument.Parse(DiagnosticFormatter.FormatJsonLine(withoutRelated));
-
-        Assert.That(plainDocument.RootElement.TryGetProperty("relatedLocations", out _), Is.False);
-    }
 }

@@ -10,6 +10,8 @@ namespace KoromoEventScript.Cli.Commands;
 
 public sealed class CliApplication
 {
+    private const string CliVersion = "0.1.0";
+
     private readonly BuildCheckOnlyCommand buildCheckOnlyCommand;
     private readonly BuildCommand buildCommand;
     private readonly CorrectCommand correctCommand;
@@ -63,6 +65,12 @@ public sealed class CliApplication
         ArgumentNullException.ThrowIfNull(currentDirectory);
 
         var parseResult = Parse(args);
+        if (parseResult.StandardOutput is not null)
+        {
+            output.WriteLine(parseResult.StandardOutput);
+            return (int)CliExitCode.Success;
+        }
+
         if (parseResult.Diagnostics.Count > 0 || (parseResult.BuildOptions is null && parseResult.InitOptions is null && parseResult.CorrectOptions is null && parseResult.LocOptions is null && parseResult.PublishOptions is null && parseResult.RunOptions is null))
         {
             diagnosticSink.Write(parseResult.Diagnostics, parseResult.OutputFormat, error);
@@ -140,6 +148,33 @@ public sealed class CliApplication
                 CommandLineDiagnostic("Unsupported command. Only 'build', 'correct', 'init', 'loc', 'publish', and 'run' are supported."));
         }
 
+        if (args.Count == 1 && IsVersionOption(args[0]))
+        {
+            return CommandParseResult.Output($"kes {CliVersion}");
+        }
+
+        if (args.Count == 1 && IsHelpOption(args[0]))
+        {
+            return CommandParseResult.Output(TopLevelHelpText());
+        }
+
+        if (HasCommandHelp(args))
+        {
+            return args[0] switch
+            {
+                "build" => CommandParseResult.Output(BuildHelpText()),
+                "clean" => CommandParseResult.Output(CleanHelpText()),
+                "correct" => CommandParseResult.Output(CorrectHelpText()),
+                "init" => CommandParseResult.Output(InitHelpText()),
+                "loc" => CommandParseResult.Output(LocHelpText()),
+                "publish" => CommandParseResult.Output(PublishHelpText()),
+                "run" => CommandParseResult.Output(RunHelpText()),
+                _ => CommandParseResult.Failure(
+                    DiagnosticOutputFormat.Text,
+                    CommandLineDiagnostic("Unsupported command. Only 'build', 'correct', 'init', 'loc', 'publish', and 'run' are supported.")),
+            };
+        }
+
         return args[0] switch
         {
             "build" => ParseBuild(args),
@@ -163,7 +198,6 @@ public sealed class CliApplication
         var checkOnly = false;
         var warningsAsErrors = false;
         var emitTextIr = false;
-        var noIncremental = false;
         var target = "windows";
         var outputFormat = DiagnosticOutputFormat.Text;
         var diagnostics = new List<Diagnostic>();
@@ -223,31 +257,7 @@ public sealed class CliApplication
                     }
                     break;
 
-                case "--no-incremental":
-                    noIncremental = true;
-                    break;
-
-                case "--log-format":
-                    if (++index >= args.Count)
-                    {
-                        diagnostics.Add(CommandLineDiagnostic("--log-format requires a value."));
-                        break;
-                    }
-
-                    var format = args[index];
-                    if (string.Equals(format, "text", StringComparison.OrdinalIgnoreCase))
-                    {
-                        outputFormat = DiagnosticOutputFormat.Text;
-                    }
-                    else if (string.Equals(format, "json", StringComparison.OrdinalIgnoreCase))
-                    {
-                        outputFormat = DiagnosticOutputFormat.JsonLines;
-                    }
-                    else
-                    {
-                        diagnostics.Add(CommandLineDiagnostic($"Invalid --log-format value '{format}'. Expected 'text' or 'json'."));
-                    }
-
+                case "--verbose":
                     break;
 
                 case "--target":
@@ -302,8 +312,7 @@ public sealed class CliApplication
             EmitTextIr: emitTextIr,
             Target: target,
             OutputDirectory: outputDirectory,
-            Locale: locale,
-            NoIncremental: noIncremental));
+            Locale: locale));
     }
 
     private static CommandParseResult ParseCorrect(IReadOnlyList<string> args)
@@ -333,27 +342,7 @@ public sealed class CliApplication
                     checkOnly = true;
                     break;
 
-                case "--log-format":
-                    if (++index >= args.Count)
-                    {
-                        diagnostics.Add(CommandLineDiagnostic("--log-format requires a value."));
-                        break;
-                    }
-
-                    var format = args[index];
-                    if (string.Equals(format, "text", StringComparison.OrdinalIgnoreCase))
-                    {
-                        outputFormat = DiagnosticOutputFormat.Text;
-                    }
-                    else if (string.Equals(format, "json", StringComparison.OrdinalIgnoreCase))
-                    {
-                        outputFormat = DiagnosticOutputFormat.JsonLines;
-                    }
-                    else
-                    {
-                        diagnostics.Add(CommandLineDiagnostic($"Invalid --log-format value '{format}'. Expected 'text' or 'json'."));
-                    }
-
+                case "--verbose":
                     break;
 
                 default:
@@ -442,27 +431,7 @@ public sealed class CliApplication
                     noSample = true;
                     break;
 
-                case "--log-format":
-                    if (++index >= args.Count)
-                    {
-                        diagnostics.Add(CommandLineDiagnostic("--log-format requires a value."));
-                        break;
-                    }
-
-                    var format = args[index];
-                    if (string.Equals(format, "text", StringComparison.OrdinalIgnoreCase))
-                    {
-                        outputFormat = DiagnosticOutputFormat.Text;
-                    }
-                    else if (string.Equals(format, "json", StringComparison.OrdinalIgnoreCase))
-                    {
-                        outputFormat = DiagnosticOutputFormat.JsonLines;
-                    }
-                    else
-                    {
-                        diagnostics.Add(CommandLineDiagnostic($"Invalid --log-format value '{format}'. Expected 'text' or 'json'."));
-                    }
-
+                case "--verbose":
                     break;
 
                 default:
@@ -530,27 +499,7 @@ public sealed class CliApplication
                     outputPath = args[index];
                     break;
 
-                case "--log-format":
-                    if (++index >= args.Count)
-                    {
-                        diagnostics.Add(CommandLineDiagnostic("--log-format requires a value."));
-                        break;
-                    }
-
-                    var format = args[index];
-                    if (string.Equals(format, "text", StringComparison.OrdinalIgnoreCase))
-                    {
-                        outputFormat = DiagnosticOutputFormat.Text;
-                    }
-                    else if (string.Equals(format, "json", StringComparison.OrdinalIgnoreCase))
-                    {
-                        outputFormat = DiagnosticOutputFormat.JsonLines;
-                    }
-                    else
-                    {
-                        diagnostics.Add(CommandLineDiagnostic($"Invalid --log-format value '{format}'. Expected 'text' or 'json'."));
-                    }
-
+                case "--verbose":
                     break;
 
                 default:
@@ -694,27 +643,7 @@ public sealed class CliApplication
                     profile = true;
                     break;
 
-                case "--log-format":
-                    if (++index >= args.Count)
-                    {
-                        diagnostics.Add(CommandLineDiagnostic("--log-format requires a value."));
-                        break;
-                    }
-
-                    var format = args[index];
-                    if (string.Equals(format, "text", StringComparison.OrdinalIgnoreCase))
-                    {
-                        outputFormat = DiagnosticOutputFormat.Text;
-                    }
-                    else if (string.Equals(format, "json", StringComparison.OrdinalIgnoreCase))
-                    {
-                        outputFormat = DiagnosticOutputFormat.JsonLines;
-                    }
-                    else
-                    {
-                        diagnostics.Add(CommandLineDiagnostic($"Invalid --log-format value '{format}'. Expected 'text' or 'json'."));
-                    }
-
+                case "--verbose":
                     break;
 
                 default:
@@ -853,27 +782,7 @@ public sealed class CliApplication
                     clean = true;
                     break;
 
-                case "--log-format":
-                    if (++index >= args.Count)
-                    {
-                        diagnostics.Add(CommandLineDiagnostic("--log-format requires a value."));
-                        break;
-                    }
-
-                    var format = args[index];
-                    if (string.Equals(format, "text", StringComparison.OrdinalIgnoreCase))
-                    {
-                        outputFormat = DiagnosticOutputFormat.Text;
-                    }
-                    else if (string.Equals(format, "json", StringComparison.OrdinalIgnoreCase))
-                    {
-                        outputFormat = DiagnosticOutputFormat.JsonLines;
-                    }
-                    else
-                    {
-                        diagnostics.Add(CommandLineDiagnostic($"Invalid --log-format value '{format}'. Expected 'text' or 'json'."));
-                    }
-
+                case "--verbose":
                     break;
 
                 default:
@@ -914,6 +823,235 @@ public sealed class CliApplication
     private static Diagnostic CommandLineDiagnostic(string message)
     {
         return new Diagnostic(DiagnosticLevel.Error, "KES9001", string.Empty, 1, 1, message);
+    }
+
+    private static bool IsHelpOption(string arg)
+    {
+        return string.Equals(arg, "-h", StringComparison.Ordinal) ||
+            string.Equals(arg, "--help", StringComparison.Ordinal);
+    }
+
+    private static bool IsVersionOption(string arg)
+    {
+        return string.Equals(arg, "-v", StringComparison.Ordinal) ||
+            string.Equals(arg, "--version", StringComparison.Ordinal);
+    }
+
+    private static bool HasCommandHelp(IReadOnlyList<string> args)
+    {
+        for (var index = 1; index < args.Count; index++)
+        {
+            if (args[index] == "--")
+            {
+                return false;
+            }
+
+            if (IsHelpOption(args[index]))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string TopLevelHelpText()
+    {
+        return """
+KoromoEventScript CLI Tool
+
+Usage:
+  kes -v|--version
+  kes -h|--help
+  kes <COMMAND> [-h|--help] [command-options] [arguments]
+
+Commands:
+  init      Create a new KES project
+  correct   Complete localization tags and rewrite scripts
+  loc       Generate a localization dictionary CSV template
+  build     Validate and compile project scripts
+  clean     Remove build artifacts and temporary files
+  run       Run a project with the standalone runtime
+  publish   Generate distributable artifacts
+
+Common Options:
+  -h, --help      Show help and exit
+  -v, --version   Show version and exit
+  --verbose       Enable verbose logs
+
+Examples:
+  kes --version
+  kes build --help
+  kes run . --debug
+""";
+    }
+
+    private static string InitHelpText()
+    {
+        return """
+Create a new KES project.
+
+Usage:
+  kes init [PROJECT_DIR] [options]
+
+Options:
+  --name <NAME>                Set project name
+  --template <basic|empty>     Select project template
+  --force                      Allow overwriting existing files
+  --no-sample                  Do not generate sample .kc/.kel files
+  --verbose                    Enable verbose logs
+  -h, --help                   Show help and exit
+
+Examples:
+  kes init MyGame --name "MyGame"
+  kes init . --template empty
+""";
+    }
+
+    private static string CorrectHelpText()
+    {
+        return """
+Complete localization tags and rewrite scripts.
+
+Usage:
+  kes correct [PROJECT_DIR] [options]
+
+Options:
+  --entry <PATH_TO_EVENT_LIST>   Set entry .kel file
+  --check-only                   Preview changes without rewriting files
+  --verbose                      Enable verbose logs
+  -h, --help                     Show help and exit
+
+Examples:
+  kes correct
+  kes correct --entry events/main.kel
+  kes correct --check-only
+""";
+    }
+
+    private static string LocHelpText()
+    {
+        return """
+Generate a localization dictionary CSV template.
+
+Usage:
+  kes loc [PROJECT_DIR] [options]
+
+Options:
+  --locale <LOCALE_LIST>        Output locales, separated by commas
+  --out <PATH_TO_CSV>           Output CSV path
+  --verbose                     Enable verbose logs
+  -h, --help                    Show help and exit
+
+Examples:
+  kes loc
+  kes loc --locale jp,en,fr
+  kes loc --out translations/messages.csv
+""";
+    }
+
+    private static string BuildHelpText()
+    {
+        return """
+Validate and compile project scripts.
+
+Usage:
+  kes build [PROJECT_DIR] [options]
+
+Options:
+  --target <windows|unity|unreal>   Set output target
+  --entry <PATH_TO_EVENT_LIST>      Set entry .kel file
+  --out-dir <DIR>                   Set build output directory
+  --loc <LOCALE>                    Build localized output
+  --warnings-as-errors              Treat warnings as errors
+  --txt-il                          Also emit .klibtxt
+  --check-only                      Validate without writing artifacts
+  --verbose                         Enable verbose logs
+  -h, --help                        Show help and exit
+
+Examples:
+  kes build
+  kes build --target windows --warnings-as-errors
+  kes build --entry events/main.kel
+  kes build --loc en
+  kes build --txt-il
+""";
+    }
+
+    private static string RunHelpText()
+    {
+        return """
+Run a project with the standalone runtime.
+
+Usage:
+  kes run [PROJECT_DIR] [options] [-- runtime-arguments]
+
+Options:
+  --target <windows>   Select standalone runtime
+  --build              Build before running
+  --no-build           Use existing build artifacts
+  --debug              Enable runtime debug information
+  --locale <LOCALE>    Set runtime locale
+  --start <TAG>        Start from label or tag
+  --fullscreen         Start fullscreen
+  --width <NUMBER>     Set window width
+  --height <NUMBER>    Set window height
+  --verbose            Enable verbose logs
+  -h, --help           Show help and exit
+
+Examples:
+  kes run
+  kes run . --debug
+  kes run testdata/projects/full-command-sample --start "#se_sample_0002" -- --profile
+""";
+    }
+
+    private static string CleanHelpText()
+    {
+        return """
+Remove build artifacts and temporary files.
+
+Usage:
+  kes clean [PROJECT_DIR] [options]
+
+Options:
+  --target <windows|unity|unreal>   Remove artifacts for one target
+  --dist                            Also remove dist output
+  --dry-run                         Print targets without deleting
+  --verbose                         Enable verbose logs
+  -h, --help                        Show help and exit
+
+Examples:
+  kes clean
+  kes clean --target windows
+  kes clean --dist --dry-run
+""";
+    }
+
+    private static string PublishHelpText()
+    {
+        return """
+Generate distributable artifacts.
+
+Usage:
+  kes publish [PROJECT_DIR] [options]
+
+Options:
+  --target <windows|unity|unreal>      Set publish target
+  --configuration <debug|release>      Set publish configuration
+  --out-dir <DIR>                      Set publish output directory
+  --archive <none|zip>                 Set archive format
+  --include-source                     Include .kc/.kel source files
+  --locale <LOCALE>                    Set publish locale
+  --clean                              Clean before publishing
+  --verbose                            Enable verbose logs
+  -h, --help                           Show help and exit
+
+Examples:
+  kes publish
+  kes publish --target windows --configuration release
+  kes publish --out-dir releases --archive zip
+""";
     }
 
     private static bool TryReadPositiveInt(
@@ -979,8 +1117,14 @@ public sealed class CliApplication
         PublishCommandOptions? PublishOptions,
         RunCommandOptions? RunOptions,
         IReadOnlyList<Diagnostic> Diagnostics,
-        DiagnosticOutputFormat OutputFormat)
+        DiagnosticOutputFormat OutputFormat,
+        string? StandardOutput = null)
     {
+        public static CommandParseResult Output(string standardOutput)
+        {
+            return new CommandParseResult(null, null, null, null, null, null, [], DiagnosticOutputFormat.Text, standardOutput);
+        }
+
         public static CommandParseResult BuildSuccess(BuildCommandOptions options)
         {
             return new CommandParseResult(options, null, null, null, null, null, [], options.OutputFormat);

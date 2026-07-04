@@ -11,5 +11,4 @@ public sealed record BuildCommandOptions(
     bool EmitTextIr = false,
     string Target = "windows",
     string? OutputDirectory = null,
-    string? Locale = null,
-    bool NoIncremental = false);
+    string? Locale = null);

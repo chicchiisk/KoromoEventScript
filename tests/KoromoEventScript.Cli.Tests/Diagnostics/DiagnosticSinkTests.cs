@@ -24,21 +24,6 @@ public class DiagnosticSinkTests
     }
 
     [Test]
-    public void Write_UsesJsonLinesFormat()
-    {
-        Diagnostic[] diagnostics =
-        [
-            new(DiagnosticLevel.Error, "KES9001", "kes.xml", 1, 1, "invalid"),
-        ];
-        using var writer = new StringWriter();
-
-        new DiagnosticSink().Write(diagnostics, DiagnosticOutputFormat.JsonLines, writer);
-
-        Assert.That(writer.ToString(), Does.Contain("\"code\":\"KES9001\""));
-        Assert.That(writer.ToString(), Does.EndWith(Environment.NewLine));
-    }
-
-    [Test]
     public void Write_EmitsNothingForEmptyDiagnostics()
     {
         using var writer = new StringWriter();
