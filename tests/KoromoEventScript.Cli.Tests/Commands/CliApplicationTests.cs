@@ -102,6 +102,68 @@ public class CliApplicationTests
     }
 
     [Test]
+    public void Run_CleanDryRunReportsTargetsWithoutDeleting()
+    {
+        using var fixture = TemporaryProject.Create();
+        fixture.WriteConfig();
+        fixture.WriteFile(Path.Combine("build", "windows", "artifact.txt"), "build artifact");
+        fixture.WriteFile(Path.Combine("dist", "windows", "artifact.txt"), "dist artifact");
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+
+        var exitCode = new CliApplication().Run(
+            ["clean", fixture.Root, "--target", "windows", "--dist", "--dry-run"],
+            output,
+            error,
+            TestContext.CurrentContext.WorkDirectory);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(exitCode, Is.EqualTo((int)CliExitCode.Success));
+            Assert.That(output.ToString(), Does.Contain(Path.Combine(fixture.Root, "build", "windows")));
+            Assert.That(output.ToString(), Does.Contain(Path.Combine(fixture.Root, "dist", "windows")));
+            Assert.That(error.ToString(), Is.Empty);
+            Assert.That(File.Exists(Path.Combine(fixture.Root, "build", "windows", "artifact.txt")), Is.True);
+            Assert.That(File.Exists(Path.Combine(fixture.Root, "dist", "windows", "artifact.txt")), Is.True);
+        });
+    }
+
+    [Test]
+    public void Run_CleanDeletesTargetArtifactsAndKeepsSources()
+    {
+        using var fixture = TemporaryProject.Create();
+        fixture.WriteConfig();
+        fixture.WriteFile(Path.Combine("events", "chapter001.kc"), "source");
+        fixture.WriteFile(Path.Combine("assets", "bg", "school.txt"), "asset");
+        fixture.WriteFile(Path.Combine("build", "windows", "artifact.txt"), "windows build artifact");
+        fixture.WriteFile(Path.Combine("build", "unity", "artifact.txt"), "unity build artifact");
+        fixture.WriteFile(Path.Combine("dist", "windows", "artifact.txt"), "windows dist artifact");
+        fixture.WriteFile(Path.Combine("dist", "unity", "artifact.txt"), "unity dist artifact");
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+
+        var exitCode = new CliApplication().Run(
+            ["clean", fixture.Root, "--target", "windows", "--dist"],
+            output,
+            error,
+            TestContext.CurrentContext.WorkDirectory);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(exitCode, Is.EqualTo((int)CliExitCode.Success));
+            Assert.That(output.ToString(), Is.Empty);
+            Assert.That(error.ToString(), Is.Empty);
+            Assert.That(Directory.Exists(Path.Combine(fixture.Root, "build", "windows")), Is.False);
+            Assert.That(Directory.Exists(Path.Combine(fixture.Root, "dist", "windows")), Is.False);
+            Assert.That(File.Exists(Path.Combine(fixture.Root, "build", "unity", "artifact.txt")), Is.True);
+            Assert.That(File.Exists(Path.Combine(fixture.Root, "dist", "unity", "artifact.txt")), Is.True);
+            Assert.That(File.Exists(Path.Combine(fixture.Root, "events", "chapter001.kc")), Is.True);
+            Assert.That(File.Exists(Path.Combine(fixture.Root, "assets", "bg", "school.txt")), Is.True);
+            Assert.That(File.Exists(Path.Combine(fixture.Root, "kes.xml")), Is.True);
+        });
+    }
+
+    [Test]
     public void Run_RejectsLogFormatOption()
     {
         using var output = new StringWriter();

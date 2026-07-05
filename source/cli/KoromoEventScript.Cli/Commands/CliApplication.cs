@@ -1,10 +1,12 @@
 using KoromoEventScript.Cli.Commands.Build;
+using KoromoEventScript.Cli.Commands.Clean;
 using KoromoEventScript.Cli.Commands.Correct;
 using KoromoEventScript.Cli.Commands.Init;
 using KoromoEventScript.Cli.Commands.Loc;
 using KoromoEventScript.Cli.Commands.Publish;
 using KoromoEventScript.Cli.Commands.Run;
 using KoromoEventScript.Cli.Diagnostics;
+using KoromoEventScript.Cli.ProjectSystem;
 
 namespace KoromoEventScript.Cli.Commands;
 
@@ -14,6 +16,7 @@ public sealed class CliApplication
 
     private readonly BuildCheckOnlyCommand buildCheckOnlyCommand;
     private readonly BuildCommand buildCommand;
+    private readonly CleanService cleanService;
     private readonly CorrectCommand correctCommand;
     private readonly InitCommand initCommand;
     private readonly LocCommand locCommand;
@@ -22,7 +25,7 @@ public sealed class CliApplication
     private readonly DiagnosticSink diagnosticSink;
 
     public CliApplication()
-        : this(new BuildCheckOnlyCommand(), new BuildCommand(), new CorrectCommand(), new InitCommand(), new LocCommand(), new WindowsPublishCommand(), new RunCommand(), new DiagnosticSink())
+        : this(new BuildCheckOnlyCommand(), new BuildCommand(), new CleanService(), new CorrectCommand(), new InitCommand(), new LocCommand(), new WindowsPublishCommand(), new RunCommand(), new DiagnosticSink())
     {
     }
 
@@ -33,7 +36,7 @@ public sealed class CliApplication
         InitCommand initCommand,
         LocCommand locCommand,
         DiagnosticSink diagnosticSink)
-        : this(buildCheckOnlyCommand, buildCommand, correctCommand, initCommand, locCommand, new WindowsPublishCommand(), new RunCommand(), diagnosticSink)
+        : this(buildCheckOnlyCommand, buildCommand, new CleanService(), correctCommand, initCommand, locCommand, new WindowsPublishCommand(), new RunCommand(), diagnosticSink)
     {
     }
 
@@ -46,9 +49,24 @@ public sealed class CliApplication
         WindowsPublishCommand publishCommand,
         RunCommand runCommand,
         DiagnosticSink diagnosticSink)
+        : this(buildCheckOnlyCommand, buildCommand, new CleanService(), correctCommand, initCommand, locCommand, publishCommand, runCommand, diagnosticSink)
+    {
+    }
+
+    public CliApplication(
+        BuildCheckOnlyCommand buildCheckOnlyCommand,
+        BuildCommand buildCommand,
+        CleanService cleanService,
+        CorrectCommand correctCommand,
+        InitCommand initCommand,
+        LocCommand locCommand,
+        WindowsPublishCommand publishCommand,
+        RunCommand runCommand,
+        DiagnosticSink diagnosticSink)
     {
         this.buildCheckOnlyCommand = buildCheckOnlyCommand;
         this.buildCommand = buildCommand;
+        this.cleanService = cleanService;
         this.correctCommand = correctCommand;
         this.initCommand = initCommand;
         this.locCommand = locCommand;
@@ -71,10 +89,15 @@ public sealed class CliApplication
             return (int)CliExitCode.Success;
         }
 
-        if (parseResult.Diagnostics.Count > 0 || (parseResult.BuildOptions is null && parseResult.InitOptions is null && parseResult.CorrectOptions is null && parseResult.LocOptions is null && parseResult.PublishOptions is null && parseResult.RunOptions is null))
+        if (parseResult.Diagnostics.Count > 0 || (parseResult.BuildOptions is null && parseResult.CleanOptions is null && parseResult.InitOptions is null && parseResult.CorrectOptions is null && parseResult.LocOptions is null && parseResult.PublishOptions is null && parseResult.RunOptions is null))
         {
             diagnosticSink.Write(parseResult.Diagnostics, parseResult.OutputFormat, error);
             return (int)CliExitCode.CommandLineError;
+        }
+
+        if (parseResult.CleanOptions is not null)
+        {
+            return RunClean(parseResult.CleanOptions, output, error, currentDirectory);
         }
 
         if (parseResult.CorrectOptions is not null)
@@ -139,13 +162,42 @@ public sealed class CliApplication
         return (int)result.ExitCode;
     }
 
+    private int RunClean(CleanCommandOptions options, TextWriter output, TextWriter error, string currentDirectory)
+    {
+        var rootResult = new ProjectRootResolver().Resolve(options.ProjectDirectory, currentDirectory);
+        if (!rootResult.Succeeded)
+        {
+            diagnosticSink.Write([rootResult.Diagnostic!], options.OutputFormat, error);
+            return (int)CliExitCode.FileOrDirectoryError;
+        }
+
+        var configResult = new ProjectConfigLoader().Load(rootResult.ProjectRoot!);
+        if (!configResult.Succeeded)
+        {
+            diagnosticSink.Write([configResult.Diagnostic!], options.OutputFormat, error);
+            return (int)CliExitCode.FileOrDirectoryError;
+        }
+
+        var cleanResult = cleanService.Execute(configResult.Config!, options);
+        diagnosticSink.Write(cleanResult.Diagnostics, options.OutputFormat, error);
+        if (cleanResult.ExitCode == CliExitCode.Success && options.DryRun)
+        {
+            foreach (var path in cleanResult.DeletedPaths)
+            {
+                output.WriteLine(path);
+            }
+        }
+
+        return (int)cleanResult.ExitCode;
+    }
+
     private static CommandParseResult Parse(IReadOnlyList<string> args)
     {
         if (args.Count == 0)
         {
             return CommandParseResult.Failure(
                 DiagnosticOutputFormat.Text,
-                CommandLineDiagnostic("Unsupported command. Only 'build', 'correct', 'init', 'loc', 'publish', and 'run' are supported."));
+                CommandLineDiagnostic("Unsupported command. Only 'build', 'clean', 'correct', 'init', 'loc', 'publish', and 'run' are supported."));
         }
 
         if (args.Count == 1 && IsVersionOption(args[0]))
@@ -171,13 +223,14 @@ public sealed class CliApplication
                 "run" => CommandParseResult.Output(RunHelpText()),
                 _ => CommandParseResult.Failure(
                     DiagnosticOutputFormat.Text,
-                    CommandLineDiagnostic("Unsupported command. Only 'build', 'correct', 'init', 'loc', 'publish', and 'run' are supported.")),
+                    CommandLineDiagnostic("Unsupported command. Only 'build', 'clean', 'correct', 'init', 'loc', 'publish', and 'run' are supported.")),
             };
         }
 
         return args[0] switch
         {
             "build" => ParseBuild(args),
+            "clean" => ParseClean(args),
             "correct" => ParseCorrect(args),
             "init" => ParseInit(args),
             "loc" => ParseLoc(args),
@@ -185,7 +238,7 @@ public sealed class CliApplication
             "run" => ParseRun(args),
             _ => CommandParseResult.Failure(
                 DiagnosticOutputFormat.Text,
-                CommandLineDiagnostic("Unsupported command. Only 'build', 'correct', 'init', 'loc', 'publish', and 'run' are supported.")),
+                CommandLineDiagnostic("Unsupported command. Only 'build', 'clean', 'correct', 'init', 'loc', 'publish', and 'run' are supported.")),
         };
     }
 
@@ -825,6 +878,81 @@ public sealed class CliApplication
         return new Diagnostic(DiagnosticLevel.Error, "KES9001", string.Empty, 1, 1, message);
     }
 
+    private static CommandParseResult ParseClean(IReadOnlyList<string> args)
+    {
+        string? positionalProject = null;
+        string? target = null;
+        var includeDist = false;
+        var dryRun = false;
+        var outputFormat = DiagnosticOutputFormat.Text;
+        var diagnostics = new List<Diagnostic>();
+
+        for (var index = 1; index < args.Count; index++)
+        {
+            var arg = args[index];
+            switch (arg)
+            {
+                case "--target":
+                    if (++index >= args.Count)
+                    {
+                        diagnostics.Add(CommandLineDiagnostic("--target requires a value."));
+                        break;
+                    }
+
+                    target = args[index];
+                    if (!IsBuildTarget(target))
+                    {
+                        diagnostics.Add(CommandLineDiagnostic($"Unsupported --target value '{target}'. Expected 'windows', 'unity', or 'unreal'."));
+                    }
+                    else
+                    {
+                        target = target.ToLowerInvariant();
+                    }
+
+                    break;
+
+                case "--dist":
+                    includeDist = true;
+                    break;
+
+                case "--dry-run":
+                    dryRun = true;
+                    break;
+
+                case "--verbose":
+                    break;
+
+                default:
+                    if (arg.StartsWith("-", StringComparison.Ordinal))
+                    {
+                        diagnostics.Add(CommandLineDiagnostic($"Unsupported option '{arg}'."));
+                    }
+                    else if (positionalProject is null)
+                    {
+                        positionalProject = arg;
+                    }
+                    else
+                    {
+                        diagnostics.Add(CommandLineDiagnostic($"Unexpected argument '{arg}'."));
+                    }
+
+                    break;
+            }
+        }
+
+        if (diagnostics.Count > 0)
+        {
+            return CommandParseResult.Failure(outputFormat, diagnostics);
+        }
+
+        return CommandParseResult.CleanSuccess(new CleanCommandOptions(
+            positionalProject,
+            outputFormat,
+            target,
+            includeDist,
+            dryRun));
+    }
+
     private static bool IsHelpOption(string arg)
     {
         return string.Equals(arg, "-h", StringComparison.Ordinal) ||
@@ -835,6 +963,13 @@ public sealed class CliApplication
     {
         return string.Equals(arg, "-v", StringComparison.Ordinal) ||
             string.Equals(arg, "--version", StringComparison.Ordinal);
+    }
+
+    private static bool IsBuildTarget(string target)
+    {
+        return string.Equals(target, "windows", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(target, "unity", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(target, "unreal", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool HasCommandHelp(IReadOnlyList<string> args)
@@ -1111,6 +1246,7 @@ Examples:
 
     private sealed record CommandParseResult(
         BuildCommandOptions? BuildOptions,
+        CleanCommandOptions? CleanOptions,
         CorrectCommandOptions? CorrectOptions,
         InitCommandOptions? InitOptions,
         LocCommandOptions? LocOptions,
@@ -1122,37 +1258,42 @@ Examples:
     {
         public static CommandParseResult Output(string standardOutput)
         {
-            return new CommandParseResult(null, null, null, null, null, null, [], DiagnosticOutputFormat.Text, standardOutput);
+            return new CommandParseResult(null, null, null, null, null, null, null, [], DiagnosticOutputFormat.Text, standardOutput);
         }
 
         public static CommandParseResult BuildSuccess(BuildCommandOptions options)
         {
-            return new CommandParseResult(options, null, null, null, null, null, [], options.OutputFormat);
+            return new CommandParseResult(options, null, null, null, null, null, null, [], options.OutputFormat);
+        }
+
+        public static CommandParseResult CleanSuccess(CleanCommandOptions options)
+        {
+            return new CommandParseResult(null, options, null, null, null, null, null, [], options.OutputFormat);
         }
 
         public static CommandParseResult CorrectSuccess(CorrectCommandOptions options)
         {
-            return new CommandParseResult(null, options, null, null, null, null, [], options.OutputFormat);
+            return new CommandParseResult(null, null, options, null, null, null, null, [], options.OutputFormat);
         }
 
         public static CommandParseResult InitSuccess(InitCommandOptions options)
         {
-            return new CommandParseResult(null, null, options, null, null, null, [], options.OutputFormat);
+            return new CommandParseResult(null, null, null, options, null, null, null, [], options.OutputFormat);
         }
 
         public static CommandParseResult LocSuccess(LocCommandOptions options)
         {
-            return new CommandParseResult(null, null, null, options, null, null, [], options.OutputFormat);
+            return new CommandParseResult(null, null, null, null, options, null, null, [], options.OutputFormat);
         }
 
         public static CommandParseResult PublishSuccess(PublishCommandOptions options)
         {
-            return new CommandParseResult(null, null, null, null, options, null, [], options.OutputFormat);
+            return new CommandParseResult(null, null, null, null, null, options, null, [], options.OutputFormat);
         }
 
         public static CommandParseResult RunSuccess(RunCommandOptions options)
         {
-            return new CommandParseResult(null, null, null, null, null, options, [], options.OutputFormat);
+            return new CommandParseResult(null, null, null, null, null, null, options, [], options.OutputFormat);
         }
 
         public static CommandParseResult Failure(DiagnosticOutputFormat format, params Diagnostic[] diagnostics)
@@ -1162,7 +1303,7 @@ Examples:
 
         public static CommandParseResult Failure(DiagnosticOutputFormat format, IReadOnlyList<Diagnostic> diagnostics)
         {
-            return new CommandParseResult(null, null, null, null, null, null, diagnostics, format);
+            return new CommandParseResult(null, null, null, null, null, null, null, diagnostics, format);
         }
     }
 }
