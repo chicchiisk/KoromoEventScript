@@ -1,11 +1,14 @@
 actor Riku:
     var defaultFace: string = "normal"
+    var assetBaseName: string = "riku"
 
 actor Amane:
     var defaultFace: string = "normal"
+    var assetBaseName: string = "amane"
 
 actor Noa:
     var defaultFace: string = "normal"
+    var assetBaseName: string = "noa"
 
 var sharedTitle: string = "全命令サンプル"
 var sharedStep: number = 1

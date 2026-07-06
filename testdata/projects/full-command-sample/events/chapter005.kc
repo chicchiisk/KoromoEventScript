@@ -1,0 +1,19 @@
+import Common
+
+standby:
+    riku : Riku
+    amane : Amane
+    noa : Noa
+
+bg "bg_evening"
+show noa 0 "smile"
+
+say noa #sy_chapter005_0001:
+    五章目。星空の答えを得たので、もう一度一章へ戻る。
+
+se_stop_all
+bgm_stop 1
+set_param_string "route_loop" "chapter001_intro"
+
+nar #na_chapter005_0002:
+    こちらの経路でも同じ trigger でループできる。

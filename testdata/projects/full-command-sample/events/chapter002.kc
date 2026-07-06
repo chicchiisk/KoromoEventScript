@@ -5,52 +5,28 @@ standby:
     amane : Amane
     noa : Noa
 
-var retries: number = 0
-var ready: bool = false
-var threshold: number = 5
-var stageActors: Actor[] = [riku, noa, amane]
-
-threshold = threshold - 2
-
-label #chapter2_start
-
-say noa #sy_chapter002_0001:
-    二章目では分岐と反復をまとめて確認する
-
-nar #na_chapter002_0002:
-    共有配列をもとに表示位置を組み立てる。
-
 bg "bg_evening"
 show:
     riku -1 "normal"
-    noa 0 "smile"
-    amane 1 "normal"
+    amane 0 "smile"
+    noa 1 "normal"
 
-if !ready || retries == 0:
-    face noa "smile"
-else:
-    show noa 0
+say amane #sy_chapter002_0001:
+    二章目の中庭ルート。ここから結末候補を選ぶ。
 
-while retries < 2:
-    retries = retries + 1
+select #se_chapter002_0002:
+    case "夕焼けの四章へ進む" #route_chapter004
+    case "星空の五章へ進む" #route_chapter005
 
-for actor in stageActors:
-    show actor 0
+label #route_chapter004
+set_param_string "route_2" "chapter004_intro"
+say riku #sy_chapter002_0003:
+    夕焼けのほうへ向かおう。
+jump #end
 
-select #se_chapter002_0003:
-    case "締めに入る" #finish
-    case "もう一度説明する" #repeat
+label #route_chapter005
+set_param_string "route_2" "chapter005_intro"
+say noa #sy_chapter002_0004:
+    星空を見に行こう。
 
-label #repeat
-say riku #sy_chapter002_0004:
-    補足は以上だ
-jump #finish
-
-label #finish
-face:
-    riku "eye_open"
-    amane "eye_open"
-    noa "eye_open"
-
-say amane #sy_chapter002_0005:
-    これで全体の流れは確認できたね
+label #end

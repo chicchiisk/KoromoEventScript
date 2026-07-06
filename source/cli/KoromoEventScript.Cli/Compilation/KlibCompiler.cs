@@ -43,6 +43,7 @@ public sealed class KlibCompiler
         private readonly List<Diagnostic> diagnostics = [];
         private readonly List<DefinitionScope> scopes;
         private readonly Dictionary<string, IReadOnlyList<VarStatementSyntax>> actorFieldsByTypeName;
+        private readonly Dictionary<string, ImportedConstant> importedConstants;
         private readonly Dictionary<string, int> labelInstructionIndexes = new(StringComparer.Ordinal);
         private readonly Dictionary<string, int> currentLocals = new(StringComparer.Ordinal);
         private readonly Stack<Dictionary<string, int>> localScopes = new();
@@ -76,6 +77,7 @@ public sealed class KlibCompiler
                     static actor => actor.Name,
                     static actor => (IReadOnlyList<VarStatementSyntax>)actor.Body.Statements.OfType<VarStatementSyntax>().ToArray(),
                     StringComparer.Ordinal);
+            importedConstants = BuildImportedConstants();
         }
 
         public IReadOnlyList<Diagnostic> Diagnostics => diagnostics;
@@ -165,6 +167,69 @@ public sealed class KlibCompiler
                     candidate.ProjectRelativePath,
                     null))
                 .ToArray();
+        }
+
+        private Dictionary<string, ImportedConstant> BuildImportedConstants()
+        {
+            var constants = new Dictionary<string, ImportedConstant>(StringComparer.Ordinal);
+            if (semanticResult.ImportGraph is null ||
+                !semanticResult.ImportGraph.DirectImports.TryGetValue(document.ModuleName, out var directImports))
+            {
+                return constants;
+            }
+
+            foreach (var importName in directImports)
+            {
+                var importedDocument = semanticResult.ImportGraph.OrderedDocuments.FirstOrDefault(
+                    candidate => string.Equals(candidate.ModuleName, importName, StringComparison.Ordinal));
+                if (importedDocument is null)
+                {
+                    continue;
+                }
+
+                foreach (var variable in importedDocument.Syntax.Statements.OfType<VarStatementSyntax>())
+                {
+                    if (TryCreateImportedConstant(variable, out var importedConstant))
+                    {
+                        constants[variable.Name] = importedConstant;
+                    }
+                }
+            }
+
+            return constants;
+        }
+
+        private static bool TryCreateImportedConstant(VarStatementSyntax variable, out ImportedConstant importedConstant)
+        {
+            if (variable.ValueTokens.Count != 1)
+            {
+                importedConstant = ImportedConstant.Null;
+                return false;
+            }
+
+            var value = variable.ValueTokens[0];
+            switch (value.Kind)
+            {
+                case TokenKind.StringLiteral:
+                    importedConstant = new ImportedConstant(KlibConstantKind.String, StringValue: value.Lexeme);
+                    return true;
+
+                case TokenKind.NumberLiteral when double.TryParse(value.Lexeme, NumberStyles.Float, CultureInfo.InvariantCulture, out var number):
+                    importedConstant = new ImportedConstant(KlibConstantKind.Number, NumberValue: number);
+                    return true;
+
+                case TokenKind.Keyword when value.Lexeme == "true":
+                    importedConstant = new ImportedConstant(KlibConstantKind.Bool, BoolValue: true);
+                    return true;
+
+                case TokenKind.Keyword when value.Lexeme == "false":
+                    importedConstant = new ImportedConstant(KlibConstantKind.Bool, BoolValue: false);
+                    return true;
+
+                default:
+                    importedConstant = ImportedConstant.Null;
+                    return false;
+            }
         }
 
         private void CompileStatement(StatementSyntax statement)
@@ -528,8 +593,9 @@ public sealed class KlibCompiler
         {
             if (!line.IsExpressionLine)
             {
+                var text = ResolveImportedConstantInterpolations(line.Text);
                 var constantIndex = string.IsNullOrWhiteSpace(tag) || embedLocalizedText
-                    ? constantPool.GetStringConstantIndex(line.Text)
+                    ? constantPool.GetStringConstantIndex(text)
                     : constantPool.GetLocaleKeyIndex(BuildLocaleKey(tag!, index));
                 instructions.Add(new InstructionBuilder(KlibOpCode.PushConst, location, KlibMappingKind.TextBody, constantIndex));
                 return;
@@ -612,6 +678,65 @@ public sealed class KlibCompiler
 
             variableIndex = -1;
             return false;
+        }
+
+        private bool TryEmitImportedConstant(string name, SourceLocation location)
+        {
+            if (!importedConstants.TryGetValue(name, out var importedConstant))
+            {
+                return false;
+            }
+
+            switch (importedConstant.Kind)
+            {
+                case KlibConstantKind.String:
+                    instructions.Add(new InstructionBuilder(
+                        KlibOpCode.PushConst,
+                        location,
+                        KlibMappingKind.Expression,
+                        constantPool.GetStringConstantIndex(importedConstant.StringValue ?? string.Empty)));
+                    return true;
+
+                case KlibConstantKind.Number:
+                    instructions.Add(new InstructionBuilder(
+                        KlibOpCode.PushConst,
+                        location,
+                        KlibMappingKind.Expression,
+                        constantPool.GetNumberConstantIndex(importedConstant.NumberValue ?? 0d)));
+                    return true;
+
+                case KlibConstantKind.Bool when importedConstant.BoolValue is true:
+                    instructions.Add(new InstructionBuilder(KlibOpCode.PushTrue, location, KlibMappingKind.Expression));
+                    return true;
+
+                case KlibConstantKind.Bool:
+                    instructions.Add(new InstructionBuilder(KlibOpCode.PushFalse, location, KlibMappingKind.Expression));
+                    return true;
+
+                default:
+                    return false;
+            }
+        }
+
+        private string ResolveImportedConstantInterpolations(string text)
+        {
+            foreach (var (name, importedConstant) in importedConstants)
+            {
+                var replacement = importedConstant.Kind switch
+                {
+                    KlibConstantKind.String => importedConstant.StringValue,
+                    KlibConstantKind.Number => importedConstant.NumberValue?.ToString(CultureInfo.InvariantCulture),
+                    KlibConstantKind.Bool => importedConstant.BoolValue is true ? "true" : "false",
+                    _ => null,
+                };
+
+                if (replacement is not null)
+                {
+                    text = text.Replace($"{{{name}}}", replacement, StringComparison.Ordinal);
+                }
+            }
+
+            return text;
         }
 
         private bool TryResolveActorInstanceType(string name, out string actorTypeName)
@@ -735,6 +860,15 @@ public sealed class KlibCompiler
         }
 
         private sealed record LoopLabels(string ContinueLabel, string BreakLabel);
+
+        private sealed record ImportedConstant(
+            KlibConstantKind Kind,
+            string? StringValue = null,
+            double? NumberValue = null,
+            bool? BoolValue = null)
+        {
+            public static ImportedConstant Null { get; } = new(KlibConstantKind.Null);
+        }
 
         private sealed record VariableSlot(
             int Index,
@@ -1012,6 +1146,11 @@ public sealed class KlibCompiler
                     return token.Lexeme;
                 }
 
+                if (context.TryEmitImportedConstant(token.Lexeme, ToLocation(token)))
+                {
+                    return token.Lexeme;
+                }
+
                 context.instructions.Add(new InstructionBuilder(KlibOpCode.PushConst, ToLocation(token), KlibMappingKind.Expression, context.constantPool.GetStringConstantIndex(token.Lexeme)));
                 return null;
             }
@@ -1199,7 +1338,7 @@ public sealed class KlibCompiler
                     {
                         bracketDepth--;
                     }
-                    else if (parenDepth == 0 && bracketDepth == 0 && index > start && LooksLikeArgumentBoundary(token))
+                    else if (parenDepth == 0 && bracketDepth == 0 && index > start && LooksLikeArgumentBoundary(tokens, index))
                     {
                         break;
                     }
@@ -1213,8 +1352,29 @@ public sealed class KlibCompiler
             return arguments;
         }
 
-        private static bool LooksLikeArgumentBoundary(Token token)
+        private static bool LooksLikeArgumentBoundary(IReadOnlyList<Token> tokens, int index)
         {
+            var token = tokens[index];
+            var previous = tokens[index - 1];
+            if (token.Kind is TokenKind.Plus or TokenKind.Minus &&
+                index + 1 < tokens.Count &&
+                tokens[index + 1].Kind == TokenKind.NumberLiteral &&
+                previous.Kind is not (TokenKind.Plus or TokenKind.Minus or TokenKind.Star or TokenKind.Slash
+                    or TokenKind.DoubleEquals or TokenKind.NotEquals
+                    or TokenKind.Less or TokenKind.LessOrEqual or TokenKind.Greater or TokenKind.GreaterOrEqual
+                    or TokenKind.AndAnd or TokenKind.OrOr or TokenKind.Bang or TokenKind.Dot or TokenKind.OpenParen or TokenKind.OpenBracket))
+            {
+                return true;
+            }
+
+            if (previous.Kind is TokenKind.Plus or TokenKind.Minus or TokenKind.Star or TokenKind.Slash
+                or TokenKind.DoubleEquals or TokenKind.NotEquals
+                or TokenKind.Less or TokenKind.LessOrEqual or TokenKind.Greater or TokenKind.GreaterOrEqual
+                or TokenKind.AndAnd or TokenKind.OrOr or TokenKind.Bang or TokenKind.Dot or TokenKind.OpenParen or TokenKind.OpenBracket)
+            {
+                return false;
+            }
+
             return token.Kind is TokenKind.Identifier or TokenKind.Keyword or TokenKind.NumberLiteral or TokenKind.StringLiteral or TokenKind.OpenBracket
                 && token.Column > 0;
         }

@@ -20,6 +20,9 @@ public sealed class MainPageXamlTests
             Assert.That(xaml, Does.Contain("AutomationProperties.AutomationId=\"RuntimeMenuSettings\""));
             Assert.That(xaml, Does.Contain("AutomationProperties.AutomationId=\"RuntimeMenuTitle\""));
             Assert.That(xaml, Does.Contain("AutomationProperties.AutomationId=\"RuntimeMenuExit\""));
+            Assert.That(xaml, Does.Contain("KeyDown=\"Page_KeyDown\""));
+            Assert.That(xaml, Does.Contain("Loaded=\"Page_Loaded\""));
+            Assert.That(xaml, Does.Contain("IsTabStop=\"True\""));
         });
     }
 

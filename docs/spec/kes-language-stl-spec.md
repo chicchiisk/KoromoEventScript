@@ -128,6 +128,10 @@ syscall ID はモジュール名を接頭辞に持つ。
 | `system.set_config_number` | `key:string value:number` | `void` | 数値設定を更新する |
 | `system.set_config_bool` | `key:string value:bool` | `void` | 真偽値設定を更新する |
 | `system.get_config` | `key:string` | `string` | 設定値を文字列として取得する |
+| `system.set_param_string` | `key:string value:string` | `void` | ゲーム変数に文字列を格納する |
+| `system.set_param_number` | `key:string value:number` | `void` | ゲーム変数に数値を格納する |
+| `system.set_param_bool` | `key:string value:bool` | `void` | ゲーム変数に真偽値を格納する |
+| `system.get_param` | `key:string` | `string` | ゲーム変数を文字列として取得する |
 
 ### STL 実装例
 
@@ -579,6 +583,10 @@ autosave
 | `set_config_number` | `set_config_number key value` | `void` | 数値のユーザー設定値を更新する |
 | `set_config_bool` | `set_config_bool key value` | `void` | 真偽値のユーザー設定値を更新する |
 | `get_config` | `get_config key` | `string` | ユーザー設定値を文字列として取得する |
+| `set_param_string` | `set_param_string key value` | `void` | ゲーム変数に文字列を格納する |
+| `set_param_number` | `set_param_number key value` | `void` | ゲーム変数に数値を格納する |
+| `set_param_bool` | `set_param_bool key value` | `void` | ゲーム変数に真偽値を格納する |
+| `get_param` | `get_param key` | `string` | ゲーム変数を文字列として取得する |
 
 ### 引数・戻り値
 
@@ -589,6 +597,9 @@ autosave
 - `set_config_string` の `value` は `string` とする。
 - `set_config_number` の `value` は `number` とする。
 - `set_config_bool` の `value` は `bool` とする。
+- `set_param_string` の `value` は `string` とする。
+- `set_param_number` の `value` は `number` とする。
+- `set_param_bool` の `value` は `bool` とする。
 
 標準設定キーは次の通りとする。
 
@@ -611,12 +622,15 @@ autosave
 - `set_skip` は runtime のスキップ状態を切り替える。
 - `set_config_string`、`set_config_number`、`set_config_bool` は runtime のユーザー設定を更新し、必要に応じて保存対象に含める。
 - `get_config` は設定値を取得する。戻り値は文字列であり、数値や真偽値として使う場合はプロジェクト側で変換する。
+- `set_param_string`、`set_param_number`、`set_param_bool` は runtime のゲーム変数を書き換える。キー値がない場合は新規作成する。configはアプリケーションに対して1つの値を共有するものであるのに対し、ゲーム変数はセーブデータごとに値を保持する。主にゲームの進行制御に使用する
+- `get_param` はゲーム変数を取得する。戻り値は文字列であり、数値や真偽値として使う場合はプロジェクト側で変換する。
 
 ### エラー/警告条件
 
 - `wait` の `seconds` が負数の場合はコンパイルエラー、静的に判定できない場合は実行時エラーとする。
 - `set_skip` の `mode` が標準値以外の場合は実行時エラーとする。
 - 未知の `key` に対する設定更新または `get_config` は実行時エラーとする。
+- 未定義のゲーム変数に対する `get_param` は実行時エラーとする。
 - 設定キーの定義型と異なる setter を使った場合はコンパイルエラー、静的に判定できない場合は実行時エラーとする。
 - 設定保存に失敗した場合は警告を出して実行継続してよい。ただし同一セッション内の設定値は反映されなければならない。
 

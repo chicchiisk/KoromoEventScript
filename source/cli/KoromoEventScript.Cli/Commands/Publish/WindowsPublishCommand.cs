@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using System.IO.Compression;
 using KoromoEventScript.Cli.Build;
 using KoromoEventScript.Cli.Commands.Build;
+using KoromoEventScript.Cli.Commands.Clean;
 using KoromoEventScript.Cli.Diagnostics;
 using KoromoEventScript.Cli.ProjectSystem;
 
@@ -13,6 +14,7 @@ public sealed class WindowsPublishCommand
     private readonly BuildPipelineService pipelineService;
     private readonly ProjectRootResolver projectRootResolver;
     private readonly ProjectConfigLoader projectConfigLoader;
+    private readonly CleanService cleanService;
     private readonly Func<string> runtimeBundlePathProvider;
 
     public WindowsPublishCommand()
@@ -20,6 +22,7 @@ public sealed class WindowsPublishCommand
             new BuildPipelineService(),
             new ProjectRootResolver(),
             new ProjectConfigLoader(),
+            new CleanService(),
             DefaultRuntimeBundlePath)
     {
     }
@@ -28,11 +31,13 @@ public sealed class WindowsPublishCommand
         BuildPipelineService pipelineService,
         ProjectRootResolver projectRootResolver,
         ProjectConfigLoader projectConfigLoader,
+        CleanService? cleanService = null,
         Func<string>? runtimeBundlePathProvider = null)
     {
         this.pipelineService = pipelineService;
         this.projectRootResolver = projectRootResolver;
         this.projectConfigLoader = projectConfigLoader;
+        this.cleanService = cleanService ?? new CleanService();
         this.runtimeBundlePathProvider = runtimeBundlePathProvider ?? DefaultRuntimeBundlePath;
     }
 
@@ -65,6 +70,27 @@ public sealed class WindowsPublishCommand
         }
 
         var config = configResult.Config!;
+        if (options.Clean)
+        {
+            var cleanResult = cleanService.Execute(
+                config,
+                new CleanCommandOptions(
+                    options.ProjectDirectory,
+                    options.OutputFormat,
+                    Target: "windows",
+                    IncludeDist: true));
+            if (cleanResult.ExitCode != CliExitCode.Success)
+            {
+                return new PublishCommandResult(cleanResult.ExitCode, cleanResult.Diagnostics, null);
+            }
+
+            var publishCleanResult = CleanPublishOutput(config, options);
+            if (publishCleanResult is not null)
+            {
+                return publishCleanResult;
+            }
+        }
+
         var buildResult = pipelineService.Run(new BuildPipelineRequest(
             new BuildCommandOptions(
                 options.ProjectDirectory,
@@ -82,15 +108,6 @@ public sealed class WindowsPublishCommand
         {
             var packageRoot = ResolvePackageRoot(config, options);
             var archivePath = ResolveArchivePath(config, options);
-            if (options.Clean && Directory.Exists(packageRoot))
-            {
-                Directory.Delete(packageRoot, recursive: true);
-            }
-
-            if (options.Clean && File.Exists(archivePath))
-            {
-                File.Delete(archivePath);
-            }
 
             Directory.CreateDirectory(packageRoot);
             CopyRuntimeBundle(runtimeBundlePathProvider(), packageRoot, $"{config.ProjectName}.exe");
@@ -121,6 +138,30 @@ public sealed class WindowsPublishCommand
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException or InvalidOperationException)
         {
             return Failure(CliExitCode.FileOrDirectoryError, "KES9004", rootResult.ProjectRoot!, $"Could not publish Windows package: {exception.Message}");
+        }
+    }
+
+    private static PublishCommandResult? CleanPublishOutput(ProjectConfig config, PublishCommandOptions options)
+    {
+        try
+        {
+            var packageRoot = ResolvePackageRoot(config, options);
+            var archivePath = ResolveArchivePath(config, options);
+            if (Directory.Exists(packageRoot))
+            {
+                Directory.Delete(packageRoot, recursive: true);
+            }
+
+            if (File.Exists(archivePath))
+            {
+                File.Delete(archivePath);
+            }
+
+            return null;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return Failure(CliExitCode.FileOrDirectoryError, "KES9004", config.ProjectRoot, $"Could not clean publish output: {exception.Message}");
         }
     }
 

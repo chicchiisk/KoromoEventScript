@@ -20,6 +20,18 @@
       "kind": "kc"
     },
     {
+      "path": "events/chapter003.kc",
+      "kind": "kc"
+    },
+    {
+      "path": "events/chapter004.kc",
+      "kind": "kc"
+    },
+    {
+      "path": "events/chapter005.kc",
+      "kind": "kc"
+    },
+    {
       "path": "events/lib/Common.kc",
       "kind": "kc"
     }
@@ -32,16 +44,43 @@
       "startLabel": "#sy_chapter001_0001",
       "sourcePath": "events/chapter001.kc",
       "klibPath": "events/chapter001.klib",
-      "klibTextPath": "events/chapter001.klibtxt"
+      "klibTextPath": null
     },
     {
       "scriptId": "events/chapter002",
       "locale": "ja-JP",
       "isEntry": false,
-      "startLabel": "#chapter2_start",
+      "startLabel": "#sy_chapter002_0001",
       "sourcePath": "events/chapter002.kc",
       "klibPath": "events/chapter002.klib",
-      "klibTextPath": "events/chapter002.klibtxt"
+      "klibTextPath": null
+    },
+    {
+      "scriptId": "events/chapter003",
+      "locale": "ja-JP",
+      "isEntry": false,
+      "startLabel": "#sy_chapter003_0001",
+      "sourcePath": "events/chapter003.kc",
+      "klibPath": "events/chapter003.klib",
+      "klibTextPath": null
+    },
+    {
+      "scriptId": "events/chapter004",
+      "locale": "ja-JP",
+      "isEntry": false,
+      "startLabel": "#sy_chapter004_0001",
+      "sourcePath": "events/chapter004.kc",
+      "klibPath": "events/chapter004.klib",
+      "klibTextPath": null
+    },
+    {
+      "scriptId": "events/chapter005",
+      "locale": "ja-JP",
+      "isEntry": false,
+      "startLabel": "#sy_chapter005_0001",
+      "sourcePath": "events/chapter005.kc",
+      "klibPath": "events/chapter005.klib",
+      "klibTextPath": null
     },
     {
       "scriptId": "events/lib/Common",
@@ -50,17 +89,320 @@
       "startLabel": "#common_boot",
       "sourcePath": "events/lib/Common.kc",
       "klibPath": "events/lib/Common.klib",
-      "klibTextPath": "events/lib/Common.klibtxt"
+      "klibTextPath": null
     }
   ],
-  "assets": [],
+  "events": [
+    {
+      "eventId": "chapter001_intro",
+      "type": "story",
+      "chapter": "events/chapter001.kc",
+      "scriptId": "events/chapter001",
+      "isEntry": true,
+      "trigger": {
+        "conditions": [],
+        "or": [
+          {
+            "conditions": [
+              {
+                "kind": "from",
+                "from": "chapter004_intro",
+                "param": null,
+                "value": null
+              },
+              {
+                "kind": "is",
+                "from": null,
+                "param": "route_loop",
+                "value": {
+                  "kind": "string",
+                  "text": "chapter001_intro"
+                }
+              }
+            ],
+            "or": []
+          },
+          {
+            "conditions": [
+              {
+                "kind": "from",
+                "from": "chapter005_intro",
+                "param": null,
+                "value": null
+              },
+              {
+                "kind": "is",
+                "from": null,
+                "param": "route_loop",
+                "value": {
+                  "kind": "string",
+                  "text": "chapter001_intro"
+                }
+              }
+            ],
+            "or": []
+          }
+        ]
+      }
+    },
+    {
+      "eventId": "chapter002_intro",
+      "type": "story",
+      "chapter": "events/chapter002.kc",
+      "scriptId": "events/chapter002",
+      "isEntry": false,
+      "trigger": {
+        "conditions": [
+          {
+            "kind": "from",
+            "from": "chapter001_intro",
+            "param": null,
+            "value": null
+          },
+          {
+            "kind": "is",
+            "from": null,
+            "param": "route_1",
+            "value": {
+              "kind": "string",
+              "text": "chapter002_intro"
+            }
+          }
+        ],
+        "or": []
+      }
+    },
+    {
+      "eventId": "chapter003_intro",
+      "type": "story",
+      "chapter": "events/chapter003.kc",
+      "scriptId": "events/chapter003",
+      "isEntry": false,
+      "trigger": {
+        "conditions": [
+          {
+            "kind": "from",
+            "from": "chapter001_intro",
+            "param": null,
+            "value": null
+          },
+          {
+            "kind": "is",
+            "from": null,
+            "param": "route_1",
+            "value": {
+              "kind": "string",
+              "text": "chapter003_intro"
+            }
+          }
+        ],
+        "or": []
+      }
+    },
+    {
+      "eventId": "chapter004_intro",
+      "type": "story",
+      "chapter": "events/chapter004.kc",
+      "scriptId": "events/chapter004",
+      "isEntry": false,
+      "trigger": {
+        "conditions": [],
+        "or": [
+          {
+            "conditions": [
+              {
+                "kind": "from",
+                "from": "chapter002_intro",
+                "param": null,
+                "value": null
+              },
+              {
+                "kind": "is",
+                "from": null,
+                "param": "route_2",
+                "value": {
+                  "kind": "string",
+                  "text": "chapter004_intro"
+                }
+              }
+            ],
+            "or": []
+          },
+          {
+            "conditions": [
+              {
+                "kind": "from",
+                "from": "chapter003_intro",
+                "param": null,
+                "value": null
+              },
+              {
+                "kind": "is",
+                "from": null,
+                "param": "route_2",
+                "value": {
+                  "kind": "string",
+                  "text": "chapter004_intro"
+                }
+              }
+            ],
+            "or": []
+          }
+        ]
+      }
+    },
+    {
+      "eventId": "chapter005_intro",
+      "type": "story",
+      "chapter": "events/chapter005.kc",
+      "scriptId": "events/chapter005",
+      "isEntry": false,
+      "trigger": {
+        "conditions": [],
+        "or": [
+          {
+            "conditions": [
+              {
+                "kind": "from",
+                "from": "chapter002_intro",
+                "param": null,
+                "value": null
+              },
+              {
+                "kind": "is",
+                "from": null,
+                "param": "route_2",
+                "value": {
+                  "kind": "string",
+                  "text": "chapter005_intro"
+                }
+              }
+            ],
+            "or": []
+          },
+          {
+            "conditions": [
+              {
+                "kind": "from",
+                "from": "chapter003_intro",
+                "param": null,
+                "value": null
+              },
+              {
+                "kind": "is",
+                "from": null,
+                "param": "route_2",
+                "value": {
+                  "kind": "string",
+                  "text": "chapter005_intro"
+                }
+              }
+            ],
+            "or": []
+          }
+        ]
+      }
+    }
+  ],
+  "assets": [
+    {
+      "assetId": "assets.actor.amane_normal",
+      "kind": "actor",
+      "path": "../../assets/actor/amane_normal.png",
+      "locale": null
+    },
+    {
+      "assetId": "assets.actor.amane_smile",
+      "kind": "actor",
+      "path": "../../assets/actor/amane_smile.png",
+      "locale": null
+    },
+    {
+      "assetId": "assets.actor.noa_normal",
+      "kind": "actor",
+      "path": "../../assets/actor/noa_normal.png",
+      "locale": null
+    },
+    {
+      "assetId": "assets.actor.noa_smile",
+      "kind": "actor",
+      "path": "../../assets/actor/noa_smile.png",
+      "locale": null
+    },
+    {
+      "assetId": "assets.actor.riku_normal",
+      "kind": "actor",
+      "path": "../../assets/actor/riku_normal.png",
+      "locale": null
+    },
+    {
+      "assetId": "assets.actor.riku_normal_dress",
+      "kind": "actor",
+      "path": "../../assets/actor/riku_normal_dress.png",
+      "locale": null
+    },
+    {
+      "assetId": "assets.actor.riku_pumpkin",
+      "kind": "actor",
+      "path": "../../assets/actor/riku_pumpkin.png",
+      "locale": null
+    },
+    {
+      "assetId": "assets.actor.riku_serious",
+      "kind": "actor",
+      "path": "../../assets/actor/riku_serious.png",
+      "locale": null
+    },
+    {
+      "assetId": "assets.actor.riku_sleep",
+      "kind": "actor",
+      "path": "../../assets/actor/riku_sleep.png",
+      "locale": null
+    },
+    {
+      "assetId": "assets.actor.riku_smile",
+      "kind": "actor",
+      "path": "../../assets/actor/riku_smile.png",
+      "locale": null
+    },
+    {
+      "assetId": "assets.actor.riku_trouble",
+      "kind": "actor",
+      "path": "../../assets/actor/riku_trouble.png",
+      "locale": null
+    },
+    {
+      "assetId": "assets.audio.bgm.bgm_001_alice2",
+      "kind": "bgm",
+      "path": "../../assets/audio/bgm/bgm_001_alice2.wav",
+      "locale": null
+    },
+    {
+      "assetId": "assets.audio.se.se_001_door",
+      "kind": "se",
+      "path": "../../assets/audio/se/se_001_door.wav",
+      "locale": null
+    },
+    {
+      "assetId": "assets.bg.bg_evening",
+      "kind": "background",
+      "path": "../../assets/bg/bg_evening.png",
+      "locale": null
+    },
+    {
+      "assetId": "assets.bg.bg_morning",
+      "kind": "background",
+      "path": "../../assets/bg/bg_morning.png",
+      "locale": null
+    }
+  ],
   "defaults": {
     "width": 1280,
     "height": 720,
     "fullscreen": false
   },
   "build": {
-    "buildId": "windows-fullcommandsample-3",
+    "buildId": "windows-fullcommandsample-6",
     "cliVersion": "1.0.0.0",
     "target": "windows"
   },

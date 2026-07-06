@@ -48,6 +48,15 @@ public sealed class BuildManifestWriter
                     klibPath = script.KlibPath,
                     klibTextPath = script.KlibTextPath,
                 }),
+                events = document.Events.Select(static entry => new
+                {
+                    eventId = entry.EventId,
+                    type = entry.Type,
+                    chapter = entry.Chapter,
+                    scriptId = entry.ScriptId,
+                    isEntry = entry.IsEntry,
+                    trigger = ToJson(entry.Trigger),
+                }),
                 assets = document.Assets.Select(static asset => new
                 {
                     assetId = asset.AssetId,
@@ -93,6 +102,32 @@ public sealed class BuildManifestWriter
                 CliExitCode.FileOrDirectoryError,
                 [new Diagnostic(DiagnosticLevel.Error, "KES9004", NormalizePath(path), 1, 1, $"Could not write manifest.json: {exception.Message}")]);
         }
+    }
+
+    private static object? ToJson(BuildManifestTrigger? trigger)
+    {
+        if (trigger is null)
+        {
+            return null;
+        }
+
+        return new
+        {
+            conditions = trigger.Conditions.Select(static condition => new
+            {
+                kind = condition.Kind,
+                from = condition.From,
+                param = condition.Param,
+                value = condition.Value is null
+                    ? null
+                    : new
+                    {
+                        kind = condition.Value.Kind,
+                        text = condition.Value.Text,
+                    },
+            }),
+            or = trigger.Or.Select(ToJson),
+        };
     }
 
     private static string NormalizePath(string path)

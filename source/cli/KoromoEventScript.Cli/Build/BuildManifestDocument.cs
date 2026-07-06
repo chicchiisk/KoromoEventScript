@@ -9,11 +9,42 @@ public sealed record BuildManifestDocument(
     string EntryEventListPath,
     IReadOnlyList<BuildManifestInputFile> Inputs,
     IReadOnlyList<BuildManifestScriptArtifact> Scripts,
+    IReadOnlyList<BuildManifestEventEntry> Events,
     IReadOnlyList<BuildManifestAssetArtifact> Assets,
     BuildManifestRuntimeDefaults Defaults,
     BuildManifestBuildInfo Build,
     IReadOnlyList<BuildManifestLocalizationArtifact> Localizations)
 {
+    public BuildManifestDocument(
+        string CliVersion,
+        string Target,
+        string GameId,
+        string Title,
+        string DefaultLocale,
+        string EntryEventListPath,
+        IReadOnlyList<BuildManifestInputFile> Inputs,
+        IReadOnlyList<BuildManifestScriptArtifact> Scripts,
+        IReadOnlyList<BuildManifestAssetArtifact> Assets,
+        BuildManifestRuntimeDefaults Defaults,
+        BuildManifestBuildInfo Build,
+        IReadOnlyList<BuildManifestLocalizationArtifact> Localizations)
+        : this(
+            CliVersion,
+            Target,
+            GameId,
+            Title,
+            DefaultLocale,
+            EntryEventListPath,
+            Inputs,
+            Scripts,
+            [],
+            Assets,
+            Defaults,
+            Build,
+            Localizations)
+    {
+    }
+
     public BuildManifestDocument(
         string CliVersion,
         string Target,
@@ -31,12 +62,35 @@ public sealed record BuildManifestDocument(
             Inputs,
             Scripts,
             [],
+            [],
             new BuildManifestRuntimeDefaults(1280, 720, false),
             new BuildManifestBuildInfo(BuildId: string.Empty, CliVersion),
             Localizations)
     {
     }
 }
+
+public sealed record BuildManifestEventEntry(
+    string EventId,
+    string? Type,
+    string Chapter,
+    string ScriptId,
+    bool IsEntry,
+    BuildManifestTrigger? Trigger);
+
+public sealed record BuildManifestTrigger(
+    IReadOnlyList<BuildManifestTriggerCondition> Conditions,
+    IReadOnlyList<BuildManifestTrigger> Or);
+
+public sealed record BuildManifestTriggerCondition(
+    string Kind,
+    string? From,
+    string? Param,
+    BuildManifestTriggerValue? Value);
+
+public sealed record BuildManifestTriggerValue(
+    string Kind,
+    string Text);
 
 public sealed record BuildManifestInputFile(
     string Path,

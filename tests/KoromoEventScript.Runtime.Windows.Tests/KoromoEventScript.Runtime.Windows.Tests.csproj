@@ -19,6 +19,7 @@
     <PackageReference Include="NUnit" Version="4.3.2" />
     <PackageReference Include="NUnit.Analyzers" Version="4.7.0" />
     <PackageReference Include="NUnit3TestAdapter" Version="5.0.0" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
   </ItemGroup>
 
   <ItemGroup>
@@ -27,6 +28,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\source\runtime\KoromoEventScript.Runtime.Core\KoromoEventScript.Runtime.Core.csproj" />
+    <Compile Include="..\..\source\runtime\KoromoEventScript.Runtime.Windows\RuntimeSessionController.cs" Link="RuntimeSessionController.cs" />
     <Compile Include="..\..\source\runtime\KoromoEventScript.Runtime.Windows\Audio\*.cs" Link="Audio\%(Filename)%(Extension)" />
     <Compile Include="..\..\source\runtime\KoromoEventScript.Runtime.Windows\Bootstrap\*.cs" Link="Bootstrap\%(Filename)%(Extension)" />
     <Compile Include="..\..\source\runtime\KoromoEventScript.Runtime.Windows\Diagnostics\*.cs" Link="Diagnostics\%(Filename)%(Extension)" />
@@ -35,6 +37,7 @@
     <Compile Include="..\..\source\runtime\KoromoEventScript.Runtime.Windows\Persistence\*.cs" Link="Persistence\%(Filename)%(Extension)" />
     <Compile Include="..\..\source\runtime\KoromoEventScript.Runtime.Windows\Rendering\*.cs" Link="Rendering\%(Filename)%(Extension)" />
     <Compile Include="..\..\source\runtime\KoromoEventScript.Runtime.Windows\Ui\*.cs" Link="Ui\%(Filename)%(Extension)" />
+    <Compile Include="..\..\source\runtime\KoromoEventScript.Runtime.Windows\ViewModels\*.cs" Link="ViewModels\%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>

@@ -5,49 +5,90 @@ standby:
     amane : Amane
     noa : Noa
 
-var score: number = 0
-var isMorning: bool = true
-var selectedIndex: number = 0
-var localCast: Actor[] = [riku, amane, noa]
-var bonusValues: number[] = [1, 2, 3]
+print "full-command-sample: STL core/system/state sample"
+var localPositions: number[] = [-1, 0, 1]
+var castCount: number = array_len localPositions
+var castRange: number[] = range 0 castCount
+var rangeCount: number = array_len castRange
+var titleLength: number = str_len sharedTitle
+var castCountText: string = number_to_string castCount
+var sampleBoolText: string = bool_to_string true
+var castHasItems: bool = castCount > 0
+var rangeMatchesCast: bool = rangeCount == castCount
+var titleHasText: bool = titleLength > 0
+var castCountTextLength: number = str_len castCountText
+var boolTextLength: number = str_len sampleBoolText
+var castCountTextHasText: bool = castCountTextLength > 0
+var boolTextHasText: bool = boolTextLength > 0
+assert castHasItems "highlightPositions must not be empty"
+assert rangeMatchesCast "range count must match cast count"
+assert titleHasText "sharedTitle must not be empty"
+assert castCountTextHasText "number_to_string result must not be empty"
+assert boolTextHasText "bool_to_string result must not be empty"
 
-score = score + sharedStep
-
+rt_back
 bg "bg_morning"
-show riku 0 "normal"
-trans "crossfade"
+camera_autofocus true
+show riku 0 "normal" 0 0 false
+face riku "normal"
+move riku 0 0
+action_jump riku
+vf riku "normal"
+trans "crossfade" 0
+rt_front
+bgm "assets.audio.bgm.bgm_001_alice2" true 1
+vo
+voice_stop
+set_config_number "textSpeed" 1
+set_config_bool "fullscreen" false
+set_config_string "locale" "ja-JP"
+var configuredLocale: string = get_config "locale"
+var configuredLocaleLength: number = str_len configuredLocale
+var configuredLocaleHasText: bool = configuredLocaleLength > 0
+assert configuredLocaleHasText "locale config must be readable"
+set_auto false
+set_skip "off"
+wait 0
+mark_read "chapter001_intro"
+var chapterWasRead: bool = is_read "chapter001_intro"
+assert chapterWasRead "mark_read must set read state"
+autosave
+save 1 "STLサンプル"
+load 1
+set_param_number "sample_score" castCount
+set_param_bool "sample_flag" true
+var sampleScoreText: string = get_param "sample_score"
+var sampleFlagText: string = get_param "sample_flag"
+var sampleScoreTextLength: number = str_len sampleScoreText
+var sampleFlagTextLength: number = str_len sampleFlagText
+var sampleScoreTextHasText: bool = sampleScoreTextLength > 0
+var sampleFlagTextHasText: bool = sampleFlagTextLength > 0
+assert sampleScoreTextHasText "number game parameter must be readable"
+assert sampleFlagTextHasText "bool game parameter must be readable"
+cm
+r
 
 say riku #sy_chapter001_0001:
-    {sharedTitle}の一章目を始めよう
+    {sharedTitle}の一章目。ここから二つの導入へ分岐する。
 
-nar #na_chapter001_0002:
-    章立てサンプルの朝パート。
+label #select_route_1
+select #se_chapter001_0002:
+    case "中庭の二章へ進む" #route_chapter002
+    case "図書室の三章へ進む" #route_chapter003
 
-if isMorning && score < 3:
-    face riku "smile"
-    action_jump riku
-else if score == 3:
-    face amane "think"
-else:
-    face noa "normal"
-
-while score < 3:
-    score = score + 1
-
-for actor in localCast:
-    show actor 0
-
-select #se_chapter001_0003:
-    case "中庭へ向かう" #courtyard
-    case "教室へ戻る" #classroom
-
-label #courtyard
-say amane #sy_chapter001_0004:
-    中庭から二章へ進もう
+label #route_chapter002
+set_param_string "route_1" "chapter002_intro"
+se "assets.audio.se.se_001_door"
+say amane #sy_chapter001_0003:
+    中庭へ向かおう。
 jump #end
 
-label #classroom
-nar #na_chapter001_0005:
-    教室で少しだけ時間をつぶした。
+label #route_chapter003
+set_param_string "route_1" "chapter003_intro"
+se "assets.audio.se.se_001_door"
+say noa #sy_chapter001_0004:
+    図書室で手がかりを探そう。
 
 label #end
+
+hide riku

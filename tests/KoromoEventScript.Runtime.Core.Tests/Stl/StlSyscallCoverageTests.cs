@@ -52,6 +52,10 @@ public sealed class StlSyscallCoverageTests
         "system.set_config_number",
         "system.set_config_bool",
         "system.get_config",
+        "system.set_param_string",
+        "system.set_param_number",
+        "system.set_param_bool",
+        "system.get_param",
     ];
 
     [Test]

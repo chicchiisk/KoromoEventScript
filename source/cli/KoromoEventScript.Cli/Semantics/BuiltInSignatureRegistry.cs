@@ -68,6 +68,10 @@ public sealed class BuiltInSignatureRegistry
             ["set_config_number"] = Void("set_config_number", Param("key", KesType.String), Param("value", KesType.Number)),
             ["set_config_bool"] = Void("set_config_bool", Param("key", KesType.String), Param("value", KesType.Bool)),
             ["get_config"] = Fn("get_config", KesType.String, Param("key", KesType.String)),
+            ["set_param_string"] = Void("set_param_string", Param("key", KesType.String), Param("value", KesType.String)),
+            ["set_param_number"] = Void("set_param_number", Param("key", KesType.String), Param("value", KesType.Number)),
+            ["set_param_bool"] = Void("set_param_bool", Param("key", KesType.String), Param("value", KesType.Bool)),
+            ["get_param"] = Fn("get_param", KesType.String, Param("key", KesType.String)),
         };
     }
 

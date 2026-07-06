@@ -59,6 +59,52 @@ public sealed class AudioStateSystemStlSyscallTests
     }
 
     [Test]
+    public void Run_WithAudioPureCalls_PublishesAudioEffectsInOrder()
+    {
+        var sink = new CollectingEffectSink();
+        var document = CreateDocument(
+            [
+                String("bgm"),
+                String("assets.audio.bgm.bgm_001_alice2"),
+                String("se"),
+                String("assets.audio.se.se_001_door"),
+                String("se_stop"),
+                String("bgm_stop"),
+            ],
+            [
+                Instruction(0, KlibOpCode.PushConst, [1]),
+                Instruction(1, KlibOpCode.PushTrue),
+                Instruction(2, KlibOpCode.PushInt, [1]),
+                Instruction(3, KlibOpCode.CallVoid, [0, 3]),
+                Instruction(4, KlibOpCode.PushConst, [3]),
+                Instruction(5, KlibOpCode.CallVoid, [2, 1]),
+                Instruction(6, KlibOpCode.PushConst, [3]),
+                Instruction(7, KlibOpCode.CallVoid, [4, 1]),
+                Instruction(8, KlibOpCode.PushInt, [1]),
+                Instruction(9, KlibOpCode.CallVoid, [5, 1]),
+            ]);
+        var session = new KesVmSession(document);
+
+        var result = new KesVmExecutor(effectSink: sink).Run(session);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Succeeded, Is.True);
+            Assert.That(sink.Effects.Select(static effect => effect.Name), Is.EqualTo(
+                [
+                    "audio.bgm",
+                    "audio.se",
+                    "audio.se_stop",
+                    "audio.bgm_stop",
+                ]));
+            Assert.That(sink.Effects[0].Payload["id"], Is.EqualTo("assets.audio.bgm.bgm_001_alice2"));
+            Assert.That(sink.Effects[0].Payload["loop"], Is.EqualTo("true"));
+            Assert.That(sink.Effects[0].Payload["fade"], Is.EqualTo("1"));
+            Assert.That(sink.Effects[2].Payload["id"], Is.EqualTo("assets.audio.se.se_001_door"));
+        });
+    }
+
+    [Test]
     public void Run_WithStateSyscalls_TracksReadStateAndPublishesSaveEffects()
     {
         var sink = new CollectingEffectSink();
@@ -177,6 +223,67 @@ public sealed class AudioStateSystemStlSyscallTests
             Assert.That(result.Succeeded, Is.False);
             Assert.That(result.FailureKind, Is.EqualTo(RuntimeFailureKind.Runtime));
             Assert.That(result.Diagnostics.Select(static diagnostic => diagnostic.Code), Does.Contain("KESR3405"));
+        });
+    }
+
+    [Test]
+    public void Run_WithSystemParamSyscalls_UpdatesAndReturnsGameParameters()
+    {
+        var document = CreateDocument(
+            [
+                String("system.set_param_string"),
+                String("route_1"),
+                String("chapter002_intro"),
+                String("system.set_param_number"),
+                String("score"),
+                String("system.set_param_bool"),
+                String("visited"),
+                String("system.get_param"),
+            ],
+            [
+                Instruction(0, KlibOpCode.PushConst, [1]),
+                Instruction(1, KlibOpCode.PushConst, [2]),
+                Instruction(2, KlibOpCode.SysCallVoid, [0, 2]),
+                Instruction(3, KlibOpCode.PushConst, [4]),
+                Instruction(4, KlibOpCode.PushInt, [7]),
+                Instruction(5, KlibOpCode.SysCallVoid, [3, 2]),
+                Instruction(6, KlibOpCode.PushConst, [6]),
+                Instruction(7, KlibOpCode.PushTrue),
+                Instruction(8, KlibOpCode.SysCallVoid, [5, 2]),
+                Instruction(9, KlibOpCode.PushConst, [1]),
+                Instruction(10, KlibOpCode.SysCall, [7, 1]),
+            ]);
+        var session = new KesVmSession(document);
+
+        var result = new KesVmExecutor().Run(session);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Succeeded, Is.True);
+            Assert.That(session.OperandStack.Single().StringValue, Is.EqualTo("chapter002_intro"));
+        });
+    }
+
+    [Test]
+    public void Run_WithUnknownGameParameter_ReturnsRuntimeError()
+    {
+        var document = CreateDocument(
+            [
+                String("system.get_param"),
+                String("missing"),
+            ],
+            [
+                Instruction(0, KlibOpCode.PushConst, [1]),
+                Instruction(1, KlibOpCode.SysCall, [0, 1]),
+            ]);
+        var session = new KesVmSession(document);
+
+        var result = new KesVmExecutor().Run(session);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Succeeded, Is.False);
+            Assert.That(result.Diagnostics.Select(static diagnostic => diagnostic.Code), Does.Contain("KESR3406"));
         });
     }
 

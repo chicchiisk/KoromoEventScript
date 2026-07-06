@@ -140,6 +140,54 @@ public sealed class SceneActorStlSyscallTests
         });
     }
 
+    [Test]
+    public void Run_WithActorPureCalls_PublishesAssetBaseNameSceneEffects()
+    {
+        var sink = new CollectingEffectSink();
+        var document = CreateDocument(
+            [
+                Actor("actor.riku"),
+                String("assetBaseName"),
+                String("riku"),
+                String("defaultFace"),
+                String("normal"),
+                String("show"),
+                String("smile"),
+                String("face"),
+                String("serious"),
+            ],
+            [
+                Instruction(0, KlibOpCode.PushConst, [0]),
+                Instruction(1, KlibOpCode.PushConst, [2]),
+                Instruction(2, KlibOpCode.SetField, [1]),
+                Instruction(3, KlibOpCode.PushConst, [0]),
+                Instruction(4, KlibOpCode.PushConst, [4]),
+                Instruction(5, KlibOpCode.SetField, [3]),
+                Instruction(6, KlibOpCode.PushConst, [0]),
+                Instruction(7, KlibOpCode.PushInt, [0]),
+                Instruction(8, KlibOpCode.PushConst, [6]),
+                Instruction(9, KlibOpCode.CallVoid, [5, 3]),
+                Instruction(10, KlibOpCode.PushConst, [0]),
+                Instruction(11, KlibOpCode.PushConst, [8]),
+                Instruction(12, KlibOpCode.CallVoid, [7, 2]),
+                Instruction(13, KlibOpCode.End),
+            ]);
+        var session = new KesVmSession(document);
+
+        var result = new KesVmExecutor(effectSink: sink).Run(session);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Succeeded, Is.True);
+            Assert.That(sink.Effects.Select(static effect => effect.Name), Is.EqualTo(["actor.show", "actor.face"]));
+            Assert.That(sink.Effects[0].Payload["actor"], Is.EqualTo("actor.riku"));
+            Assert.That(sink.Effects[0].Payload["assetBaseName"], Is.EqualTo("riku"));
+            Assert.That(sink.Effects[0].Payload["face"], Is.EqualTo("smile"));
+            Assert.That(sink.Effects[1].Payload["assetBaseName"], Is.EqualTo("riku"));
+            Assert.That(sink.Effects[1].Payload["exp"], Is.EqualTo("serious"));
+        });
+    }
+
     private static KlibDocument CreateDocument(
         IReadOnlyList<KlibConstant> constants,
         IReadOnlyList<KlibInstruction> instructions)

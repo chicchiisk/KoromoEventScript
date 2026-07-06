@@ -19,11 +19,20 @@ public sealed class RuntimeObjectStore
         ArgumentException.ThrowIfNullOrEmpty(classId);
 
         var referenceId = $"instance:{nextInstanceId++}";
-        instances[referenceId] = new Dictionary<string, RuntimeValue>(StringComparer.Ordinal)
-        {
-            ["__class"] = RuntimeValue.String(classId),
-        };
+        instances[referenceId] = CreateInstanceFields(classId);
         return RuntimeValue.Reference(referenceId);
+    }
+
+    public void EnsureActorReference(string referenceId)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(referenceId);
+
+        if (instances.ContainsKey(referenceId))
+        {
+            return;
+        }
+
+        instances[referenceId] = CreateInstanceFields("Actor");
     }
 
     public bool TryGetArrayValue(string referenceId, int index, out RuntimeValue value, out string? error)
@@ -87,6 +96,11 @@ public sealed class RuntimeObjectStore
         value = RuntimeValue.Null;
         error = null;
 
+        if (IsActorReference(referenceId))
+        {
+            EnsureActorReference(referenceId);
+        }
+
         if (!instances.TryGetValue(referenceId, out var fields))
         {
             error = $"Instance reference '{referenceId}' does not exist.";
@@ -100,6 +114,11 @@ public sealed class RuntimeObjectStore
     public bool TrySetField(string referenceId, string fieldId, RuntimeValue value, out string? error)
     {
         error = null;
+
+        if (IsActorReference(referenceId))
+        {
+            EnsureActorReference(referenceId);
+        }
 
         if (!instances.TryGetValue(referenceId, out var fields))
         {
@@ -122,5 +141,19 @@ public sealed class RuntimeObjectStore
 
         error = $"Object reference '{referenceId}' does not exist.";
         return false;
+    }
+
+    private static bool IsActorReference(string referenceId)
+    {
+        return referenceId.StartsWith("actor.", StringComparison.Ordinal);
+    }
+
+    private static Dictionary<string, RuntimeValue> CreateInstanceFields(string classId)
+    {
+        return new Dictionary<string, RuntimeValue>(StringComparer.Ordinal)
+        {
+            ["__class"] = RuntimeValue.String(classId),
+            ["isVisible"] = RuntimeValue.Bool(false),
+        };
     }
 }

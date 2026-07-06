@@ -3,9 +3,86 @@ entry = chapter001_intro
 chapter001_intro = {
     type = story
     chapter = "events/chapter001.kc"
+    trigger = {
+        or = {
+            from = chapter004_intro
+            is = {
+                param = route_loop
+                value = chapter001_intro
+            }
+        }
+        or = {
+            from = chapter005_intro
+            is = {
+                param = route_loop
+                value = chapter001_intro
+            }
+        }
+    }
 }
 
 chapter002_intro = {
     type = story
     chapter = "events/chapter002.kc"
+    trigger = {
+        from = chapter001_intro
+        is = {
+            param = route_1
+            value = chapter002_intro
+        }
+    }
+}
+
+chapter003_intro = {
+    type = story
+    chapter = "events/chapter003.kc"
+    trigger = {
+        from = chapter001_intro
+        is = {
+            param = route_1
+            value = chapter003_intro
+        }
+    }
+}
+
+chapter004_intro = {
+    type = story
+    chapter = "events/chapter004.kc"
+    trigger = {
+        or = {
+            from = chapter002_intro
+            is = {
+                param = route_2
+                value = chapter004_intro
+            }
+        }
+        or = {
+            from = chapter003_intro
+            is = {
+                param = route_2
+                value = chapter004_intro
+            }
+        }
+    }
+}
+
+chapter005_intro = {
+    type = story
+    chapter = "events/chapter005.kc"
+    trigger = {
+        or = {
+            from = chapter002_intro
+            is = {
+                param = route_2
+                value = chapter005_intro
+            }
+        }
+        or = {
+            from = chapter003_intro
+            is = {
+                param = route_2
+                value = chapter005_intro
+            }
+        }
+    }
 }

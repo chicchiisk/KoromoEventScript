@@ -57,6 +57,16 @@ public sealed class RuntimeManifestReader : IRuntimeManifestReader
                 script.IsEntry,
                 script.StartLabel))
             .ToArray();
+        var events = (json.Events ?? [])
+            .Select(static entry => new RuntimeEventEntry(
+                entry.EventId ?? string.Empty,
+                entry.Type,
+                entry.Chapter ?? string.Empty,
+                entry.ScriptId ?? string.Empty,
+                entry.IsEntry,
+                ToRuntimeTrigger(entry.Trigger)))
+            .Where(static entry => !string.IsNullOrWhiteSpace(entry.EventId) && !string.IsNullOrWhiteSpace(entry.ScriptId))
+            .ToArray();
         var assets = (json.Assets ?? [])
             .Select(asset => new RuntimeAssetEntry(
                 asset.AssetId!,
@@ -72,6 +82,7 @@ public sealed class RuntimeManifestReader : IRuntimeManifestReader
             json.Title!,
             json.DefaultLocale!,
             scripts,
+            events,
             assets,
             new RuntimeSettings(json.Defaults?.Width, json.Defaults?.Height, json.Defaults?.Fullscreen),
             new RuntimeBuildInfo(json.Build?.BuildId, json.Build?.CliVersion),
@@ -122,6 +133,30 @@ public sealed class RuntimeManifestReader : IRuntimeManifestReader
         }
     }
 
+    private static RuntimeTrigger? ToRuntimeTrigger(TriggerJson? trigger)
+    {
+        if (trigger is null)
+        {
+            return null;
+        }
+
+        return new RuntimeTrigger(
+            (trigger.Conditions ?? [])
+                .Select(static condition => new RuntimeTriggerCondition(
+                    condition.Kind ?? string.Empty,
+                    condition.From,
+                    condition.Param,
+                    condition.Value is null
+                        ? null
+                        : new RuntimeTriggerValue(condition.Value.Kind ?? string.Empty, condition.Value.Text ?? string.Empty)))
+                .ToArray(),
+            (trigger.Or ?? [])
+                .Select(ToRuntimeTrigger)
+                .Where(static nested => nested is not null)
+                .Select(static nested => nested!)
+                .ToArray());
+    }
+
     private static RuntimeDiagnostic Diagnostic(string code, string message)
     {
         return RuntimeDiagnostic.Error(code, message, RuntimeFailureKind.Startup);
@@ -144,6 +179,8 @@ public sealed class RuntimeManifestReader : IRuntimeManifestReader
 
         public List<ScriptJson>? Scripts { get; init; }
 
+        public List<EventJson>? Events { get; init; }
+
         public List<AssetJson>? Assets { get; init; }
 
         public SettingsJson? Defaults { get; init; }
@@ -162,6 +199,46 @@ public sealed class RuntimeManifestReader : IRuntimeManifestReader
         public bool IsEntry { get; init; }
 
         public string? StartLabel { get; init; }
+    }
+
+    private sealed record EventJson
+    {
+        public string? EventId { get; init; }
+
+        public string? Type { get; init; }
+
+        public string? Chapter { get; init; }
+
+        public string? ScriptId { get; init; }
+
+        public bool IsEntry { get; init; }
+
+        public TriggerJson? Trigger { get; init; }
+    }
+
+    private sealed record TriggerJson
+    {
+        public List<TriggerConditionJson>? Conditions { get; init; }
+
+        public List<TriggerJson>? Or { get; init; }
+    }
+
+    private sealed record TriggerConditionJson
+    {
+        public string? Kind { get; init; }
+
+        public string? From { get; init; }
+
+        public string? Param { get; init; }
+
+        public TriggerValueJson? Value { get; init; }
+    }
+
+    private sealed record TriggerValueJson
+    {
+        public string? Kind { get; init; }
+
+        public string? Text { get; init; }
     }
 
     private sealed record AssetJson

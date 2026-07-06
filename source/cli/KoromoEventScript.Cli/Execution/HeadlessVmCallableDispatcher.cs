@@ -19,6 +19,20 @@ public sealed record HeadlessVmCallableResult(
 public sealed class HeadlessVmCallableDispatcher
 {
     private readonly BuiltInSignatureRegistry builtIns = new();
+    private readonly Dictionary<string, HeadlessVmRuntimeValue> gameParameters = new(StringComparer.Ordinal);
+    private readonly HashSet<string> readTags = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> config = new(StringComparer.Ordinal)
+    {
+        ["masterVolume"] = "1",
+        ["bgmVolume"] = "1",
+        ["seVolume"] = "1",
+        ["voiceVolume"] = "1",
+        ["textSpeed"] = "1",
+        ["autoSpeed"] = "1",
+        ["skipMode"] = "off",
+        ["fullscreen"] = "false",
+        ["locale"] = "ja-JP",
+    };
 
     public HeadlessVmCallableResult InvokeCall(
         string name,
@@ -57,6 +71,16 @@ public sealed class HeadlessVmCallableDispatcher
             "face" => InvokeFace(arguments, objectStore, observation),
             "move" => InvokeMove(arguments, objectStore, observation),
             "action_jump" => Continue(observation),
+            "mark_read" => MarkRead(arguments, observation),
+            "is_read" => IsRead(arguments, observation),
+            "set_config_string" => SetConfigString(arguments, observation),
+            "set_config_number" => SetConfigNumber(arguments, observation),
+            "set_config_bool" => SetConfigBool(arguments, observation),
+            "get_config" => GetConfig(arguments, observation),
+            "set_param_string" => SetParamString(arguments, observation),
+            "set_param_number" => SetParamNumber(arguments, observation),
+            "set_param_bool" => SetParamBool(arguments, observation),
+            "get_param" => GetParam(arguments, observation),
             _ when !returnsValue => Continue(observation),
             _ => Fault(observation, $"Callable '{name}' is not yet supported in headless mode."),
         };
@@ -360,6 +384,136 @@ public sealed class HeadlessVmCallableDispatcher
         return Continue(observation);
     }
 
+    private HeadlessVmCallableResult MarkRead(IReadOnlyList<HeadlessVmRuntimeValue> arguments, HeadlessVmObservationLog observation)
+    {
+        if (!TryReadString(arguments, 0, out var tag) || arguments.Count != 1)
+        {
+            return Fault(observation, "Callable 'mark_read' requires one string tag argument.");
+        }
+
+        readTags.Add(tag);
+        return Continue(observation);
+    }
+
+    private HeadlessVmCallableResult IsRead(IReadOnlyList<HeadlessVmRuntimeValue> arguments, HeadlessVmObservationLog observation)
+    {
+        if (!TryReadString(arguments, 0, out var tag) || arguments.Count != 1)
+        {
+            return Fault(observation, "Callable 'is_read' requires one string tag argument.");
+        }
+
+        return new HeadlessVmCallableResult(
+            observation,
+            ReturnValue: new HeadlessVmRuntimeValue(HeadlessVmRuntimeValueKind.Bool, BoolValue: readTags.Contains(tag)),
+            HasReturnValue: true);
+    }
+
+    private HeadlessVmCallableResult SetConfigString(IReadOnlyList<HeadlessVmRuntimeValue> arguments, HeadlessVmObservationLog observation)
+    {
+        if (!TryReadString(arguments, 0, out var key) || !TryReadString(arguments, 1, out var value) || arguments.Count != 2)
+        {
+            return Fault(observation, "Callable 'set_config_string' requires key:string and value:string arguments.");
+        }
+
+        config[key] = value;
+        return Continue(observation);
+    }
+
+    private HeadlessVmCallableResult SetConfigNumber(IReadOnlyList<HeadlessVmRuntimeValue> arguments, HeadlessVmObservationLog observation)
+    {
+        if (!TryReadString(arguments, 0, out var key) ||
+            arguments.Count != 2 ||
+            arguments[1].Kind != HeadlessVmRuntimeValueKind.Number ||
+            arguments[1].NumberValue is null)
+        {
+            return Fault(observation, "Callable 'set_config_number' requires key:string and value:number arguments.");
+        }
+
+        config[key] = arguments[1].NumberValue.GetValueOrDefault().ToString(System.Globalization.CultureInfo.InvariantCulture);
+        return Continue(observation);
+    }
+
+    private HeadlessVmCallableResult SetConfigBool(IReadOnlyList<HeadlessVmRuntimeValue> arguments, HeadlessVmObservationLog observation)
+    {
+        if (!TryReadString(arguments, 0, out var key) ||
+            arguments.Count != 2 ||
+            arguments[1].Kind != HeadlessVmRuntimeValueKind.Bool ||
+            arguments[1].BoolValue is null)
+        {
+            return Fault(observation, "Callable 'set_config_bool' requires key:string and value:bool arguments.");
+        }
+
+        config[key] = arguments[1].BoolValue.GetValueOrDefault() ? "true" : "false";
+        return Continue(observation);
+    }
+
+    private HeadlessVmCallableResult GetConfig(IReadOnlyList<HeadlessVmRuntimeValue> arguments, HeadlessVmObservationLog observation)
+    {
+        if (!TryReadString(arguments, 0, out var key) || arguments.Count != 1)
+        {
+            return Fault(observation, "Callable 'get_config' requires one string key argument.");
+        }
+
+        return new HeadlessVmCallableResult(
+            observation,
+            ReturnValue: new HeadlessVmRuntimeValue(HeadlessVmRuntimeValueKind.String, StringValue: config.GetValueOrDefault(key, string.Empty)),
+            HasReturnValue: true);
+    }
+
+    private HeadlessVmCallableResult SetParamString(IReadOnlyList<HeadlessVmRuntimeValue> arguments, HeadlessVmObservationLog observation)
+    {
+        if (!TryReadString(arguments, 0, out var key) || !TryReadString(arguments, 1, out var value) || arguments.Count != 2)
+        {
+            return Fault(observation, "Callable 'set_param_string' requires key:string and value:string arguments.");
+        }
+
+        gameParameters[key] = new HeadlessVmRuntimeValue(HeadlessVmRuntimeValueKind.String, StringValue: value);
+        return Continue(observation);
+    }
+
+    private HeadlessVmCallableResult SetParamNumber(IReadOnlyList<HeadlessVmRuntimeValue> arguments, HeadlessVmObservationLog observation)
+    {
+        if (!TryReadString(arguments, 0, out var key) ||
+            arguments.Count != 2 ||
+            arguments[1].Kind != HeadlessVmRuntimeValueKind.Number ||
+            arguments[1].NumberValue is null)
+        {
+            return Fault(observation, "Callable 'set_param_number' requires key:string and value:number arguments.");
+        }
+
+        gameParameters[key] = arguments[1];
+        return Continue(observation);
+    }
+
+    private HeadlessVmCallableResult SetParamBool(IReadOnlyList<HeadlessVmRuntimeValue> arguments, HeadlessVmObservationLog observation)
+    {
+        if (!TryReadString(arguments, 0, out var key) ||
+            arguments.Count != 2 ||
+            arguments[1].Kind != HeadlessVmRuntimeValueKind.Bool ||
+            arguments[1].BoolValue is null)
+        {
+            return Fault(observation, "Callable 'set_param_bool' requires key:string and value:bool arguments.");
+        }
+
+        gameParameters[key] = arguments[1];
+        return Continue(observation);
+    }
+
+    private HeadlessVmCallableResult GetParam(IReadOnlyList<HeadlessVmRuntimeValue> arguments, HeadlessVmObservationLog observation)
+    {
+        if (!TryReadString(arguments, 0, out var key) || arguments.Count != 1)
+        {
+            return Fault(observation, "Callable 'get_param' requires one string key argument.");
+        }
+
+        return gameParameters.TryGetValue(key, out var value)
+            ? new HeadlessVmCallableResult(
+                observation,
+                ReturnValue: new HeadlessVmRuntimeValue(HeadlessVmRuntimeValueKind.String, StringValue: ToDisplayString(value) ?? string.Empty),
+                HasReturnValue: true)
+            : Fault(observation, $"Game parameter '{key}' is not defined.");
+    }
+
     private static HeadlessVmCallableResult InvokeScenarioSay(IReadOnlyList<HeadlessVmRuntimeValue> arguments, HeadlessVmObservationLog observation)
     {
         if (arguments.Count != 2)
@@ -415,6 +569,20 @@ public sealed class HeadlessVmCallableDispatcher
 
         actorReferenceId = arguments[0].ReferenceId;
         fault = null;
+        return true;
+    }
+
+    private static bool TryReadString(IReadOnlyList<HeadlessVmRuntimeValue> arguments, int index, out string value)
+    {
+        value = string.Empty;
+        if (index < 0 ||
+            index >= arguments.Count ||
+            arguments[index].Kind != HeadlessVmRuntimeValueKind.String)
+        {
+            return false;
+        }
+
+        value = arguments[index].StringValue ?? string.Empty;
         return true;
     }
 }

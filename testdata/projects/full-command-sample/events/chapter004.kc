@@ -1,0 +1,19 @@
+import Common
+
+standby:
+    riku : Riku
+    amane : Amane
+    noa : Noa
+
+bg "bg_morning"
+show amane 0 "normal"
+
+say amane #sy_chapter004_0001:
+    四章目。夕焼けの答えを得たので、もう一度一章へ戻る。
+
+se_stop "assets.audio.se.se_001_door"
+bgm_stop 1
+set_param_string "route_loop" "chapter001_intro"
+
+nar #na_chapter004_0002:
+    イベント遷移は trigger によって次の一章を選ぶ。

@@ -9,7 +9,12 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
-    <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+    <Grid
+        Background="{ThemeResource ApplicationPageBackgroundThemeBrush}"
+        IsTabStop="True"
+        KeyDown="Page_KeyDown"
+        Loaded="Page_Loaded"
+        Tapped="Page_Tapped">
         <canvas:CanvasControl
             x:Name="SceneCanvas"
             ClearColor="Black"
@@ -75,6 +80,7 @@
         </Border>
 
         <ListView
+            x:Name="ChoiceList"
             AutomationProperties.AutomationId="RuntimeChoiceList"
             AutomationProperties.Name="Choices"
             HorizontalAlignment="Right"
@@ -83,6 +89,7 @@
             Margin="48"
             ItemsSource="{x:Bind ViewModel.Choices, Mode=OneWay}"
             SelectionMode="Single"
+            SelectionChanged="ChoiceList_SelectionChanged"
             Visibility="{x:Bind local:MainPage.BoolToVisibility(ViewModel.AreChoicesVisible), Mode=OneWay}" />
 
         <Grid

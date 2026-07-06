@@ -92,6 +92,27 @@ public sealed class KesVmExecutorTests
     }
 
     [Test]
+    public void Run_WithBackgroundCommand_Completes()
+    {
+        var document = CreateDocument(
+            [new KlibConstant(KlibConstantKind.String, StringValue: "bg_morning"), new KlibConstant(KlibConstantKind.String, StringValue: "bg")],
+            [
+                Instruction(0, KlibOpCode.PushConst, [0]),
+                Instruction(1, KlibOpCode.CallVoid, [1, 1]),
+            ]);
+        var session = new KesVmSession(document);
+
+        var result = new KesVmExecutor().Run(session);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Succeeded, Is.True);
+            Assert.That(session.Continuation.Kind, Is.EqualTo(RuntimeContinuationKind.Completed));
+            Assert.That(session.OperandStack, Is.Empty);
+        });
+    }
+
+    [Test]
     public void Run_WithStackUnderflow_ReturnsRuntimeError()
     {
         var document = CreateDocument([], [Instruction(0, KlibOpCode.Pop)]);

@@ -1,3 +1,4 @@
+using KoromoEventScript.Runtime.Core.Effects;
 using KoromoEventScript.Runtime.Windows.Rendering;
 
 namespace KoromoEventScript.Runtime.Windows.Tests.Rendering;
@@ -45,5 +46,43 @@ public sealed class Win2DSceneRendererTests
             Assert.That(plan.Items.Single().DisplayBounds.Width, Is.EqualTo(1600d));
             Assert.That(plan.Items.Single().DisplayBounds.Height, Is.EqualTo(240d));
         });
+    }
+
+    [Test]
+    public void RuntimeSceneStateController_UsesActorAssetBaseNameAndFaceForAssetId()
+    {
+        var controller = new RuntimeSceneStateController();
+
+        controller.Apply(SceneEffect(
+            "actor.show",
+            new Dictionary<string, string?>
+            {
+                ["actor"] = "actor.riku",
+                ["assetBaseName"] = "riku",
+                ["face"] = "normal",
+                ["pos"] = "0",
+            }));
+        controller.Apply(SceneEffect(
+            "actor.face",
+            new Dictionary<string, string?>
+            {
+                ["actor"] = "actor.riku",
+                ["assetBaseName"] = "riku",
+                ["exp"] = "smile",
+            }));
+
+        var actor = controller.State.Renderables.Single(static renderable => renderable.Id == "actor.riku");
+        Assert.Multiple(() =>
+        {
+            Assert.That(actor.Layer, Is.EqualTo(SceneLayer.Actor));
+            Assert.That(actor.AssetId, Is.EqualTo("assets.actor.riku_smile"));
+            Assert.That(actor.Properties?["assetBaseName"], Is.EqualTo("riku"));
+            Assert.That(actor.Properties?["face"], Is.EqualTo("smile"));
+        });
+    }
+
+    private static RuntimeEffect SceneEffect(string name, IReadOnlyDictionary<string, string?> payload)
+    {
+        return new RuntimeEffect(RuntimeEffectKind.Scene, name, payload);
     }
 }

@@ -32,13 +32,13 @@ public sealed class RuntimePackageResolverTests
             Assert.That(packageResult.Package!.SelectedLocale, Is.EqualTo("ja-JP"));
             Assert.That(
                 packageResult.Package.Scripts.Select(static script => script.Entry.ScriptId),
-                Is.EqualTo(["events/chapter001", "events/chapter002", "events/lib/Common"]));
+                Is.EqualTo(["events/chapter001", "events/chapter002", "events/chapter003", "events/chapter004", "events/chapter005", "events/lib/Common"]));
             Assert.That(
                 packageResult.Package.Scripts.Select(static script => script.Entry.KlibPath),
-                Is.EqualTo(["events/chapter001.klib", "events/chapter002.klib", "events/lib/Common.klib"]));
+                Is.EqualTo(["events/chapter001.klib", "events/chapter002.klib", "events/chapter003.klib", "events/chapter004.klib", "events/chapter005.klib", "events/lib/Common.klib"]));
             Assert.That(
                 packageResult.Package.Scripts.Select(static script => script.Document.Module.ScriptId),
-                Is.EqualTo(["events/chapter001", "events/chapter002", "events/lib/Common"]));
+                Is.EqualTo(["events/chapter001", "events/chapter002", "events/chapter003", "events/chapter004", "events/chapter005", "events/lib/Common"]));
         });
     }
 
@@ -283,10 +283,18 @@ public sealed class RuntimePackageResolverTests
                 moduleWriter.Write(0);
             }
 
-            var moduleBytes = moduleStream.ToArray();
+            var sections = new[]
+            {
+                new SectionBytes(0x0001, moduleStream.ToArray()),
+                new SectionBytes(0x0002, Int32Section(0)),
+                new SectionBytes(0x0003, Int32Section(0)),
+                new SectionBytes(0x0005, Int32Section(0)),
+                new SectionBytes(0x0006, Int32Section(0)),
+                new SectionBytes(0x0007, Int32Section(0, 0, 0)),
+            };
             const int headerSize = 4 + (5 * sizeof(int));
-            const int sectionTableSize = 3 * sizeof(int);
-            var moduleOffset = headerSize + sectionTableSize;
+            const int sectionHeaderSize = 3 * sizeof(int);
+            var sectionOffset = headerSize + (sections.Length * sectionHeaderSize);
 
             using var fileStream = File.OpenWrite(path);
             using var writer = new BinaryWriter(fileStream, Encoding.UTF8, leaveOpen: false);
@@ -295,13 +303,35 @@ public sealed class RuntimePackageResolverTests
             writer.Write(0);
             writer.Write(0);
             writer.Write(0);
-            writer.Write(1);
-            writer.Write(0x0001);
-            writer.Write(moduleOffset);
-            writer.Write(moduleBytes.Length);
-            writer.Write(moduleBytes);
+            writer.Write(sections.Length);
+            foreach (var section in sections)
+            {
+                writer.Write(section.Type);
+                writer.Write(sectionOffset);
+                writer.Write(section.Bytes.Length);
+                sectionOffset += section.Bytes.Length;
+            }
+
+            foreach (var section in sections)
+            {
+                writer.Write(section.Bytes);
+            }
 
             return path;
+        }
+
+        private static byte[] Int32Section(params int[] values)
+        {
+            using var stream = new MemoryStream();
+            using (var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true))
+            {
+                foreach (var value in values)
+                {
+                    writer.Write(value);
+                }
+            }
+
+            return stream.ToArray();
         }
 
         public void Dispose()
@@ -318,6 +348,8 @@ public sealed class RuntimePackageResolverTests
             writer.Write(bytes.Length);
             writer.Write(bytes);
         }
+
+        private sealed record SectionBytes(int Type, byte[] Bytes);
     }
 
     private static string GetRepositoryRoot()

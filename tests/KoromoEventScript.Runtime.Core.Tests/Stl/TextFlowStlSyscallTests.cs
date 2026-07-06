@@ -7,7 +7,7 @@ namespace KoromoEventScript.Runtime.Core.Tests.Stl;
 public sealed class TextFlowStlSyscallTests
 {
     [Test]
-    public void Run_WithSayNarAndTextSyscalls_PublishesTextEffectsInOrder()
+    public void Run_WithSayNarAndTextSyscalls_WaitsAfterEachMessage()
     {
         var sink = new CollectingEffectSink();
         var document = CreateDocument(
@@ -37,11 +37,22 @@ public sealed class TextFlowStlSyscallTests
             ]);
         var session = new KesVmSession(document);
 
-        var result = new KesVmExecutor(effectSink: sink).Run(session);
+        var executor = new KesVmExecutor(effectSink: sink);
+
+        var sayResult = executor.Run(session);
+        var sayAdvance = executor.ContinueAdvance(session);
+        var narResult = executor.Run(session);
+        var narAdvance = executor.ContinueAdvance(session);
+        var completed = executor.Run(session);
 
         Assert.Multiple(() =>
         {
-            Assert.That(result.Succeeded, Is.True);
+            Assert.That(sayResult.Succeeded, Is.True);
+            Assert.That(sayAdvance.Succeeded, Is.True);
+            Assert.That(narResult.Succeeded, Is.True);
+            Assert.That(narAdvance.Succeeded, Is.True);
+            Assert.That(completed.Succeeded, Is.True);
+            Assert.That(session.Continuation.Kind, Is.EqualTo(RuntimeContinuationKind.Completed));
             Assert.That(sink.Effects.Select(static effect => effect.Name), Is.EqualTo(
                 [
                     "scenario.say",

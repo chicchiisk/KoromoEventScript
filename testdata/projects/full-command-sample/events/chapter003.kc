@@ -1,0 +1,38 @@
+import Common
+
+standby:
+    riku : Riku
+    amane : Amane
+    noa : Noa
+
+bg "bg_evening"
+show:
+    noa -1 "smile"
+    riku 0 "normal"
+    amane 1 "normal"
+
+say noa #sy_chapter003_0001:
+    三章目の図書室ルート。こちらも二つの結末候補へ分岐する。
+
+p
+l
+wait_click
+
+select #se_chapter003_0002:
+    case "夕焼けの四章へ進む" #route_chapter004
+    case "星空の五章へ進む" #route_chapter005
+
+label #route_chapter004
+set_param_string "route_2" "chapter004_intro"
+say amane #sy_chapter003_0003:
+    夕焼けの記録を確かめよう。
+say amane #sy_chapter003_0005:
+    hogehoge
+jump #end
+
+label #route_chapter005
+set_param_string "route_2" "chapter005_intro"
+say riku #sy_chapter003_0004:
+    星空の手がかりを追おう。
+
+label #end

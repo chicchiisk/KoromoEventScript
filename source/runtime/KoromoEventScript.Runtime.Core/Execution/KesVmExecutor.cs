@@ -9,6 +9,8 @@ public sealed class KesVmExecutor
 {
     private const int DefaultMaxInstructionCount = 10_000;
     private readonly IRuntimeSyscallDispatcher syscallDispatcher;
+    private readonly IRuntimeEffectSink? effectSink;
+    private readonly IRuntimeGameParameterStore gameParameters;
 
     public static IReadOnlySet<KlibOpCode> DispatchedOpCodes { get; } = new HashSet<KlibOpCode>
     {
@@ -56,9 +58,11 @@ public sealed class KesVmExecutor
         KlibOpCode.Dispose,
     };
 
-    public KesVmExecutor(IRuntimeSyscallDispatcher? syscallDispatcher = null, IRuntimeEffectSink? effectSink = null)
+    public KesVmExecutor(IRuntimeSyscallDispatcher? syscallDispatcher = null, IRuntimeEffectSink? effectSink = null, IRuntimeGameParameterStore? gameParameters = null)
     {
-        this.syscallDispatcher = syscallDispatcher ?? new StlSyscallDispatcher(effectSink);
+        this.effectSink = effectSink;
+        this.gameParameters = gameParameters ?? new RuntimeGameParameterStore();
+        this.syscallDispatcher = syscallDispatcher ?? new StlSyscallDispatcher(effectSink, this.gameParameters);
     }
 
     public KesVmExecutionResult Run(KesVmSession session, int maxInstructionCount = DefaultMaxInstructionCount)
@@ -658,6 +662,33 @@ public sealed class KesVmExecutor
         return arguments;
     }
 
+    private void PublishSceneEffect(string name, IReadOnlyDictionary<string, string?> payload)
+    {
+        effectSink?.Publish(new RuntimeEffectBatch([new RuntimeEffect(RuntimeEffectKind.Scene, name, payload)], []));
+    }
+
+    private void PublishAudioEffect(string name, IReadOnlyDictionary<string, string?> payload)
+    {
+        effectSink?.Publish(new RuntimeEffectBatch([new RuntimeEffect(RuntimeEffectKind.Audio, name, payload)], []));
+    }
+
+    private static string ReadActorStringFieldOrDefault(KesVmSession session, string actorReference, string fieldName, string fallback)
+    {
+        return session.ObjectStore.TryGetField(actorReference, fieldName, out var value, out _) &&
+            value.Kind == RuntimeValueKind.String &&
+            !string.IsNullOrWhiteSpace(value.StringValue)
+            ? value.StringValue!
+            : fallback;
+    }
+
+    private static string NormalizeActorReference(string actorReference)
+    {
+        var dotIndex = actorReference.LastIndexOf('.');
+        return dotIndex >= 0 && dotIndex + 1 < actorReference.Length
+            ? actorReference[(dotIndex + 1)..]
+            : actorReference;
+    }
+
     private static bool TryPopIndexAndReference(
         KesVmSession session,
         string opcodeName,
@@ -713,7 +744,7 @@ public sealed class KesVmExecutor
         return true;
     }
 
-    private static KesVmExecutionResult ExecuteCall(KesVmSession session, KlibInstruction instruction)
+    private KesVmExecutionResult ExecuteCall(KesVmSession session, KlibInstruction instruction)
     {
         if (!TryReadOperand(instruction, 0, out var callIndex) ||
             !TryReadOperand(instruction, 1, out var argc) ||
@@ -734,7 +765,7 @@ public sealed class KesVmExecutor
         }
 
         var returnsValue = instruction.OpCode == KlibOpCode.Call;
-        var result = InvokePureCall(session, callName!, arguments, returnsValue);
+        var result = InvokePureCall(session, instruction, callName!, arguments, returnsValue);
         if (!result.Succeeded)
         {
             return result;
@@ -846,80 +877,453 @@ public sealed class KesVmExecutor
         return KesVmExecutionResult.Success();
     }
 
-    private static KesVmExecutionResult InvokePureCall(
+    private KesVmExecutionResult InvokeMappedSyscall(
         KesVmSession session,
+        KlibInstruction instruction,
+        string syscallId,
+        IReadOnlyList<RuntimeValue> arguments,
+        bool returnsValue)
+    {
+        var result = syscallDispatcher.Invoke(
+            new RuntimeSyscallInvocation(
+                syscallId,
+                arguments,
+                returnsValue,
+                new RuntimeSourceLocation(session.Document.Module.ScriptId, session.Position.InstructionIndex, null, null, null)),
+            session);
+        if (!result.Succeeded)
+        {
+            return KesVmExecutionResult.Failure(result.FailureKind, result.Diagnostics.ToArray());
+        }
+
+        if (returnsValue)
+        {
+            if (result.ReturnValue is null)
+            {
+                return Fault(session, "KESR3404", $"Syscall '{syscallId}' did not return a value.");
+            }
+
+            session.PushOperand(result.ReturnValue);
+        }
+
+        if (result.WaitForAdvance)
+        {
+            session.SetContinuation(new RuntimeContinuation(
+                RuntimeContinuationKind.WaitingForAdvance,
+                FindNextInstructionIndex(session, instruction),
+                [],
+                null,
+                []));
+        }
+
+        return KesVmExecutionResult.Success();
+    }
+
+    private KesVmExecutionResult InvokePureCall(
+        KesVmSession session,
+        KlibInstruction instruction,
         string callName,
         IReadOnlyList<RuntimeValue> arguments,
         bool returnsValue)
     {
         switch (callName)
         {
-            case "number_to_string":
-                if (arguments.Count != 1 || arguments[0].Kind != RuntimeValueKind.Number || arguments[0].NumberValue is null)
+            case "print":
+                return InvokeMappedSyscall(session, instruction, "core.print", arguments, returnsValue);
+
+            case "range":
+                return InvokeMappedSyscall(session, instruction, "core.range", arguments, returnsValue);
+
+            case "rt_back":
+                return InvokeMappedSyscall(session, instruction, "scene.rt_back", arguments, returnsValue);
+
+            case "rt_front":
+                return InvokeMappedSyscall(session, instruction, "scene.rt_front", arguments, returnsValue);
+
+            case "camera_autofocus":
+                return InvokeMappedSyscall(session, instruction, "scene.camera_autofocus", arguments, returnsValue);
+
+            case "p":
+                return InvokeMappedSyscall(session, instruction, "text.p", arguments, returnsValue);
+
+            case "r":
+                return InvokeMappedSyscall(session, instruction, "text.r", arguments, returnsValue);
+
+            case "l":
+                return InvokeMappedSyscall(session, instruction, "text.l", arguments, returnsValue);
+
+            case "cm":
+                return InvokeMappedSyscall(session, instruction, "text.cm", arguments, returnsValue);
+
+            case "wait_click":
+                return InvokeMappedSyscall(session, instruction, "text.wait_click", arguments, returnsValue);
+
+            case "save":
+                if (arguments.Count == 1)
                 {
-                    return Fault(session, "KESR3310", "Callable 'number_to_string' requires one number argument.");
+                    return InvokeMappedSyscall(session, instruction, "state.save", [arguments[0], RuntimeValue.String(string.Empty)], returnsValue);
                 }
 
+                return InvokeMappedSyscall(session, instruction, "state.save", arguments, returnsValue);
+
+            case "load":
+                return InvokeMappedSyscall(session, instruction, "state.load", arguments, returnsValue);
+
+            case "autosave":
+                return InvokeMappedSyscall(session, instruction, "state.autosave", arguments, returnsValue);
+
+            case "mark_read":
+                return InvokeMappedSyscall(session, instruction, "state.mark_read", arguments, returnsValue);
+
+            case "is_read":
+                return InvokeMappedSyscall(session, instruction, "state.is_read", arguments, returnsValue);
+
+            case "wait":
+                return InvokeMappedSyscall(session, instruction, "system.wait", arguments, returnsValue);
+
+            case "set_auto":
+                return InvokeMappedSyscall(session, instruction, "system.set_auto", arguments, returnsValue);
+
+            case "set_skip":
+                return InvokeMappedSyscall(session, instruction, "system.set_skip", arguments, returnsValue);
+
+            case "set_config_string":
+                return InvokeMappedSyscall(session, instruction, "system.set_config_string", arguments, returnsValue);
+
+            case "set_config_number":
+                return InvokeMappedSyscall(session, instruction, "system.set_config_number", arguments, returnsValue);
+
+            case "set_config_bool":
+                return InvokeMappedSyscall(session, instruction, "system.set_config_bool", arguments, returnsValue);
+
+            case "get_config":
+                return InvokeMappedSyscall(session, instruction, "system.get_config", arguments, returnsValue);
+
+            case "vo":
+                return arguments.Count == 0
+                    ? InvokeMappedSyscall(session, instruction, "audio.vo_auto", arguments, returnsValue)
+                    : InvokeMappedSyscall(session, instruction, "text.vo", arguments, returnsValue);
+
+            case "vf":
+                if (arguments.Count != 2 || arguments[0].Kind != RuntimeValueKind.Reference || string.IsNullOrEmpty(arguments[0].ReferenceId) || arguments[1].Kind != RuntimeValueKind.String)
+                {
+                    return Fault(session, "KESR3310", "Callable 'vf' requires actor and expression arguments.");
+                }
+
+                session.ObjectStore.EnsureActorReference(arguments[0].ReferenceId!);
+                var vfActor = arguments[0].ReferenceId!;
+                PublishSceneEffect(
+                    "actor.face",
+                    new Dictionary<string, string?>
+                    {
+                        ["actor"] = vfActor,
+                        ["assetBaseName"] = ReadActorStringFieldOrDefault(session, vfActor, "assetBaseName", NormalizeActorReference(vfActor)),
+                        ["exp"] = arguments[1].StringValue,
+                    });
+                return InvokeMappedSyscall(session, instruction, "audio.vo_auto", [], returnsValue);
+
+            case "standby":
+                if (arguments.Count != 1 || arguments[0].Kind != RuntimeValueKind.Reference || string.IsNullOrEmpty(arguments[0].ReferenceId))
+                {
+                    return Fault(session, "KESR3310", $"Callable '{callName}' requires one actor reference argument.");
+                }
+
+                session.ObjectStore.EnsureActorReference(arguments[0].ReferenceId!);
                 if (returnsValue)
                 {
-                    var numberValue = arguments[0].NumberValue!.Value;
-                    session.PushOperand(RuntimeValue.String(numberValue.ToString("G", System.Globalization.CultureInfo.InvariantCulture)));
+                    session.PushOperand(RuntimeValue.Null);
                 }
 
                 return KesVmExecutionResult.Success();
 
-            case "bool_to_string":
-                if (arguments.Count != 1 || arguments[0].Kind != RuntimeValueKind.Bool || arguments[0].BoolValue is null)
+            case "action_jump":
+                if (arguments.Count != 1 || arguments[0].Kind != RuntimeValueKind.Reference || string.IsNullOrEmpty(arguments[0].ReferenceId))
                 {
-                    return Fault(session, "KESR3310", "Callable 'bool_to_string' requires one bool argument.");
+                    return Fault(session, "KESR3310", "Callable 'action_jump' requires one actor reference argument.");
                 }
 
+                session.ObjectStore.EnsureActorReference(arguments[0].ReferenceId!);
+                PublishSceneEffect(
+                    "actor.action_jump",
+                    new Dictionary<string, string?>
+                    {
+                        ["actor"] = arguments[0].ReferenceId,
+                    });
                 if (returnsValue)
                 {
-                    var boolValue = arguments[0].BoolValue!.Value;
-                    session.PushOperand(RuntimeValue.String(boolValue ? "true" : "false"));
+                    session.PushOperand(RuntimeValue.Null);
                 }
 
                 return KesVmExecutionResult.Success();
 
-            case "array_len":
-                if (arguments.Count != 1 ||
-                    arguments[0].Kind != RuntimeValueKind.Reference ||
-                    string.IsNullOrEmpty(arguments[0].ReferenceId))
-                {
-                    return Fault(session, "KESR3310", "Callable 'array_len' requires one array reference argument.");
-                }
-
-                var arrayReferenceId = arguments[0].ReferenceId!;
-                if (!session.ObjectStore.TryGetArrayLength(arrayReferenceId, out var length, out var lengthError))
-                {
-                    return Fault(session, "KESR3310", lengthError ?? "Callable 'array_len' failed.");
-                }
-
-                if (returnsValue)
-                {
-                    session.PushOperand(RuntimeValue.Number(length));
-                }
-
-                return KesVmExecutionResult.Success();
-
-            case "str_len":
+            case "bg":
                 if (arguments.Count != 1 || arguments[0].Kind != RuntimeValueKind.String)
                 {
-                    return Fault(session, "KESR3310", "Callable 'str_len' requires one string argument.");
+                    return Fault(session, "KESR3310", "Callable 'bg' requires one background id argument.");
                 }
 
+                PublishSceneEffect(
+                    "scene.bg",
+                    new Dictionary<string, string?>
+                    {
+                        ["id"] = arguments[0].StringValue,
+                    });
                 if (returnsValue)
                 {
-                    session.PushOperand(RuntimeValue.Number(arguments[0].StringValue?.Length ?? 0));
+                    session.PushOperand(RuntimeValue.Null);
                 }
 
                 return KesVmExecutionResult.Success();
 
-            case "assert":
-                if (arguments.Count != 1 || arguments[0].Kind != RuntimeValueKind.Bool || arguments[0].BoolValue != true)
+            case "show":
+                if (arguments.Count is < 1 or > 6 || arguments[0].Kind != RuntimeValueKind.Reference || string.IsNullOrEmpty(arguments[0].ReferenceId))
                 {
-                    return Fault(session, "KESR3310", "Callable 'assert' requires a true bool condition.");
+                    return Fault(session, "KESR3310", "Callable 'show' requires actor and optional display arguments.");
+                }
+
+                session.ObjectStore.EnsureActorReference(arguments[0].ReferenceId!);
+                if (arguments.Count >= 2 && arguments[1].Kind != RuntimeValueKind.Number)
+                {
+                    return Fault(session, "KESR3310", "Callable 'show' position argument must be a number.");
+                }
+
+                if (arguments.Count >= 3 && arguments[2].Kind != RuntimeValueKind.String)
+                {
+                    return Fault(session, "KESR3310", "Callable 'show' face argument must be a string.");
+                }
+
+                if (arguments.Count >= 4 && arguments[3].Kind != RuntimeValueKind.Number)
+                {
+                    return Fault(session, "KESR3310", "Callable 'show' layer argument must be a number.");
+                }
+
+                if (arguments.Count >= 5 && arguments[4].Kind != RuntimeValueKind.Number)
+                {
+                    return Fault(session, "KESR3310", "Callable 'show' z argument must be a number.");
+                }
+
+                if (arguments.Count >= 6 && arguments[5].Kind != RuntimeValueKind.Bool)
+                {
+                    return Fault(session, "KESR3310", "Callable 'show' bustup argument must be a bool.");
+                }
+
+                var showActor = arguments[0].ReferenceId!;
+                var showFace = arguments.Count >= 3
+                    ? arguments[2].StringValue ?? string.Empty
+                    : ReadActorStringFieldOrDefault(session, showActor, "defaultFace", "normal");
+                PublishSceneEffect(
+                    "actor.show",
+                    new Dictionary<string, string?>
+                    {
+                        ["actor"] = showActor,
+                        ["assetBaseName"] = ReadActorStringFieldOrDefault(session, showActor, "assetBaseName", NormalizeActorReference(showActor)),
+                        ["face"] = showFace,
+                        ["pos"] = arguments.Count >= 2 ? arguments[1].NumberValue?.ToString("G", System.Globalization.CultureInfo.InvariantCulture) : "0",
+                        ["layer"] = arguments.Count >= 4 ? arguments[3].NumberValue?.ToString("G", System.Globalization.CultureInfo.InvariantCulture) : "0",
+                        ["z"] = arguments.Count >= 5 ? arguments[4].NumberValue?.ToString("G", System.Globalization.CultureInfo.InvariantCulture) : "0",
+                        ["bustup"] = arguments.Count >= 6 ? arguments[5].BoolValue.GetValueOrDefault().ToString().ToLowerInvariant() : "false",
+                    });
+                if (returnsValue)
+                {
+                    session.PushOperand(RuntimeValue.Null);
+                }
+
+                return KesVmExecutionResult.Success();
+
+            case "hide":
+                if (arguments.Count != 1 || arguments[0].Kind != RuntimeValueKind.Reference || string.IsNullOrEmpty(arguments[0].ReferenceId))
+                {
+                    return Fault(session, "KESR3310", "Callable 'hide' requires one actor reference argument.");
+                }
+
+                session.ObjectStore.EnsureActorReference(arguments[0].ReferenceId!);
+                PublishSceneEffect(
+                    "actor.hide",
+                    new Dictionary<string, string?>
+                    {
+                        ["actor"] = arguments[0].ReferenceId,
+                    });
+                if (returnsValue)
+                {
+                    session.PushOperand(RuntimeValue.Null);
+                }
+
+                return KesVmExecutionResult.Success();
+
+            case "face":
+                if (arguments.Count != 2 || arguments[0].Kind != RuntimeValueKind.Reference || string.IsNullOrEmpty(arguments[0].ReferenceId) || arguments[1].Kind != RuntimeValueKind.String)
+                {
+                    return Fault(session, "KESR3310", "Callable 'face' requires actor and expression arguments.");
+                }
+
+                session.ObjectStore.EnsureActorReference(arguments[0].ReferenceId!);
+                var faceActor = arguments[0].ReferenceId!;
+                PublishSceneEffect(
+                    "actor.face",
+                    new Dictionary<string, string?>
+                    {
+                        ["actor"] = faceActor,
+                        ["assetBaseName"] = ReadActorStringFieldOrDefault(session, faceActor, "assetBaseName", NormalizeActorReference(faceActor)),
+                        ["exp"] = arguments[1].StringValue,
+                    });
+                if (returnsValue)
+                {
+                    session.PushOperand(RuntimeValue.Null);
+                }
+
+                return KesVmExecutionResult.Success();
+
+            case "move":
+                if (arguments.Count is < 2 or > 3 || arguments[0].Kind != RuntimeValueKind.Reference || string.IsNullOrEmpty(arguments[0].ReferenceId) || arguments[1].Kind != RuntimeValueKind.Number)
+                {
+                    return Fault(session, "KESR3310", "Callable 'move' requires actor, position, and optional duration arguments.");
+                }
+
+                if (arguments.Count == 3 && arguments[2].Kind != RuntimeValueKind.Number)
+                {
+                    return Fault(session, "KESR3310", "Callable 'move' duration argument must be a number.");
+                }
+
+                session.ObjectStore.EnsureActorReference(arguments[0].ReferenceId!);
+                PublishSceneEffect(
+                    "actor.move",
+                    new Dictionary<string, string?>
+                    {
+                        ["actor"] = arguments[0].ReferenceId,
+                        ["pos"] = arguments[1].NumberValue?.ToString("G", System.Globalization.CultureInfo.InvariantCulture),
+                        ["duration"] = arguments.Count == 3 ? arguments[2].NumberValue?.ToString("G", System.Globalization.CultureInfo.InvariantCulture) : "0",
+                    });
+                if (returnsValue)
+                {
+                    session.PushOperand(RuntimeValue.Null);
+                }
+
+                return KesVmExecutionResult.Success();
+
+            case "trans":
+                if (arguments.Count > 2 || (arguments.Count >= 1 && arguments[0].Kind != RuntimeValueKind.String))
+                {
+                    return Fault(session, "KESR3310", "Callable 'trans' requires optional transition id and duration arguments.");
+                }
+
+                if (arguments.Count == 2 && arguments[1].Kind != RuntimeValueKind.Number)
+                {
+                    return Fault(session, "KESR3310", "Callable 'trans' duration argument must be a number.");
+                }
+
+                PublishSceneEffect(
+                    "scene.trans",
+                    new Dictionary<string, string?>
+                    {
+                        ["effect"] = arguments.Count >= 1 ? arguments[0].StringValue : "crossfade",
+                        ["duration"] = arguments.Count == 2 ? arguments[1].NumberValue?.ToString("G", System.Globalization.CultureInfo.InvariantCulture) : "0",
+                    });
+                if (returnsValue)
+                {
+                    session.PushOperand(RuntimeValue.Null);
+                }
+
+                return KesVmExecutionResult.Success();
+
+            case "bgm":
+                if (arguments.Count is < 1 or > 3 || arguments[0].Kind != RuntimeValueKind.String)
+                {
+                    return Fault(session, "KESR3310", "Callable 'bgm' requires id, optional loop, and optional fade arguments.");
+                }
+
+                if (arguments.Count >= 2 && arguments[1].Kind != RuntimeValueKind.Bool)
+                {
+                    return Fault(session, "KESR3310", "Callable 'bgm' loop argument must be a bool.");
+                }
+
+                if (arguments.Count >= 3 && arguments[2].Kind != RuntimeValueKind.Number)
+                {
+                    return Fault(session, "KESR3310", "Callable 'bgm' fade argument must be a number.");
+                }
+
+                var bgmFade = arguments.Count >= 3 ? arguments[2].NumberValue.GetValueOrDefault() : 0d;
+                if (bgmFade < 0)
+                {
+                    return Fault(session, "KESR3310", "Callable 'bgm' fade must not be negative.");
+                }
+
+                PublishAudioEffect(
+                    "audio.bgm",
+                    new Dictionary<string, string?>
+                    {
+                        ["id"] = arguments[0].StringValue,
+                        ["loop"] = (arguments.Count >= 2 ? arguments[1].BoolValue.GetValueOrDefault() : true).ToString().ToLowerInvariant(),
+                        ["fade"] = bgmFade.ToString("G", System.Globalization.CultureInfo.InvariantCulture),
+                    });
+                if (returnsValue)
+                {
+                    session.PushOperand(RuntimeValue.Null);
+                }
+
+                return KesVmExecutionResult.Success();
+
+            case "bgm_stop":
+                if (arguments.Count > 1 || (arguments.Count == 1 && arguments[0].Kind != RuntimeValueKind.Number))
+                {
+                    return Fault(session, "KESR3310", "Callable 'bgm_stop' requires an optional fade argument.");
+                }
+
+                var bgmStopFade = arguments.Count == 1 ? arguments[0].NumberValue.GetValueOrDefault() : 0d;
+                if (bgmStopFade < 0)
+                {
+                    return Fault(session, "KESR3310", "Callable 'bgm_stop' fade must not be negative.");
+                }
+
+                PublishAudioEffect(
+                    "audio.bgm_stop",
+                    new Dictionary<string, string?>
+                    {
+                        ["fade"] = bgmStopFade.ToString("G", System.Globalization.CultureInfo.InvariantCulture),
+                    });
+                if (returnsValue)
+                {
+                    session.PushOperand(RuntimeValue.Null);
+                }
+
+                return KesVmExecutionResult.Success();
+
+            case "se":
+                if (arguments.Count != 1 || arguments[0].Kind != RuntimeValueKind.String)
+                {
+                    return Fault(session, "KESR3310", "Callable 'se' requires one sound effect id argument.");
+                }
+
+                PublishAudioEffect(
+                    "audio.se",
+                    new Dictionary<string, string?>
+                    {
+                        ["id"] = arguments[0].StringValue,
+                    });
+                if (returnsValue)
+                {
+                    session.PushOperand(RuntimeValue.Null);
+                }
+
+                return KesVmExecutionResult.Success();
+
+            case "se_stop":
+                if (arguments.Count > 1 || (arguments.Count == 1 && arguments[0].Kind is not RuntimeValueKind.String and not RuntimeValueKind.Null))
+                {
+                    return Fault(session, "KESR3310", "Callable 'se_stop' requires an optional sound effect id argument.");
+                }
+
+                if (arguments.Count == 0 || arguments[0].Kind == RuntimeValueKind.Null)
+                {
+                    PublishAudioEffect("audio.se_stop_all", new Dictionary<string, string?>());
+                }
+                else
+                {
+                    PublishAudioEffect(
+                        "audio.se_stop",
+                        new Dictionary<string, string?>
+                        {
+                            ["id"] = arguments[0].StringValue,
+                        });
                 }
 
                 if (returnsValue)
@@ -929,9 +1333,126 @@ public sealed class KesVmExecutor
 
                 return KesVmExecutionResult.Success();
 
+            case "se_stop_all":
+                if (arguments.Count != 0)
+                {
+                    return Fault(session, "KESR3310", "Callable 'se_stop_all' requires no arguments.");
+                }
+
+                PublishAudioEffect("audio.se_stop_all", new Dictionary<string, string?>());
+                if (returnsValue)
+                {
+                    session.PushOperand(RuntimeValue.Null);
+                }
+
+                return KesVmExecutionResult.Success();
+
+            case "voice_stop":
+                if (arguments.Count != 0)
+                {
+                    return Fault(session, "KESR3310", "Callable 'voice_stop' requires no arguments.");
+                }
+
+                PublishAudioEffect("audio.voice_stop", new Dictionary<string, string?>());
+                if (returnsValue)
+                {
+                    session.PushOperand(RuntimeValue.Null);
+                }
+
+                return KesVmExecutionResult.Success();
+
+            case "number_to_string":
+                return InvokeMappedSyscall(session, instruction, "core.number_to_string", arguments, returnsValue);
+
+            case "bool_to_string":
+                return InvokeMappedSyscall(session, instruction, "core.bool_to_string", arguments, returnsValue);
+
+            case "array_len":
+                return InvokeMappedSyscall(session, instruction, "core.array_len", arguments, returnsValue);
+
+            case "str_len":
+                return InvokeMappedSyscall(session, instruction, "core.str_len", arguments, returnsValue);
+
+            case "assert":
+                return InvokeMappedSyscall(session, instruction, "core.assert", arguments, returnsValue);
+
+            case "set_param_string":
+                if (arguments.Count != 2 || arguments[0].Kind != RuntimeValueKind.String || arguments[1].Kind != RuntimeValueKind.String)
+                {
+                    return Fault(session, "KESR3310", "Callable 'set_param_string' requires key:string and value:string arguments.");
+                }
+
+                gameParameters.Set(arguments[0].StringValue ?? string.Empty, RuntimeValue.String(arguments[1].StringValue ?? string.Empty));
+                if (returnsValue)
+                {
+                    session.PushOperand(RuntimeValue.Null);
+                }
+
+                return KesVmExecutionResult.Success();
+
+            case "set_param_number":
+                if (arguments.Count != 2 || arguments[0].Kind != RuntimeValueKind.String || arguments[1].Kind != RuntimeValueKind.Number || arguments[1].NumberValue is null)
+                {
+                    return Fault(session, "KESR3310", "Callable 'set_param_number' requires key:string and value:number arguments.");
+                }
+
+                gameParameters.Set(arguments[0].StringValue ?? string.Empty, RuntimeValue.Number(arguments[1].NumberValue.Value));
+                if (returnsValue)
+                {
+                    session.PushOperand(RuntimeValue.Null);
+                }
+
+                return KesVmExecutionResult.Success();
+
+            case "set_param_bool":
+                if (arguments.Count != 2 || arguments[0].Kind != RuntimeValueKind.String || arguments[1].Kind != RuntimeValueKind.Bool || arguments[1].BoolValue is null)
+                {
+                    return Fault(session, "KESR3310", "Callable 'set_param_bool' requires key:string and value:bool arguments.");
+                }
+
+                gameParameters.Set(arguments[0].StringValue ?? string.Empty, RuntimeValue.Bool(arguments[1].BoolValue.Value));
+                if (returnsValue)
+                {
+                    session.PushOperand(RuntimeValue.Null);
+                }
+
+                return KesVmExecutionResult.Success();
+
+            case "get_param":
+                if (arguments.Count != 1 || arguments[0].Kind != RuntimeValueKind.String)
+                {
+                    return Fault(session, "KESR3310", "Callable 'get_param' requires one key:string argument.");
+                }
+
+                var key = arguments[0].StringValue ?? string.Empty;
+                if (!gameParameters.TryGet(key, out var parameterValue))
+                {
+                    return Fault(session, "KESR3406", $"Game parameter '{key}' is not defined.");
+                }
+
+                if (returnsValue)
+                {
+                    session.PushOperand(RuntimeValue.String(FormatRuntimeValue(parameterValue)));
+                }
+
+                return KesVmExecutionResult.Success();
+
             default:
                 return Fault(session, "KESR3310", $"Callable '{callName}' is not supported.");
         }
+    }
+
+    private static string FormatRuntimeValue(RuntimeValue value)
+    {
+        return value.Kind switch
+        {
+            RuntimeValueKind.Bool => value.BoolValue == true ? "true" : "false",
+            RuntimeValueKind.Number => value.NumberValue.GetValueOrDefault().ToString("G", System.Globalization.CultureInfo.InvariantCulture),
+            RuntimeValueKind.String => value.StringValue ?? string.Empty,
+            RuntimeValueKind.Null => string.Empty,
+            RuntimeValueKind.Reference => value.ReferenceId ?? string.Empty,
+            _ => string.Empty,
+        };
     }
 
     private static bool TryResolveString(KlibDocument document, int constantIndex, out string? value, out string? error)

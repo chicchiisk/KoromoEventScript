@@ -6,4 +6,9 @@ public static class WindowsRuntimeBootstrapper
     {
         return WindowsRuntimeArgumentParser.Parse(launchArguments, baseDirectory);
     }
+
+    public static WindowsRuntimeBootstrapResult Bootstrap(IReadOnlyList<string> launchArguments, string baseDirectory)
+    {
+        return WindowsRuntimeArgumentParser.Parse(launchArguments, baseDirectory);
+    }
 }

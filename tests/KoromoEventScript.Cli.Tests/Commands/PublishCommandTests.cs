@@ -127,13 +127,47 @@ sy_main_0001,Hero,hello,Hello
         });
     }
 
+    [Test]
+    public void Publish_WithCleanRunsTargetCleanBeforeBuildAndRemovesPreviousDist()
+    {
+        using var fixture = TemporaryProject.Create();
+        CopyProject(GetTestDataPath("projects", "minimal"), fixture.Root);
+        fixture.WriteFile(Path.Combine("build", "windows", "stale-before-build.txt"), "stale build artifact");
+        fixture.WriteFile(Path.Combine("dist", "windows", "stale-dist-file.txt"), "stale dist artifact");
+        fixture.WriteFile(Path.Combine("releases", "windows", "MinimalProject", "stale-package-file.txt"), "stale package artifact");
+        var runtimeBundle = Path.Combine(fixture.Root, "runtime-bundle");
+        CreateRuntimeBundle(runtimeBundle);
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+        var app = CreateApplication(runtimeBundle);
+
+        var exitCode = app.Run(
+            ["publish", fixture.Root, "--target", "windows", "--archive", "none", "--out-dir", "releases", "--clean"],
+            output,
+            error,
+            TestContext.CurrentContext.WorkDirectory);
+
+        var packageRoot = Path.Combine(fixture.Root, "releases", "windows", "MinimalProject");
+        Assert.Multiple(() =>
+        {
+            Assert.That(exitCode, Is.EqualTo((int)CliExitCode.Success));
+            Assert.That(output.ToString(), Is.Empty);
+            Assert.That(error.ToString(), Is.Empty);
+            Assert.That(File.Exists(Path.Combine(fixture.Root, "build", "windows", "stale-before-build.txt")), Is.False);
+            Assert.That(File.Exists(Path.Combine(fixture.Root, "dist", "windows", "stale-dist-file.txt")), Is.False);
+            Assert.That(File.Exists(Path.Combine(packageRoot, "stale-package-file.txt")), Is.False);
+            Assert.That(File.Exists(Path.Combine(packageRoot, "MinimalProject.exe")), Is.True);
+            Assert.That(File.Exists(Path.Combine(fixture.Root, "build", "windows", "manifest.json")), Is.True);
+        });
+    }
+
     private static CliApplication CreateApplication(string runtimeBundle)
     {
         var publishCommand = new WindowsPublishCommand(
             new KoromoEventScript.Cli.Build.BuildPipelineService(),
             new KoromoEventScript.Cli.ProjectSystem.ProjectRootResolver(),
             new KoromoEventScript.Cli.ProjectSystem.ProjectConfigLoader(),
-            () => runtimeBundle);
+            runtimeBundlePathProvider: () => runtimeBundle);
 
         return new CliApplication(
             new BuildCheckOnlyCommand(),

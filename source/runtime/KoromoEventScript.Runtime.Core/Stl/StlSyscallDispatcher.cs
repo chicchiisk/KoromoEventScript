@@ -84,9 +84,14 @@ public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
         "system.set_config_number",
         "system.set_config_bool",
         "system.get_config",
+        "system.set_param_string",
+        "system.set_param_number",
+        "system.set_param_bool",
+        "system.get_param",
     };
 
     private readonly IRuntimeEffectSink? effectSink;
+    private readonly IRuntimeGameParameterStore gameParameters;
     private readonly HashSet<string> readTags = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> config = new(StringComparer.Ordinal)
     {
@@ -101,9 +106,10 @@ public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
         ["locale"] = "ja-JP",
     };
 
-    public StlSyscallDispatcher(IRuntimeEffectSink? effectSink = null)
+    public StlSyscallDispatcher(IRuntimeEffectSink? effectSink = null, IRuntimeGameParameterStore? gameParameters = null)
     {
         this.effectSink = effectSink;
+        this.gameParameters = gameParameters ?? new RuntimeGameParameterStore();
     }
 
     public RuntimeSyscallResult Invoke(RuntimeSyscallInvocation invocation, KesVmSession session)
@@ -159,6 +165,10 @@ public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
             "system.set_config_number" => SystemSetConfigNumber(invocation),
             "system.set_config_bool" => SystemSetConfigBool(invocation),
             "system.get_config" => SystemGetConfig(invocation),
+            "system.set_param_string" => SystemSetParamString(invocation),
+            "system.set_param_number" => SystemSetParamNumber(invocation),
+            "system.set_param_bool" => SystemSetParamBool(invocation),
+            "system.get_param" => SystemGetParam(invocation),
             _ => RuntimeSyscallResult.Failure(
                 RuntimeFailureKind.Runtime,
                 Error("KESR3400", invocation, $"Runtime syscall '{invocation.Id}' is not supported.")),
@@ -436,7 +446,8 @@ public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
             {
                 ["actor"] = actor,
                 ["text"] = text,
-            });
+            },
+            waitForAdvance: true);
     }
 
     private RuntimeSyscallResult ScenarioNar(RuntimeSyscallInvocation invocation)
@@ -446,7 +457,7 @@ public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
             return ArgumentFailure(invocation, "Syscall 'scenario.nar' requires one text:string argument.");
         }
 
-        return PublishUiEffect(invocation, new Dictionary<string, string?> { ["text"] = text });
+        return PublishUiEffect(invocation, new Dictionary<string, string?> { ["text"] = text }, waitForAdvance: true);
     }
 
     private RuntimeSyscallResult TextNoArgs(RuntimeSyscallInvocation invocation)
@@ -738,6 +749,68 @@ public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
             : UnknownConfig(invocation, key);
     }
 
+    private RuntimeSyscallResult SystemSetParamString(RuntimeSyscallInvocation invocation)
+    {
+        if (!TryReadString(invocation, 0, out var key) ||
+            !TryReadString(invocation, 1, out var value) ||
+            invocation.Arguments.Count != 2)
+        {
+            return ArgumentFailure(invocation, "Syscall 'system.set_param_string' requires key:string and value:string arguments.");
+        }
+
+        gameParameters.Set(key, RuntimeValue.String(value));
+        return RuntimeSyscallResult.Success();
+    }
+
+    private RuntimeSyscallResult SystemSetParamNumber(RuntimeSyscallInvocation invocation)
+    {
+        if (!TryReadString(invocation, 0, out var key) ||
+            !TryReadNumber(invocation, 1, out var value) ||
+            invocation.Arguments.Count != 2)
+        {
+            return ArgumentFailure(invocation, "Syscall 'system.set_param_number' requires key:string and value:number arguments.");
+        }
+
+        gameParameters.Set(key, RuntimeValue.Number(value));
+        return RuntimeSyscallResult.Success();
+    }
+
+    private RuntimeSyscallResult SystemSetParamBool(RuntimeSyscallInvocation invocation)
+    {
+        if (!TryReadString(invocation, 0, out var key) ||
+            !TryReadBool(invocation, 1, out var value) ||
+            invocation.Arguments.Count != 2)
+        {
+            return ArgumentFailure(invocation, "Syscall 'system.set_param_bool' requires key:string and value:bool arguments.");
+        }
+
+        gameParameters.Set(key, RuntimeValue.Bool(value));
+        return RuntimeSyscallResult.Success();
+    }
+
+    private RuntimeSyscallResult SystemGetParam(RuntimeSyscallInvocation invocation)
+    {
+        if (!TryReadString(invocation, 0, out var key) || invocation.Arguments.Count != 1)
+        {
+            return ArgumentFailure(invocation, "Syscall 'system.get_param' requires one key:string argument.");
+        }
+
+        if (!gameParameters.TryGet(key, out var value))
+        {
+            return RuntimeSyscallResult.Failure(RuntimeFailureKind.Runtime, Error("KESR3406", invocation, $"Game parameter '{key}' is not defined."));
+        }
+
+        return RuntimeSyscallResult.Success(RuntimeValue.String(value.Kind switch
+        {
+            RuntimeValueKind.Bool => value.BoolValue == true ? "true" : "false",
+            RuntimeValueKind.Number => FormatNumber(value.NumberValue.GetValueOrDefault()),
+            RuntimeValueKind.String => value.StringValue ?? string.Empty,
+            RuntimeValueKind.Null => string.Empty,
+            RuntimeValueKind.Reference => value.ReferenceId ?? string.Empty,
+            _ => string.Empty,
+        }));
+    }
+
     private static bool TryReadNumberPair(
         RuntimeSyscallInvocation invocation,
         string syscallId,
@@ -779,10 +852,13 @@ public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
         return RuntimeSyscallResult.Success();
     }
 
-    private RuntimeSyscallResult PublishUiEffect(RuntimeSyscallInvocation invocation, IReadOnlyDictionary<string, string?> payload)
+    private RuntimeSyscallResult PublishUiEffect(
+        RuntimeSyscallInvocation invocation,
+        IReadOnlyDictionary<string, string?> payload,
+        bool waitForAdvance = false)
     {
         PublishEffects(new RuntimeEffect(RuntimeEffectKind.Ui, invocation.Id, payload));
-        return RuntimeSyscallResult.Success();
+        return RuntimeSyscallResult.Success(waitForAdvance: waitForAdvance);
     }
 
     private RuntimeSyscallResult PublishAudioEffect(RuntimeSyscallInvocation invocation, IReadOnlyDictionary<string, string?> payload)

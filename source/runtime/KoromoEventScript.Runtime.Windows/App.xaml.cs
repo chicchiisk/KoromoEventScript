@@ -52,7 +52,7 @@ public partial class App : Application
     /// <param name="args">Details about the launch request and process.</param>
     protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
     {
-        var bootstrap = WindowsRuntimeBootstrapper.Bootstrap(args.Arguments, AppContext.BaseDirectory);
+        var bootstrap = Bootstrap(args);
         if (!bootstrap.Succeeded)
         {
             Environment.Exit((int)RuntimeExitCodeMapper.Map(bootstrap.FailureKind));
@@ -62,5 +62,13 @@ public partial class App : Application
         Window = new MainWindow(bootstrap.Options);
         DispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
         Window.Activate();
+    }
+
+    private static WindowsRuntimeBootstrapResult Bootstrap(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
+    {
+        var processArguments = Environment.GetCommandLineArgs().Skip(1).ToArray();
+        return processArguments.Length > 0
+            ? WindowsRuntimeBootstrapper.Bootstrap(processArguments, AppContext.BaseDirectory)
+            : WindowsRuntimeBootstrapper.Bootstrap(args.Arguments, AppContext.BaseDirectory);
     }
 }

@@ -21,11 +21,27 @@ public sealed partial class MainWindow : Window
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
 
-        AppWindow.SetIcon("Assets/AppIcon.ico");
+        SetWindowIcon();
         ApplyWindowOptions(options);
 
         // Navigate the root frame to the main page on startup.
-        RootFrame.Navigate(typeof(MainPage));
+        RootFrame.Navigate(typeof(MainPage), options);
+    }
+
+    private void SetWindowIcon()
+    {
+        foreach (var candidate in new[]
+        {
+            Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico"),
+            Path.Combine(AppContext.BaseDirectory, "AppX", "Assets", "AppIcon.ico"),
+        })
+        {
+            if (File.Exists(candidate))
+            {
+                AppWindow.SetIcon(candidate);
+                break;
+            }
+        }
     }
 
     private void ApplyWindowOptions(WindowsRuntimeOptions? options)
