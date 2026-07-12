@@ -1,0 +1,11 @@
+{
+  "name": "KoromoEventScript.Unity.Editor",
+  "rootNamespace": "KoromoEventScript.Unity.Editor",
+  "references": [
+    "KoromoEventScript.Unity.Runtime"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "autoReferenced": true
+}

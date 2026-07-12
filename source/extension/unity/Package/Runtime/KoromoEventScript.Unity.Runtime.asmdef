@@ -1,0 +1,12 @@
+{
+  "name": "KoromoEventScript.Unity.Runtime",
+  "rootNamespace": "KoromoEventScript.Unity",
+  "references": [
+    "Unity.Addressables",
+    "Unity.InputSystem",
+    "Unity.RenderPipelines.Universal.Runtime",
+    "Unity.ResourceManager",
+    "Unity.UGUI"
+  ],
+  "autoReferenced": true
+}

@@ -1,0 +1,11 @@
+{
+  "name": "KoromoEventScript.Unity.Runtime.Tests",
+  "rootNamespace": "KoromoEventScript.Unity.Runtime.Tests",
+  "references": [
+    "KoromoEventScript.Unity.Runtime"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "autoReferenced": false
+}

@@ -37,7 +37,7 @@ xUnit や MSTest は、既存資産の移行など明確な理由がある場合
 | Golden test | `.kc` から `.klib` への変換 | 中間表現の生成結果を固定する |
 | VM test | `.klib` の実行 | 分岐、変数、選択肢、テキスト進行を検証する |
 | CLI integration test | `kes` コマンド | 終了コード、標準出力、成果物を検証する |
-| Manifest test | `manifest.json` | ランタイム入力契約を固定する |
+| Manifest test | `manifest.json` / `manifest.kson` | JSON Schema、target別ファイル名、ランタイム入力契約を固定する |
 | LSP test | VS Code 診断、補完、定義ジャンプ | 編集支援の退行を防ぐ |
 | Runtime state test | セーブ、ロード、入力、音声状態 | 描画に依存しないランタイム挙動を検証する |
 

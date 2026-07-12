@@ -374,6 +374,7 @@ kes build [PROJECT_DIR] [options]
 13. CLI は `.kc` ごとに VM 向けの中間表現へ変換する。
 14. `--txt-il` が指定された場合、各 `.klib` と同じ論理内容を `.klibtxt` として整形出力する。
 15. `--check-only` が指定されていない場合、CLI は `.klib`、必要に応じて `.klibtxt`、診断結果、マニフェストをビルド成果物として出力する。
+16. `--target unity`ではマニフェストを`manifest.kson`として出力する。それ以外のtargetでは`manifest.json`として出力する。両者の内容は[ランタイムマニフェスト仕様](runtime-manifest-spec.md)に従うUTF-8 JSONである。
 
 ### 成果物
 
@@ -391,17 +392,21 @@ build/
                     chapter001.klibtxt
         diagnostics.json
         manifest.json
+    unity/
+        events/
+        diagnostics.json
+        manifest.kson
 ```
 
 `.klib` のファイル名は、原則として入力 `.kc` のベース名を引き継ぐ。
 たとえば `events/chapter001.kc` は `build/<target>/events/chapter001.klib` に出力する。
 `--txt-il` を指定した場合は、同じ場所に `build/<target>/events/chapter001.klibtxt` も出力する。
 
-`manifest.json` には、入力 `.kc` / `.kel`、生成された `.klib`、必要に応じて対応する `.klibtxt`、素材参照、ローカライズ情報、CLI バージョンを含める。
-CLI は `.klib` を生成し、必要に応じて `.klibtxt` を併置しつつ、`manifest.json` から `.klib` を参照できる成果物構成を作る責務を持つ。
+runtime manifestには、入力`.kc` / `.kel`、生成された`.klib`、必要に応じて対応する`.klibtxt`、素材参照、ローカライズ情報、CLI versionを含める。正式なプロパティ、型、必須性、target別ファイル名は[ランタイムマニフェスト仕様](runtime-manifest-spec.md)と[runtime-manifest.schema.json](runtime-manifest.schema.json)に従う。
+CLIは`.klib`を生成し、必要に応じて`.klibtxt`を併置しつつ、runtime manifestから`.klib`を参照できる成果物構成を作る責務を持つ。
 ローカライズ辞書テンプレート `.csv` の生成は `kes loc` が担当する。CSV の列構成、文字コード、言語タグ規則は [ローカライズ辞書仕様書](localization-dictionary-spec.md)が所有する。`kes build --loc <language-tag>` はプロジェクトルートの `.csv` を取り込み、指定言語の表示テキストを compile-time に解決した `.klib` を `build/<target>/events/loc/<language-tag>/` 配下へ生成する。
 `.klib` / `.klibtxt` ファイル内部の instruction schema、命令体系、source mapping、manifest 参照契約の詳細は [`.klib` 中間表現仕様](k-intermediate-representation-spec.md)が所有する。
-ランタイムは `manifest.json` と対象言語向けに生成済みの `.klib` を読み込み、VM に `.klib` を渡してイベントを実行する。`.klibtxt` は人間向けの補助成果物であり、runtime は読み込まない。
+ランタイムはtargetに対応する`manifest.json`または`manifest.kson`と、対象言語向けに生成済みの`.klib`を読み込み、VMに`.klib`を渡してイベントを実行する。`.klibtxt`は人間向けの補助成果物であり、runtimeは読み込まない。
 
 ### 例
 

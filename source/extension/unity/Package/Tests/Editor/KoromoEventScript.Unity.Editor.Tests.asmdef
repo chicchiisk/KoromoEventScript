@@ -1,0 +1,14 @@
+{
+  "name": "KoromoEventScript.Unity.Editor.Tests",
+  "rootNamespace": "KoromoEventScript.Unity.Editor.Tests",
+  "references": [
+    "KoromoEventScript.Unity.Runtime"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "autoReferenced": false
+}

@@ -507,7 +507,7 @@ debug セクションのソースマップを使って save/load を復元して
 
 ## manifest 参照契約
 
-`manifest.json` は runtime package の目録であり、scripts、assets、locale、entry などを所有する。
+runtime manifestはruntime packageの目録であり、scripts、assets、locale、entryなどを所有する。ファイル名と完全なschemaは[ランタイムマニフェスト仕様](runtime-manifest-spec.md)が所有する。
 `.klib` はそれらを定数プールと bytecode opcode に含まれる安定 ID/key で参照する。
 
 | manifest が所有する情報       | `.klib` での参照方法 |

@@ -1,0 +1,27 @@
+{
+  "name": "com.koromosoft.koromo-event-script",
+  "version": "0.1.0",
+  "displayName": "KoromoEventScript for Unity",
+  "description": "Unity runtime integration for KoromoEventScript build artifacts.",
+  "unity": "6000.5",
+  "unityRelease": "3f1",
+  "documentationUrl": "https://github.com/chicchiisk/KoromoEventScript/blob/main/source/extension/unity/Package/README.md",
+  "changelogUrl": "https://github.com/chicchiisk/KoromoEventScript/blob/main/source/extension/unity/Package/CHANGELOG.md",
+  "licensesUrl": "https://github.com/chicchiisk/KoromoEventScript/blob/main/LICENSE",
+  "dependencies": {
+    "com.unity.addressables": "2.7.6",
+    "com.unity.inputsystem": "1.19.0",
+    "com.unity.render-pipelines.universal": "17.6.0",
+    "com.unity.ugui": "2.5.0"
+  },
+  "samples": [
+    {
+      "displayName": "Basic Setup",
+      "description": "Minimal URP setup for the KoromoEventScript Unity extension.",
+      "path": "Samples~/BasicSetup"
+    }
+  ],
+  "author": {
+    "name": "Koromosoft"
+  }
+}
