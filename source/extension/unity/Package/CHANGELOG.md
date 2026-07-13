@@ -4,3 +4,5 @@
 
 - Unity 6000.5.3f1 と URP を対象とする package scaffold を追加。
 - Runtime、Editor、Edit Mode Test、Play Mode Test の assembly 境界を追加。
+- `.klib`を`KesKlibAsset`へ、`manifest.kson`を`KesBuildAsset`へ変換するScriptedImporterを追加。
+- `KesManager`へKES Build Asset参照を追加。

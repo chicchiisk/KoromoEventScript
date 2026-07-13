@@ -71,6 +71,25 @@ public class BuildOutputPlannerTests
         });
     }
 
+    [Test]
+    public void Resolve_UsesKsonManifestForUnityTarget()
+    {
+        var config = CreateConfig();
+        var options = new BuildCommandOptions(
+            ProjectDirectory: config.ProjectRoot,
+            OutputFormat: DiagnosticOutputFormat.Text,
+            Target: "unity");
+
+        var paths = new BuildOutputPlanner().Resolve(config, options, "events/chapter001.kc");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(paths.KlibPath, Is.EqualTo(Path.Combine(config.ProjectRoot, "build", "unity", "events", "chapter001.klib")));
+            Assert.That(paths.ManifestPath, Is.EqualTo(Path.Combine(config.ProjectRoot, "build", "unity", "manifest.kson")));
+            Assert.That(paths.DiagnosticsPath, Is.EqualTo(Path.Combine(config.ProjectRoot, "build", "unity", "diagnostics.json")));
+        });
+    }
+
     private static ProjectConfig CreateConfig()
     {
         return new ProjectConfig(

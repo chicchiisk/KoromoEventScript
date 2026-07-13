@@ -321,9 +321,13 @@ public sealed class CliApplication
                     }
 
                     target = args[index];
-                    if (!string.Equals(target, "windows", StringComparison.OrdinalIgnoreCase))
+                    if (!IsBuildTarget(target))
                     {
-                        diagnostics.Add(CommandLineDiagnostic($"Unsupported --target value '{target}'. Expected 'windows'."));
+                        diagnostics.Add(CommandLineDiagnostic($"Unsupported --target value '{target}'. Expected 'windows', 'unity', or 'unreal'."));
+                    }
+                    else
+                    {
+                        target = target.ToLowerInvariant();
                     }
 
                     break;

@@ -31,11 +31,14 @@ public sealed class BuildOutputPlanner
         var klibTextPath = options.EmitTextIr
             ? Path.ChangeExtension(klibPath, ".klibtxt")
             : null;
+        var manifestFileName = string.Equals(options.Target, "unity", StringComparison.OrdinalIgnoreCase)
+            ? "manifest.kson"
+            : "manifest.json";
 
         return new BuildArtifactPaths(
             klibPath,
             klibTextPath,
-            Path.Combine(outputRoot, options.Target, "manifest.json"),
+            Path.Combine(outputRoot, options.Target, manifestFileName),
             Path.Combine(outputRoot, options.Target, "diagnostics.json"));
     }
 

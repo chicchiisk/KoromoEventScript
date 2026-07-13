@@ -2,6 +2,7 @@
   "name": "KoromoEventScript.Unity.Editor.Tests",
   "rootNamespace": "KoromoEventScript.Unity.Editor.Tests",
   "references": [
+    "KoromoEventScript.Unity.Editor",
     "KoromoEventScript.Unity.Runtime"
   ],
   "optionalUnityReferences": [

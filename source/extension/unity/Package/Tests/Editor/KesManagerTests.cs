@@ -1,7 +1,8 @@
 using NUnit.Framework;
 using UnityEngine;
 
-namespace KoromoEventScript.Unity.Editor.Tests;
+namespace KoromoEventScript.Unity.Editor.Tests
+{
 
 public sealed class KesManagerTests
 {
@@ -20,4 +21,5 @@ public sealed class KesManagerTests
             Object.DestroyImmediate(gameObject);
         }
     }
+}
 }

@@ -3,7 +3,8 @@ using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
 
-namespace KoromoEventScript.Unity.Runtime.Tests;
+namespace KoromoEventScript.Unity.Runtime.Tests
+{
 
 public sealed class KesManagerPlayModeTests
 {
@@ -18,4 +19,5 @@ public sealed class KesManagerPlayModeTests
         Assert.That(manager.isActiveAndEnabled, Is.True);
         Object.Destroy(gameObject);
     }
+}
 }

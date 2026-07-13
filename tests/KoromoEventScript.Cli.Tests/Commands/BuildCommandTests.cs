@@ -43,6 +43,34 @@ public class BuildCommandTests
     }
 
     [Test]
+    public void Run_UnityTargetEmitsKsonManifest()
+    {
+        using var fixture = TemporaryProject.Create();
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+        CopyProject(GetTestDataPath("projects", "minimal"), fixture.Root);
+
+        var exitCode = new CliApplication().Run(
+            ["build", fixture.Root, "--target", "unity"],
+            output,
+            error,
+            TestContext.CurrentContext.WorkDirectory);
+
+        var unityRoot = Path.Combine(fixture.Root, "build", "unity");
+        var manifestPath = Path.Combine(unityRoot, "manifest.kson");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(exitCode, Is.EqualTo((int)CliExitCode.Success));
+            Assert.That(error.ToString(), Is.Empty);
+            Assert.That(File.Exists(manifestPath), Is.True);
+            Assert.That(File.Exists(Path.Combine(unityRoot, "manifest.json")), Is.False);
+            Assert.That(File.ReadAllText(manifestPath), Does.Contain("\"target\": \"unity\""));
+            Assert.That(File.Exists(Path.Combine(unityRoot, "events", "chapter001.klib")), Is.True);
+        });
+    }
+
+    [Test]
     public void Run_BuildsFullCommandSampleProject()
     {
         using var fixture = TemporaryProject.Create();
