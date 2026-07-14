@@ -137,6 +137,19 @@ public sealed class KesKsonImporter : ScriptedImporter
                     assetPath);
             }
 
+            var loadResult = klib.LoadModule(assetPath);
+            if (!loadResult.Succeeded || loadResult.Document == null)
+            {
+                throw new InvalidDataException(
+                    $"KESU1111: referenced Klib asset could not be loaded: {assetPath}");
+            }
+
+            if (!string.Equals(loadResult.Document.Module.ScriptId, script.scriptId, StringComparison.Ordinal))
+            {
+                throw new InvalidDataException(
+                    $"KESU1112: manifest scriptId '{script.scriptId}' does not match Klib scriptId '{loadResult.Document.Module.ScriptId}'.");
+            }
+
             result.Add(new KesScriptAssetReference(script.scriptId, locale, klib));
         }
     }

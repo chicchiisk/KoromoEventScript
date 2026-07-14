@@ -1,11 +1,20 @@
+#nullable enable
+
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Text;
 using KoromoEventScript.Runtime.Core.Diagnostics;
 
-namespace KoromoEventScript.Runtime.Core.Klib;
+namespace KoromoEventScript.Runtime.Core.Klib
+{
 
 public interface IKlibModuleLoader
 {
     KlibModuleLoadResult Load(string path);
+
+    KlibModuleLoadResult Load(ReadOnlyMemory<byte> data, string sourceName);
 }
 
 public sealed class KlibModuleLoader : IKlibModuleLoader
@@ -32,26 +41,48 @@ public sealed class KlibModuleLoader : IKlibModuleLoader
 
         try
         {
-            using var stream = File.OpenRead(path);
+            return Load(File.ReadAllBytes(path), path);
+        }
+        catch (IOException exception)
+        {
+            return KlibModuleLoadResult.Failure(
+                RuntimeFailureKind.Io,
+                RuntimeDiagnostic.Error(
+                    "KESR2101",
+                    $"Klib file could not be read: {path}. {exception.Message}",
+                    RuntimeFailureKind.Io));
+        }
+    }
+
+    public KlibModuleLoadResult Load(ReadOnlyMemory<byte> data, string sourceName)
+    {
+        if (string.IsNullOrEmpty(sourceName))
+        {
+            sourceName = "<memory>";
+        }
+
+        try
+        {
+            using var stream = new MemoryStream(data.ToArray(), writable: false);
             using var reader = new BinaryReader(stream, Encoding.UTF8, leaveOpen: false);
 
             var magic = reader.ReadBytes(4);
             if (!magic.SequenceEqual(Encoding.ASCII.GetBytes("KLIB")))
             {
-                return InvalidKlib(path, "Klib file has an invalid magic header.");
+                return InvalidKlib(sourceName, "Klib file has an invalid magic header.");
             }
 
             var version = new KlibVersion(reader.ReadInt32(), reader.ReadInt32(), reader.ReadInt32());
             var features = reader.ReadInt32();
             if (features != 0)
             {
-                return InvalidKlib(path, $"Klib file uses unsupported feature flags: {features}.");
+                return InvalidKlib(sourceName, $"Klib file uses unsupported feature flags: {features}.");
             }
 
             var sectionCount = reader.ReadInt32();
             if (sectionCount < 0)
             {
-                return InvalidKlib(path, "Klib file has an invalid section count.");
+                return InvalidKlib(sourceName, "Klib file has an invalid section count.");
             }
 
             var sections = new Dictionary<int, SectionHeader>();
@@ -60,7 +91,7 @@ public sealed class KlibModuleLoader : IKlibModuleLoader
                 var section = new SectionHeader(reader.ReadInt32(), reader.ReadInt32(), reader.ReadInt32());
                 if (!IsValidSection(stream.Length, section))
                 {
-                    return InvalidKlib(path, $"Klib file has an invalid section range for section type '{section.Type}'.");
+                    return InvalidKlib(sourceName, $"Klib file has an invalid section range for section type '{section.Type}'.");
                 }
 
                 sections[section.Type] = section;
@@ -68,32 +99,32 @@ public sealed class KlibModuleLoader : IKlibModuleLoader
 
             if (!sections.TryGetValue(ModuleInfoSectionType, out var moduleSection))
             {
-                return InvalidKlib(path, "Klib file does not contain a module info section.");
+                return InvalidKlib(sourceName, "Klib file does not contain a module info section.");
             }
 
             if (!sections.TryGetValue(ConstantSectionType, out var constantSection))
             {
-                return InvalidKlib(path, "Klib file does not contain a constant section.");
+                return InvalidKlib(sourceName, "Klib file does not contain a constant section.");
             }
 
             if (!sections.TryGetValue(VariableSectionType, out var variableSection))
             {
-                return InvalidKlib(path, "Klib file does not contain a variable section.");
+                return InvalidKlib(sourceName, "Klib file does not contain a variable section.");
             }
 
             if (!sections.TryGetValue(InstructionSectionType, out var instructionSection))
             {
-                return InvalidKlib(path, "Klib file does not contain an instruction section.");
+                return InvalidKlib(sourceName, "Klib file does not contain an instruction section.");
             }
 
             if (!sections.TryGetValue(LabelSectionType, out var labelSection))
             {
-                return InvalidKlib(path, "Klib file does not contain a label section.");
+                return InvalidKlib(sourceName, "Klib file does not contain a label section.");
             }
 
             if (!sections.TryGetValue(DebugSectionType, out var debugSection))
             {
-                return InvalidKlib(path, "Klib file does not contain a debug section.");
+                return InvalidKlib(sourceName, "Klib file does not contain a debug section.");
             }
 
             var module = ReadSection(stream, moduleSection, ReadModuleInfo);
@@ -101,7 +132,7 @@ public sealed class KlibModuleLoader : IKlibModuleLoader
             var variables = ReadSection(stream, variableSection, ReadVariables);
             var imports = sections.TryGetValue(ImportSectionType, out var importSection)
                 ? ReadSection(stream, importSection, ReadImports)
-                : [];
+                : Array.Empty<KlibImport>();
             var labels = ReadSection(stream, labelSection, ReadLabels);
             var debug = ReadSection(stream, debugSection, ReadDebugInfo);
             var instructions = ReadSection(stream, instructionSection, reader => ReadInstructions(reader, constants, debug));
@@ -120,24 +151,15 @@ public sealed class KlibModuleLoader : IKlibModuleLoader
         }
         catch (EndOfStreamException exception)
         {
-            return InvalidKlib(path, exception.Message);
-        }
-        catch (IOException exception)
-        {
-            return KlibModuleLoadResult.Failure(
-                RuntimeFailureKind.Io,
-                RuntimeDiagnostic.Error(
-                    "KESR2101",
-                    $"Klib file could not be read: {path}. {exception.Message}",
-                    RuntimeFailureKind.Io));
+            return InvalidKlib(sourceName, exception.Message);
         }
         catch (InvalidDataException exception)
         {
-            return InvalidKlib(path, exception.Message);
+            return InvalidKlib(sourceName, exception.Message);
         }
     }
 
-    private static T ReadSection<T>(FileStream stream, SectionHeader section, Func<BinaryReader, T> readerFunc)
+    private static T ReadSection<T>(Stream stream, SectionHeader section, Func<BinaryReader, T> readerFunc)
     {
         stream.Position = section.Offset;
         var sectionBytes = new byte[section.Size];
@@ -306,7 +328,7 @@ public sealed class KlibModuleLoader : IKlibModuleLoader
             if (opCode == KlibOpCode.Select)
             {
                 var count = bytecodeReader.ReadInt32();
-                operands = [count];
+                operands = new[] { count };
                 var cases = new List<KlibSelectCase>(count);
                 for (var i = 0; i < count; i++)
                 {
@@ -397,7 +419,7 @@ public sealed class KlibModuleLoader : IKlibModuleLoader
                 continue;
             }
 
-            foreach (var selectCase in instruction.SelectCases ?? [])
+            foreach (var selectCase in instruction.SelectCases ?? Array.Empty<KlibSelectCase>())
             {
                 if (selectCase.TextIndex < 0 || selectCase.TextIndex >= constants.Count)
                 {
@@ -503,7 +525,21 @@ public sealed class KlibModuleLoader : IKlibModuleLoader
                 RuntimeFailureKind.Startup));
     }
 
-    private readonly record struct SectionHeader(int Type, int Offset, int Size);
+    private readonly struct SectionHeader
+    {
+        public SectionHeader(int type, int offset, int size)
+        {
+            Type = type;
+            Offset = offset;
+            Size = size;
+        }
+
+        public int Type { get; }
+
+        public int Offset { get; }
+
+        public int Size { get; }
+    }
 }
 
 public sealed record KlibModuleLoadResult(
@@ -515,11 +551,12 @@ public sealed record KlibModuleLoadResult(
 
     public static KlibModuleLoadResult Success(KlibDocument document)
     {
-        return new KlibModuleLoadResult(document, [], RuntimeFailureKind.None);
+        return new KlibModuleLoadResult(document, Array.Empty<RuntimeDiagnostic>(), RuntimeFailureKind.None);
     }
 
     public static KlibModuleLoadResult Failure(RuntimeFailureKind failureKind, params RuntimeDiagnostic[] diagnostics)
     {
         return new KlibModuleLoadResult(null, diagnostics, failureKind);
     }
+}
 }

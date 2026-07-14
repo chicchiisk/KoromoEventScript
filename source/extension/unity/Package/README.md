@@ -28,4 +28,4 @@ https://github.com/chicchiisk/KoromoEventScript.git?path=/source/extension/unity
 
 利用環境にはGitクライアントが必要である。パッケージ導入後、Package ManagerのSamplesタブから`Basic Setup`をインポートできる。
 
-リポジトリをcloneして開発する場合は、`../SampleProject`が`file:../Package`でこのpackageを直接参照する。
+リポジトリをcloneして開発する場合は、`../SampleProject/Packages/manifest.json`が`file:../../Package`でこのpackageを直接参照する。

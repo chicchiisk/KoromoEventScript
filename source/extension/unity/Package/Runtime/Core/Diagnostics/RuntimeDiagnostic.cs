@@ -1,4 +1,7 @@
-namespace KoromoEventScript.Runtime.Core.Diagnostics;
+#nullable enable
+
+namespace KoromoEventScript.Runtime.Core.Diagnostics
+{
 
 public enum RuntimeDiagnosticSeverity
 {
@@ -27,12 +30,27 @@ public enum RuntimeExitCode
     RuntimeStartupError = 7,
 }
 
-public readonly record struct RuntimeSourceLocation(
-    string? ScriptId,
-    int? InstructionIndex,
-    string? File,
-    int? Line,
-    int? Column);
+public readonly struct RuntimeSourceLocation
+{
+    public RuntimeSourceLocation(string? scriptId, int? instructionIndex, string? file, int? line, int? column)
+    {
+        ScriptId = scriptId;
+        InstructionIndex = instructionIndex;
+        File = file;
+        Line = line;
+        Column = column;
+    }
+
+    public string? ScriptId { get; }
+
+    public int? InstructionIndex { get; }
+
+    public string? File { get; }
+
+    public int? Line { get; }
+
+    public int? Column { get; }
+}
 
 public sealed record RuntimeDiagnostic(
     RuntimeDiagnosticSeverity Severity,
@@ -76,4 +94,5 @@ public static class RuntimeExitCodeMapper
             _ => RuntimeExitCode.GeneralError,
         };
     }
+}
 }

@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using KoromoEventScript.Runtime.Core.Klib;
 using UnityEditor.AssetImporters;
 using UnityEngine;
 
@@ -12,13 +13,13 @@ public sealed class KesKlibImporter : ScriptedImporter
     public override void OnImportAsset(AssetImportContext context)
     {
         var data = File.ReadAllBytes(context.assetPath);
-        if (data.Length < 24 ||
-            data[0] != (byte)'K' ||
-            data[1] != (byte)'L' ||
-            data[2] != (byte)'I' ||
-            data[3] != (byte)'B')
+        var loadResult = new KlibModuleLoader().Load(data, context.assetPath);
+        if (!loadResult.Succeeded)
         {
-            throw new InvalidDataException("KESU1001: Klib file has an invalid or truncated header.");
+            var detail = loadResult.Diagnostics.Count > 0
+                ? loadResult.Diagnostics[0].Message
+                : "Klib validation failed.";
+            throw new InvalidDataException("KESU1001: " + detail);
         }
 
         var asset = ScriptableObject.CreateInstance<KesKlibAsset>();

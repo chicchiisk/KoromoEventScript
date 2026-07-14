@@ -51,7 +51,7 @@ Unity 6 系のマイナーバージョン差に依存する API は避け、サ�
 
 ## パッケージとアセンブリ境界
 
-Unity 拡張は Unity Package Manager から導入できる package として `source/extension/unity/Package/` 配下に配置する。package 名は `com.koromosoft.koromo-event-script` とし、Runtime、Editor、Tests を分離する。package は GitHub 上の本リポジトリでホストし、利用者は Git URL の `path` query でこのサブフォルダーを指定して導入する。検証用 Unity プロジェクトは `source/extension/unity/SampleProject/` 配下に置き、`Packages/manifest.json` からプロジェクトルート基準の `file:../Package` で package を参照する。
+Unity 拡張は Unity Package Manager から導入できる package として `source/extension/unity/Package/` 配下に配置する。package 名は `com.koromosoft.koromo-event-script` とし、Runtime、Editor、Tests を分離する。package は GitHub 上の本リポジトリでホストし、利用者は Git URL の `path` query でこのサブフォルダーを指定して導入する。検証用 Unity プロジェクトは `source/extension/unity/SampleProject/` 配下に置き、`Packages/manifest.json` から manifest ファイル基準の `file:../../Package` で package を参照する。
 
 ```txt
 source/extension/unity/Package
@@ -105,7 +105,7 @@ https://github.com/chicchiisk/KoromoEventScript.git?path=/source/extension/unity
 - Git URLの`?path=`より後に、必要に応じて`#tag`、`#branch`または`#commit-hash`を指定する。
 - 利用環境ではGitクライアントを`PATH`から実行できなければならない。Git LFS管理対象をpackageに含める場合はGit LFSも必要になるため、v1のpackage本体はGit LFSへ依存しない。
 - `SampleProject`、`Library`、`UserSettings`、IDE生成物は配布packageの構成要素に含めない。
-- リポジトリ内開発では`file:../Package`を使用し、GitHub経由の導入試験では一時的な別Unityプロジェクトから公開URLまたはcommit hashを指定する。
+- リポジトリ内開発では`file:../../Package`を使用し、GitHub経由の導入試験では一時的な別Unityプロジェクトから公開URLまたはcommit hashを指定する。
 
 ## 拡張構成
 

@@ -14,6 +14,8 @@ WindowsランタイムとUnity拡張は同じ`.klib`を同じ意味論で実行�
 
 `.klib` loader、VM、manifest model、イベント評価、状態modelのC#ソースをWindowsとUnityで共有する。共通ソースはUnity 6000.5.3f1がコンパイルできるC# 9.0と.NET Standard 2.1の範囲へ制限する。platform固有処理はinterfaceの背後へ分離し、同じソースファイルを.NET projectとUnity asmdefの双方からコンパイルする。
 
+Git URLの`path` queryでUnity package単体を取得しても共有ソースが欠落しないよう、共有ソースの正本は`source/extension/unity/Package/Runtime/Core/`に置く。.NET側の`KoromoEventScript.Runtime.Core.csproj`はこの正本をlinked compile itemとして参照する。
+
 ## 検討した代替案
 
 ### Unity専用VMを実装する
@@ -23,6 +25,10 @@ Unity向けに最適化しやすいが、同じ`.klib`に対する意味論と�
 ### .NET 10 assemblyをUnityから直接参照する
 
 UnityのAPI compatibilityとC# runtimeの制約に適合せず、対応環境を保証できないため採用しない。
+
+### package外の独立Sharedディレクトリを正本にする
+
+一般的なリポジトリ構成にはしやすいが、`?path=/source/extension/unity/Package`で導入したUPM packageにはpackage外のファイルが含まれず、Git URL導入時に共有ソースが欠落するため採用しない。
 
 ## 判断理由
 
@@ -36,9 +42,10 @@ UnityのAPI compatibilityとC# runtimeの制約に適合せず、対応環境を
 - 既存の新しい構文をC# 9互換へ変更する作業が必要になる。
 - record利用時はUnity側へ`IsExternalInit`互換shimが必要になる。
 - .NET側とUnity側の両方で同じCore testを実行する必要がある。
+- Runtime Coreの新しい共有対象はpackage側へ移し、.NET projectへ明示的なlinked compile itemを追加する必要がある。
 
 ## フォローアップ
 
-- 共有対象ファイルとplatform interfaceを確定する。
+- Klibモデル、loader、診断以外の共有対象ファイルとplatform interfaceを段階的に確定する。
 - Runtime CoreのC# 9互換性検査をCIへ追加する。
 - Unity Edit Modeで`.klib` loaderとVMの共通golden testを実行する。

@@ -5,7 +5,7 @@
 - `Package/`: Unity Package Manager で導入するプラグイン本体
 - `SampleProject/`: Unity 6000.5.3f1、URP で package を検証するサンプルプロジェクト
 
-`SampleProject/Packages/manifest.json` はプロジェクトルート基準で `file:../Package` を参照するため、リポジトリ内では package の変更がサンプルプロジェクトへ直接反映される。
+`SampleProject/Packages/manifest.json` は manifest ファイル基準で `file:../../Package` を参照するため、リポジトリ内では package の変更がサンプルプロジェクトへ直接反映される。
 
 ## GitHubからの導入
 
@@ -35,7 +35,7 @@ Git依存関係の取得には、Unityを実行する環境の`PATH`からGitク
 
 ## 開発とリリース
 
-- リポジトリ内の`SampleProject`は未コミット変更を即時検証できるよう`file:../Package`を使用する。
+- リポジトリ内の`SampleProject`は未コミット変更を即時検証できるよう`file:../../Package`を使用する。
 - 公開リリースタグは`unity-v{package.jsonのversion}`形式とする。
 - タグ作成前に`package.json`と`CHANGELOG.md`のバージョンを一致させる。
 - 公開タグは作成後に付け替えない。修正時はpackage versionを上げ、新しいタグを作成する。

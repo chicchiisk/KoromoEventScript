@@ -6,3 +6,5 @@
 - Runtime、Editor、Edit Mode Test、Play Mode Test の assembly 境界を追加。
 - `.klib`を`KesKlibAsset`へ、`manifest.kson`を`KesBuildAsset`へ変換するScriptedImporterを追加。
 - `KesManager`へKES Build Asset参照を追加。
+- Unity packageと.NET Runtime CoreでKlibモデル・loader・診断ソースの共有を開始。
+- Klib importerを完全なsection構造検証へ対応し、メモリ上のKlib assetを直接読み込めるようにした。

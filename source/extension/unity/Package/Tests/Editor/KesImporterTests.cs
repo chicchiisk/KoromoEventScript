@@ -1,4 +1,6 @@
 using System.IO;
+using System.Text;
+using KoromoEventScript.Runtime.Core.Klib;
 using NUnit.Framework;
 using UnityEditor;
 
@@ -26,11 +28,7 @@ public sealed class KesImporterTests
     public void ImportKson_ProducesBuildAssetWithKlibReference()
     {
         var klibPath = TestRoot + "/events/chapter001.klib";
-        var klibData = new byte[24];
-        klibData[0] = (byte)'K';
-        klibData[1] = (byte)'L';
-        klibData[2] = (byte)'I';
-        klibData[3] = (byte)'B';
+        var klibData = BuildMinimalKlib();
         File.WriteAllBytes(klibPath, klibData);
         AssetDatabase.ImportAsset(klibPath, ImportAssetOptions.ForceSynchronousImport);
 
@@ -56,7 +54,95 @@ public sealed class KesImporterTests
         Assert.That(buildAsset.BuildId, Is.EqualTo("unity-import-test-1"));
         Assert.That(buildAsset.Scripts, Has.Count.EqualTo(1));
         Assert.That(buildAsset.Scripts[0].ScriptId, Is.EqualTo("events/chapter001"));
-        Assert.That(buildAsset.Scripts[0].Klib.Data.Length, Is.EqualTo(24));
+        Assert.That(buildAsset.Scripts[0].Klib.Data.Length, Is.EqualTo(klibData.Length));
+        var loadResult = new KlibModuleLoader().Load(buildAsset.Scripts[0].Klib.Data, klibPath);
+        Assert.That(loadResult.Succeeded, Is.True);
+        Assert.That(loadResult.Document.Module.ScriptId, Is.EqualTo("events/chapter001"));
+    }
+
+    private static byte[] BuildMinimalKlib()
+    {
+        var sections = new[]
+        {
+            CreateSection(0x0001, writer =>
+            {
+                WriteString(writer, "events/chapter001");
+                WriteString(writer, "events/chapter001");
+                WriteString(writer, "events/chapter001.kc");
+                writer.Write(0);
+            }),
+            CreateSection(0x0002, writer => writer.Write(0)),
+            CreateSection(0x0003, writer => writer.Write(0)),
+            CreateSection(0x0005, writer =>
+            {
+                writer.Write(1);
+                writer.Write((byte)KlibOpCode.End);
+            }),
+            CreateSection(0x0006, writer => writer.Write(0)),
+            CreateSection(0x0007, writer =>
+            {
+                writer.Write(0);
+                writer.Write(0);
+                writer.Write(0);
+            }),
+        };
+
+        using (var stream = new MemoryStream())
+        using (var writer = new BinaryWriter(stream, Encoding.UTF8))
+        {
+            writer.Write(Encoding.ASCII.GetBytes("KLIB"));
+            writer.Write(1);
+            writer.Write(0);
+            writer.Write(0);
+            writer.Write(0);
+            writer.Write(sections.Length);
+
+            var offset = 24 + (sections.Length * 12);
+            foreach (var section in sections)
+            {
+                writer.Write(section.Type);
+                writer.Write(offset);
+                writer.Write(section.Data.Length);
+                offset += section.Data.Length;
+            }
+
+            foreach (var section in sections)
+            {
+                writer.Write(section.Data);
+            }
+
+            return stream.ToArray();
+        }
+    }
+
+    private static KlibSection CreateSection(int type, System.Action<BinaryWriter> write)
+    {
+        using (var stream = new MemoryStream())
+        using (var writer = new BinaryWriter(stream, Encoding.UTF8))
+        {
+            write(writer);
+            return new KlibSection(type, stream.ToArray());
+        }
+    }
+
+    private static void WriteString(BinaryWriter writer, string value)
+    {
+        var data = Encoding.UTF8.GetBytes(value);
+        writer.Write(data.Length);
+        writer.Write(data);
+    }
+
+    private sealed class KlibSection
+    {
+        public KlibSection(int type, byte[] data)
+        {
+            Type = type;
+            Data = data;
+        }
+
+        public int Type { get; }
+
+        public byte[] Data { get; }
     }
 }
 }

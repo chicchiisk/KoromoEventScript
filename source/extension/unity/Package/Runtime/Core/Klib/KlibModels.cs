@@ -1,4 +1,9 @@
-namespace KoromoEventScript.Runtime.Core.Klib;
+#nullable enable
+
+using System.Collections.Generic;
+
+namespace KoromoEventScript.Runtime.Core.Klib
+{
 
 public enum KlibConstantKind
 {
@@ -91,7 +96,18 @@ public enum KlibOpCode : byte
     Dispose = 0x5C,
 }
 
-public readonly record struct KlibSourceLocation(int Line, int Column);
+public readonly struct KlibSourceLocation
+{
+    public KlibSourceLocation(int line, int column)
+    {
+        Line = line;
+        Column = column;
+    }
+
+    public int Line { get; }
+
+    public int Column { get; }
+}
 
 public sealed record KlibVersion(int Major, int Minor, int Patch);
 
@@ -163,3 +179,4 @@ public sealed record KlibDocument(
     IReadOnlyList<KlibInstruction> Instructions,
     IReadOnlyList<KlibLabel> Labels,
     KlibDebugInfo Debug);
+}
