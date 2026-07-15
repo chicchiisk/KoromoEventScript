@@ -1,0 +1,98 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bbb281ee3bf0b054c82ac2347e9e782c, type: 3}
+  m_Name: Default Local Group
+  m_EditorClassIdentifier: Unity.Addressables.Editor::UnityEditor.AddressableAssets.Settings.AddressableAssetGroup
+  m_GroupName: Default Local Group
+  m_GUID: db17abb53aacb21458e10bae62c10288
+  m_SerializeEntries:
+  - m_GUID: 131e17a3618d9ff4d82f39e99a49026b
+    m_Address: assets.bg.bg_morning
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 17deb1fddae8de14799357340ffc48e8
+    m_Address: assets.bg.bg_evening
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 230d0ee44906291429bc0f263d8fbbf6
+    m_Address: assets.actor.riku_sleep
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 2753b41af00906e49b944923b7849b5c
+    m_Address: assets.actor.noa_normal
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 2d07db39fea3c104982ca6bb99dbe605
+    m_Address: assets.actor.noa_smile
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 404bffa0ca5d20b4db7b054468dee92c
+    m_Address: assets.actor.riku_normal_dress
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 44a67522a0b0a6d4d91c87d1d1793222
+    m_Address: assets.actor.riku_trouble
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 52a36c707d3ab01459ea74a1495c3694
+    m_Address: assets.actor.riku_smile
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 5ceaaf13187a0064aa3b02c70408ac6b
+    m_Address: assets.actor.riku_pumpkin
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 5e8bbb98e9298cd4c9118a66860ac36a
+    m_Address: assets.actor.riku_normal
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 85be72094c26d6342b77e17524b90ca4
+    m_Address: assets.actor.riku_serious
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 94a5cb39eedc7a3479d014084684bcab
+    m_Address: assets.actor.amane_normal
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ab2a082c2004b9e41ab938d715315482
+    m_Address: assets.audio.se.se_001_door
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ce1816e4559587e41ba8663bbb8a741b
+    m_Address: assets.actor.amane_smile
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d927fd2c807b0574eb91a16e3dd384bb
+    m_Address: assets.audio.bgm.bgm_001_alice2
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  m_ReadOnly: 0
+  m_Settings: {fileID: 11400000, guid: 331b0db7e8ae0cc47bb7b7464b59458e, type: 2}
+  m_SchemaSet:
+    m_Schemas:
+    - {fileID: 11400000, guid: dbeefcda67a159a4f90086f718da99df, type: 2}
+    - {fileID: 11400000, guid: 2ee351c33c85b87489e68d76236350f3, type: 2}

@@ -60,15 +60,15 @@ public sealed class KesImporterTests
         Assert.That(loadResult.Document.Module.ScriptId, Is.EqualTo("events/chapter001"));
     }
 
-    internal static byte[] BuildMinimalKlib()
+    internal static byte[] BuildMinimalKlib(string scriptId = "events/chapter001")
     {
         var sections = new[]
         {
             CreateSection(0x0001, writer =>
             {
-                WriteString(writer, "events/chapter001");
-                WriteString(writer, "events/chapter001");
-                WriteString(writer, "events/chapter001.kc");
+                WriteString(writer, scriptId);
+                WriteString(writer, scriptId);
+                WriteString(writer, scriptId + ".kc");
                 writer.Write(0);
             }),
             CreateSection(0x0002, writer => writer.Write(0)),

@@ -25,8 +25,12 @@ public sealed class KesManager : MonoBehaviour, IRuntimeEffectSink
     [SerializeField]
     private string startScriptId = string.Empty;
 
+    [SerializeField]
+    private KesPresentation presentation;
+
     private KesVmExecutor executor;
     private KesVmSession session;
+    private string activeLocale = string.Empty;
     private readonly List<RuntimeDiagnostic> lastDiagnostics = new();
 
     public KesBuildAsset BuildAsset => buildAsset;
@@ -37,7 +41,11 @@ public sealed class KesManager : MonoBehaviour, IRuntimeEffectSink
 
     public string StartScriptId => startScriptId;
 
+    public string ActiveLocale => activeLocale;
+
     public KesVmSession Session => session;
+
+    public KesPresentation Presentation => presentation;
 
     public RuntimeContinuation Continuation => session == null
         ? RuntimeContinuation.Completed
@@ -69,10 +77,18 @@ public sealed class KesManager : MonoBehaviour, IRuntimeEffectSink
         startScriptId = value ?? string.Empty;
     }
 
+    public void SetPresentation(KesPresentation value)
+    {
+        presentation = value;
+    }
+
     public bool Play()
     {
+        lastDiagnostics.Clear();
+
         if (buildAsset == null)
         {
+            activeLocale = string.Empty;
             Report(
                 RuntimeDiagnostic.Error(
                     "KESU2001",
@@ -91,7 +107,9 @@ public sealed class KesManager : MonoBehaviour, IRuntimeEffectSink
             return false;
         }
 
-        var selected = FindScript();
+        activeLocale = string.Empty;
+        var requestedLocale = EffectiveLocale;
+        var selected = FindScript(requestedLocale, out var usedLocaleFallback);
         if (selected == null)
         {
             Report(
@@ -100,6 +118,14 @@ public sealed class KesManager : MonoBehaviour, IRuntimeEffectSink
                     $"No script was found for locale '{EffectiveLocale}' and script id '{startScriptId}'.",
                     RuntimeFailureKind.Startup));
             return false;
+        }
+
+        if (usedLocaleFallback)
+        {
+            AppendDiagnostic(
+                RuntimeDiagnostic.Warning(
+                    "KESU2005",
+                    $"Locale '{requestedLocale}' was not found. Falling back to default locale '{buildAsset.DefaultLocale}'."));
         }
 
         var loadResult = selected.Klib.LoadModule(selected.Klib.name);
@@ -111,7 +137,7 @@ public sealed class KesManager : MonoBehaviour, IRuntimeEffectSink
 
         session = new KesVmSession(loadResult.Document);
         executor = new KesVmExecutor(effectSink: this);
-        lastDiagnostics.Clear();
+        activeLocale = selected.Locale;
         return RunUntilWait();
     }
 
@@ -137,6 +163,7 @@ public sealed class KesManager : MonoBehaviour, IRuntimeEffectSink
 
     public void Publish(RuntimeEffectBatch batch)
     {
+        presentation?.Apply(batch);
         EffectsPublished?.Invoke(batch);
     }
 
@@ -152,17 +179,39 @@ public sealed class KesManager : MonoBehaviour, IRuntimeEffectSink
         ? buildAsset != null ? buildAsset.DefaultLocale : string.Empty
         : locale;
 
-    private KesScriptAssetReference FindScript()
+    private KesScriptAssetReference FindScript(string requestedLocale, out bool usedLocaleFallback)
     {
+        usedLocaleFallback = false;
         if (buildAsset == null)
         {
             return null;
         }
 
+        var selected = FindScriptForLocale(requestedLocale);
+        if (selected != null)
+        {
+            return selected;
+        }
+
+        if (!StringComparer.Ordinal.Equals(requestedLocale, buildAsset.DefaultLocale))
+        {
+            selected = FindScriptForLocale(buildAsset.DefaultLocale);
+            if (selected != null)
+            {
+                usedLocaleFallback = true;
+                return selected;
+            }
+        }
+
+        return null;
+    }
+
+    private KesScriptAssetReference FindScriptForLocale(string requestedLocale)
+    {
         for (var i = 0; i < buildAsset.Scripts.Count; i++)
         {
             var script = buildAsset.Scripts[i];
-            if (!StringComparer.Ordinal.Equals(script.Locale, EffectiveLocale))
+            if (!StringComparer.Ordinal.Equals(script.Locale, requestedLocale))
             {
                 continue;
             }
@@ -179,7 +228,13 @@ public sealed class KesManager : MonoBehaviour, IRuntimeEffectSink
 
     private bool RunUntilWait()
     {
-        return executor != null && session != null && HandleResult(executor.Run(session));
+        if (executor == null || session == null || !HandleResult(executor.Run(session)))
+        {
+            return false;
+        }
+
+        presentation?.ApplyContinuation(session.Continuation);
+        return true;
     }
 
     private bool HandleResult(KesVmExecutionResult result)
@@ -215,10 +270,36 @@ public sealed class KesManager : MonoBehaviour, IRuntimeEffectSink
         {
             var diagnostic = diagnostics[i];
             lastDiagnostics.Add(diagnostic);
-            Debug.LogError(diagnostic.Code + ": " + diagnostic.Message, this);
+            LogDiagnostic(diagnostic);
         }
 
         DiagnosticsPublished?.Invoke(lastDiagnostics);
+    }
+
+    private void AppendDiagnostic(RuntimeDiagnostic diagnostic)
+    {
+        lastDiagnostics.Add(diagnostic);
+        LogDiagnostic(diagnostic);
+        DiagnosticsPublished?.Invoke(lastDiagnostics);
+    }
+
+    private void LogDiagnostic(RuntimeDiagnostic diagnostic)
+    {
+        var message = diagnostic.Code + ": " + diagnostic.Message;
+        switch (diagnostic.Severity)
+        {
+            case RuntimeDiagnosticSeverity.Warning:
+                Debug.LogWarning(message, this);
+                break;
+
+            case RuntimeDiagnosticSeverity.Info:
+                Debug.Log(message, this);
+                break;
+
+            default:
+                Debug.LogError(message, this);
+                break;
+        }
     }
 }
 }
