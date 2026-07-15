@@ -46,6 +46,7 @@ UnityのAPI compatibilityとC# runtimeの制約に適合せず、対応環境を
 
 ## フォローアップ
 
-- Klibモデル、loader、診断以外の共有対象ファイルとplatform interfaceを段階的に確定する。
+- VM、STL syscall、演出、manifest model、イベント評価、セーブ状態modelはpackage側の正本へ移行済みである。
+- manifestのファイルI/Oとruntime package解決は.NET側に残し、UnityではKES Build Asset importerとシリアライズ済み参照で置き換える。
 - Runtime CoreのC# 9互換性検査をCIへ追加する。
 - Unity Edit Modeで`.klib` loaderとVMの共通golden testを実行する。

@@ -60,7 +60,7 @@ public sealed class KesImporterTests
         Assert.That(loadResult.Document.Module.ScriptId, Is.EqualTo("events/chapter001"));
     }
 
-    private static byte[] BuildMinimalKlib()
+    internal static byte[] BuildMinimalKlib()
     {
         var sections = new[]
         {

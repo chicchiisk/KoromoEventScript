@@ -1,4 +1,10 @@
-namespace KoromoEventScript.Runtime.Core.Manifests;
+#nullable enable
+
+using System;
+using System.Collections.Generic;
+
+namespace KoromoEventScript.Runtime.Core.Manifests
+{
 
 public sealed record RuntimeManifestDocument(
     string SchemaVersion,
@@ -30,7 +36,7 @@ public sealed record RuntimeManifestDocument(
             Title,
             DefaultLocale,
             Scripts,
-            [],
+            Array.Empty<RuntimeEventEntry>(),
             Assets,
             Defaults,
             Build,
@@ -85,3 +91,4 @@ public sealed record RuntimeSettings(
 public sealed record RuntimeBuildInfo(
     string? BuildId,
     string? CliVersion);
+}

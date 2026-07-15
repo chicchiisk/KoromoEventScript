@@ -1,6 +1,10 @@
+#nullable enable
+
+using System.Collections.Generic;
 using KoromoEventScript.Runtime.Core.Diagnostics;
 
-namespace KoromoEventScript.Runtime.Core.Effects;
+namespace KoromoEventScript.Runtime.Core.Effects
+{
 
 public enum RuntimeEffectKind
 {
@@ -58,4 +62,5 @@ public sealed record RuntimeEffectBatch(
 public interface IRuntimeEffectSink
 {
     void Publish(RuntimeEffectBatch batch);
+}
 }

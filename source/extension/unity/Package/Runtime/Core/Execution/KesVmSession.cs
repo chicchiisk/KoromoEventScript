@@ -1,13 +1,20 @@
+#nullable enable
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json.Serialization;
 using KoromoEventScript.Runtime.Core.Diagnostics;
 using KoromoEventScript.Runtime.Core.Klib;
 using KoromoEventScript.Runtime.Core.Persistence;
 
-namespace KoromoEventScript.Runtime.Core.Execution;
+namespace KoromoEventScript.Runtime.Core.Execution
+{
 
 public sealed class KesVmSession
 {
-    private readonly Dictionary<int, RuntimeValue> variables = [];
-    private readonly List<RuntimeValue> operandStack = [];
+    private readonly Dictionary<int, RuntimeValue> variables = new Dictionary<int, RuntimeValue>();
+    private readonly List<RuntimeValue> operandStack = new List<RuntimeValue>();
 
     public KesVmSession(KlibDocument document)
     {
@@ -38,7 +45,7 @@ public sealed class KesVmSession
             throw new ArgumentOutOfRangeException(nameof(instructionIndex), instructionIndex, "Instruction index does not exist in the current document.");
         }
 
-        Position = Position with { InstructionIndex = instructionIndex };
+        Position = Position.WithInstructionIndex(instructionIndex);
     }
 
     public void PushOperand(RuntimeValue value)
@@ -97,7 +104,10 @@ public sealed class KesVmSession
 
     public RuntimeSessionRestoreResult Restore(RuntimeSaveSnapshot snapshot)
     {
-        ArgumentNullException.ThrowIfNull(snapshot);
+        if (snapshot == null)
+        {
+            throw new ArgumentNullException(nameof(snapshot));
+        }
 
         if (snapshot.SchemaVersion != 1)
         {
@@ -187,7 +197,7 @@ public sealed record RuntimeSessionRestoreResult(
 {
     public static RuntimeSessionRestoreResult Success()
     {
-        return new RuntimeSessionRestoreResult(true, [], RuntimeFailureKind.None);
+        return new RuntimeSessionRestoreResult(true, Array.Empty<RuntimeDiagnostic>(), RuntimeFailureKind.None);
     }
 
     public static RuntimeSessionRestoreResult Failure(RuntimeFailureKind failureKind, params RuntimeDiagnostic[] diagnostics)
@@ -196,10 +206,27 @@ public sealed record RuntimeSessionRestoreResult(
     }
 }
 
-public readonly record struct RuntimeExecutionPosition(
-    string ScriptId,
-    int InstructionIndex,
-    string? FilePath);
+public readonly struct RuntimeExecutionPosition
+{
+    [JsonConstructor]
+    public RuntimeExecutionPosition(string scriptId, int instructionIndex, string? FilePath)
+    {
+        ScriptId = scriptId;
+        InstructionIndex = instructionIndex;
+        this.FilePath = FilePath;
+    }
+
+    public string ScriptId { get; }
+
+    public int InstructionIndex { get; }
+
+    public string? FilePath { get; }
+
+    public RuntimeExecutionPosition WithInstructionIndex(int instructionIndex)
+    {
+        return new RuntimeExecutionPosition(ScriptId, instructionIndex, FilePath);
+    }
+}
 
 public enum RuntimeContinuationKind
 {
@@ -216,9 +243,9 @@ public sealed record RuntimeContinuation(
     string? Prompt,
     IReadOnlyList<RuntimeSelectionChoice> PendingChoices)
 {
-    public static RuntimeContinuation Running { get; } = new(RuntimeContinuationKind.Running, null, [], null, []);
+    public static RuntimeContinuation Running { get; } = new(RuntimeContinuationKind.Running, null, Array.Empty<int>(), null, Array.Empty<RuntimeSelectionChoice>());
 
-    public static RuntimeContinuation Completed { get; } = new(RuntimeContinuationKind.Completed, null, [], null, []);
+    public static RuntimeContinuation Completed { get; } = new(RuntimeContinuationKind.Completed, null, Array.Empty<int>(), null, Array.Empty<RuntimeSelectionChoice>());
 }
 
 public sealed record RuntimeSelectionChoice(
@@ -275,4 +302,5 @@ public sealed record RuntimeValue(
             _ => null,
         };
     }
+}
 }

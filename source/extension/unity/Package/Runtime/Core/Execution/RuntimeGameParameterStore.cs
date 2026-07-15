@@ -1,4 +1,10 @@
-namespace KoromoEventScript.Runtime.Core.Execution;
+#nullable enable
+
+using System;
+using System.Collections.Generic;
+
+namespace KoromoEventScript.Runtime.Core.Execution
+{
 
 public interface IRuntimeGameParameterStore
 {
@@ -20,4 +26,5 @@ public sealed class RuntimeGameParameterStore : IRuntimeGameParameterStore
     {
         return values.TryGetValue(key, out value!);
     }
+}
 }

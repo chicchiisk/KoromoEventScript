@@ -1,9 +1,15 @@
+#nullable enable
+
+using System;
+using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using KoromoEventScript.Runtime.Core.Diagnostics;
 using KoromoEventScript.Runtime.Core.Effects;
 using KoromoEventScript.Runtime.Core.Execution;
 
-namespace KoromoEventScript.Runtime.Core.Stl;
+namespace KoromoEventScript.Runtime.Core.Stl
+{
 
 public interface IRuntimeSyscallDispatcher
 {
@@ -25,7 +31,7 @@ public sealed record RuntimeSyscallResult(
 {
     public static RuntimeSyscallResult Success(RuntimeValue? returnValue = null, bool waitForAdvance = false)
     {
-        return new RuntimeSyscallResult(true, returnValue, [], RuntimeFailureKind.None, waitForAdvance);
+        return new RuntimeSyscallResult(true, returnValue, Array.Empty<RuntimeDiagnostic>(), RuntimeFailureKind.None, waitForAdvance);
     }
 
     public static RuntimeSyscallResult Failure(RuntimeFailureKind failureKind, params RuntimeDiagnostic[] diagnostics)
@@ -36,7 +42,7 @@ public sealed record RuntimeSyscallResult(
 
 public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
 {
-    public static IReadOnlySet<string> SupportedSyscallIds { get; } = new HashSet<string>(StringComparer.Ordinal)
+    public static ISet<string> SupportedSyscallIds { get; } = new HashSet<string>(StringComparer.Ordinal)
     {
         "core.print",
         "core.array_len",
@@ -114,8 +120,15 @@ public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
 
     public RuntimeSyscallResult Invoke(RuntimeSyscallInvocation invocation, KesVmSession session)
     {
-        ArgumentNullException.ThrowIfNull(invocation);
-        ArgumentNullException.ThrowIfNull(session);
+        if (invocation == null)
+        {
+            throw new ArgumentNullException(nameof(invocation));
+        }
+
+        if (session == null)
+        {
+            throw new ArgumentNullException(nameof(session));
+        }
 
         return invocation.Id switch
         {
@@ -186,7 +199,9 @@ public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
 
         var message = invocation.Arguments[0].StringValue ?? string.Empty;
         var diagnostic = RuntimeDiagnostic.Info("KESR3401", message, invocation.Location);
-        effectSink?.Publish(new RuntimeEffectBatch([RuntimeEffect.Diagnostic(diagnostic)], [diagnostic]));
+        effectSink?.Publish(new RuntimeEffectBatch(
+            new[] { RuntimeEffect.Diagnostic(diagnostic) },
+            new[] { diagnostic }));
         return RuntimeSyscallResult.Success();
     }
 
@@ -881,7 +896,7 @@ public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
 
     private void PublishEffects(params RuntimeEffect[] effects)
     {
-        effectSink?.Publish(new RuntimeEffectBatch(effects, []));
+        effectSink?.Publish(new RuntimeEffectBatch(effects, Array.Empty<RuntimeDiagnostic>()));
     }
 
     private static RuntimeSyscallResult ArgumentFailure(RuntimeSyscallInvocation invocation, string message)
@@ -986,4 +1001,5 @@ public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
     {
         return value ? "true" : "false";
     }
+}
 }

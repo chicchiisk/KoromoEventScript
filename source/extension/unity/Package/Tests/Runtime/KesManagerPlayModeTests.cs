@@ -13,6 +13,7 @@ public sealed class KesManagerPlayModeTests
     {
         var gameObject = new GameObject("KesManagerPlayModeTest");
         var manager = gameObject.AddComponent<KesManager>();
+        manager.SetPlayOnStart(false);
 
         yield return null;
 

@@ -1,6 +1,10 @@
+#nullable enable
+
+using System.Collections.Generic;
 using KoromoEventScript.Runtime.Core.Execution;
 
-namespace KoromoEventScript.Runtime.Core.Persistence;
+namespace KoromoEventScript.Runtime.Core.Persistence
+{
 
 public sealed record RuntimeSaveSnapshot(
     int SchemaVersion,
@@ -12,3 +16,4 @@ public sealed record RuntimeSaveSnapshot(
 public sealed record RuntimeVariableSnapshot(
     int StableId,
     RuntimeValue Value);
+}

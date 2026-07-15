@@ -1,4 +1,11 @@
-namespace KoromoEventScript.Runtime.Core.Execution;
+#nullable enable
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace KoromoEventScript.Runtime.Core.Execution
+{
 
 public sealed class RuntimeObjectStore
 {
@@ -16,7 +23,10 @@ public sealed class RuntimeObjectStore
 
     public RuntimeValue CreateInstance(string classId)
     {
-        ArgumentException.ThrowIfNullOrEmpty(classId);
+        if (string.IsNullOrEmpty(classId))
+        {
+            throw new ArgumentException("Class id must not be null or empty.", nameof(classId));
+        }
 
         var referenceId = $"instance:{nextInstanceId++}";
         instances[referenceId] = CreateInstanceFields(classId);
@@ -25,7 +35,10 @@ public sealed class RuntimeObjectStore
 
     public void EnsureActorReference(string referenceId)
     {
-        ArgumentException.ThrowIfNullOrEmpty(referenceId);
+        if (string.IsNullOrEmpty(referenceId))
+        {
+            throw new ArgumentException("Reference id must not be null or empty.", nameof(referenceId));
+        }
 
         if (instances.ContainsKey(referenceId))
         {
@@ -156,4 +169,5 @@ public sealed class RuntimeObjectStore
             ["isVisible"] = RuntimeValue.Bool(false),
         };
     }
+}
 }

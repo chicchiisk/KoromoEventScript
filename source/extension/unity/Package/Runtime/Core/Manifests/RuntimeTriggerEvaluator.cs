@@ -1,7 +1,13 @@
+#nullable enable
+
+using System;
+using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using KoromoEventScript.Runtime.Core.Execution;
 
-namespace KoromoEventScript.Runtime.Core.Manifests;
+namespace KoromoEventScript.Runtime.Core.Manifests
+{
 
 public sealed class RuntimeTriggerEvaluator
 {
@@ -54,4 +60,5 @@ public sealed class RuntimeTriggerEvaluator
             _ => false,
         };
     }
+}
 }

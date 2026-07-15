@@ -1,9 +1,15 @@
+#nullable enable
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using KoromoEventScript.Runtime.Core.Diagnostics;
 using KoromoEventScript.Runtime.Core.Effects;
 using KoromoEventScript.Runtime.Core.Klib;
 using KoromoEventScript.Runtime.Core.Stl;
 
-namespace KoromoEventScript.Runtime.Core.Execution;
+namespace KoromoEventScript.Runtime.Core.Execution
+{
 
 public sealed class KesVmExecutor
 {
@@ -12,7 +18,7 @@ public sealed class KesVmExecutor
     private readonly IRuntimeEffectSink? effectSink;
     private readonly IRuntimeGameParameterStore gameParameters;
 
-    public static IReadOnlySet<KlibOpCode> DispatchedOpCodes { get; } = new HashSet<KlibOpCode>
+    public static ISet<KlibOpCode> DispatchedOpCodes { get; } = new HashSet<KlibOpCode>
     {
         KlibOpCode.PushConst,
         KlibOpCode.PushTrue,
@@ -67,7 +73,10 @@ public sealed class KesVmExecutor
 
     public KesVmExecutionResult Run(KesVmSession session, int maxInstructionCount = DefaultMaxInstructionCount)
     {
-        ArgumentNullException.ThrowIfNull(session);
+        if (session == null)
+        {
+            throw new ArgumentNullException(nameof(session));
+        }
 
         var executed = 0;
         while (session.Continuation.Kind == RuntimeContinuationKind.Running)
@@ -95,7 +104,10 @@ public sealed class KesVmExecutor
 
     public KesVmExecutionResult ChooseSelection(KesVmSession session, int choiceIndex)
     {
-        ArgumentNullException.ThrowIfNull(session);
+        if (session == null)
+        {
+            throw new ArgumentNullException(nameof(session));
+        }
 
         if (session.Continuation.Kind != RuntimeContinuationKind.WaitingForSelection)
         {
@@ -115,7 +127,10 @@ public sealed class KesVmExecutor
 
     public KesVmExecutionResult ContinueAdvance(KesVmSession session)
     {
-        ArgumentNullException.ThrowIfNull(session);
+        if (session == null)
+        {
+            throw new ArgumentNullException(nameof(session));
+        }
 
         if (session.Continuation.Kind != RuntimeContinuationKind.WaitingForAdvance)
         {
@@ -664,12 +679,16 @@ public sealed class KesVmExecutor
 
     private void PublishSceneEffect(string name, IReadOnlyDictionary<string, string?> payload)
     {
-        effectSink?.Publish(new RuntimeEffectBatch([new RuntimeEffect(RuntimeEffectKind.Scene, name, payload)], []));
+        effectSink?.Publish(new RuntimeEffectBatch(
+            new[] { new RuntimeEffect(RuntimeEffectKind.Scene, name, payload) },
+            Array.Empty<RuntimeDiagnostic>()));
     }
 
     private void PublishAudioEffect(string name, IReadOnlyDictionary<string, string?> payload)
     {
-        effectSink?.Publish(new RuntimeEffectBatch([new RuntimeEffect(RuntimeEffectKind.Audio, name, payload)], []));
+        effectSink?.Publish(new RuntimeEffectBatch(
+            new[] { new RuntimeEffect(RuntimeEffectKind.Audio, name, payload) },
+            Array.Empty<RuntimeDiagnostic>()));
     }
 
     private static string ReadActorStringFieldOrDefault(KesVmSession session, string actorReference, string fieldName, string fallback)
@@ -869,9 +888,9 @@ public sealed class KesVmExecutor
             session.SetContinuation(new RuntimeContinuation(
                 RuntimeContinuationKind.WaitingForAdvance,
                 resumeInstructionIndex,
-                [],
+                Array.Empty<int>(),
                 null,
-                []));
+                Array.Empty<RuntimeSelectionChoice>()));
         }
 
         return KesVmExecutionResult.Success();
@@ -911,9 +930,9 @@ public sealed class KesVmExecutor
             session.SetContinuation(new RuntimeContinuation(
                 RuntimeContinuationKind.WaitingForAdvance,
                 FindNextInstructionIndex(session, instruction),
-                [],
+                Array.Empty<int>(),
                 null,
-                []));
+                Array.Empty<RuntimeSelectionChoice>()));
         }
 
         return KesVmExecutionResult.Success();
@@ -961,7 +980,7 @@ public sealed class KesVmExecutor
             case "save":
                 if (arguments.Count == 1)
                 {
-                    return InvokeMappedSyscall(session, instruction, "state.save", [arguments[0], RuntimeValue.String(string.Empty)], returnsValue);
+                    return InvokeMappedSyscall(session, instruction, "state.save", new[] { arguments[0], RuntimeValue.String(string.Empty) }, returnsValue);
                 }
 
                 return InvokeMappedSyscall(session, instruction, "state.save", arguments, returnsValue);
@@ -1020,7 +1039,7 @@ public sealed class KesVmExecutor
                         ["assetBaseName"] = ReadActorStringFieldOrDefault(session, vfActor, "assetBaseName", NormalizeActorReference(vfActor)),
                         ["exp"] = arguments[1].StringValue,
                     });
-                return InvokeMappedSyscall(session, instruction, "audio.vo_auto", [], returnsValue);
+                return InvokeMappedSyscall(session, instruction, "audio.vo_auto", Array.Empty<RuntimeValue>(), returnsValue);
 
             case "standby":
                 if (arguments.Count != 1 || arguments[0].Kind != RuntimeValueKind.Reference || string.IsNullOrEmpty(arguments[0].ReferenceId))
@@ -1396,7 +1415,7 @@ public sealed class KesVmExecutor
                     return Fault(session, "KESR3310", "Callable 'set_param_number' requires key:string and value:number arguments.");
                 }
 
-                gameParameters.Set(arguments[0].StringValue ?? string.Empty, RuntimeValue.Number(arguments[1].NumberValue.Value));
+                gameParameters.Set(arguments[0].StringValue ?? string.Empty, RuntimeValue.Number(arguments[1].NumberValue.GetValueOrDefault()));
                 if (returnsValue)
                 {
                     session.PushOperand(RuntimeValue.Null);
@@ -1410,7 +1429,7 @@ public sealed class KesVmExecutor
                     return Fault(session, "KESR3310", "Callable 'set_param_bool' requires key:string and value:bool arguments.");
                 }
 
-                gameParameters.Set(arguments[0].StringValue ?? string.Empty, RuntimeValue.Bool(arguments[1].BoolValue.Value));
+                gameParameters.Set(arguments[0].StringValue ?? string.Empty, RuntimeValue.Bool(arguments[1].BoolValue.GetValueOrDefault()));
                 if (returnsValue)
                 {
                     session.PushOperand(RuntimeValue.Null);
@@ -1546,11 +1565,12 @@ public sealed record KesVmExecutionResult(
 {
     public static KesVmExecutionResult Success()
     {
-        return new KesVmExecutionResult(true, [], RuntimeFailureKind.None);
+        return new KesVmExecutionResult(true, Array.Empty<RuntimeDiagnostic>(), RuntimeFailureKind.None);
     }
 
     public static KesVmExecutionResult Failure(RuntimeFailureKind failureKind, params RuntimeDiagnostic[] diagnostics)
     {
         return new KesVmExecutionResult(false, diagnostics, failureKind);
     }
+}
 }

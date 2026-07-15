@@ -7,9 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="..\..\extension\unity\Package\Runtime\Core\Diagnostics\RuntimeDiagnostic.cs" Link="Diagnostics\RuntimeDiagnostic.cs" />
-    <Compile Include="..\..\extension\unity\Package\Runtime\Core\Klib\KlibModels.cs" Link="Klib\KlibModels.cs" />
-    <Compile Include="..\..\extension\unity\Package\Runtime\Core\Klib\KlibModuleLoader.cs" Link="Klib\KlibModuleLoader.cs" />
+    <Compile Include="..\..\extension\unity\Package\Runtime\Core\**\*.cs" Link="SharedCore\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>
