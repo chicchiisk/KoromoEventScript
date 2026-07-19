@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using KoromoEventScript.Runtime.Core.Diagnostics;
 using KoromoEventScript.Runtime.Core.Effects;
 using KoromoEventScript.Runtime.Core.Execution;
@@ -120,7 +121,18 @@ public sealed class KesPresentationTests
                 }));
 
             Assert.That(fixture.ChoiceRoot.activeSelf, Is.True);
-            Assert.That(fixture.ChoiceText.text, Is.EqualTo("はい\nいいえ"));
+            Assert.That(fixture.Presentation.ChoiceCount, Is.EqualTo(2));
+            Assert.That(fixture.Presentation.SelectedChoiceIndex, Is.EqualTo(0));
+            Assert.That(fixture.Presentation.TryGetChoiceItem(0, out var firstChoice), Is.True);
+            Assert.That(firstChoice.Label, Is.EqualTo("はい"));
+            Assert.That(firstChoice.IsSelected, Is.True);
+            Assert.That(fixture.Presentation.TryGetChoiceItem(1, out var secondChoice), Is.True);
+            Assert.That(secondChoice.Label, Is.EqualTo("いいえ"));
+            Assert.That(secondChoice.IsSelected, Is.False);
+
+            fixture.Presentation.SetSelectedChoiceIndex(1);
+            Assert.That(firstChoice.IsSelected, Is.False);
+            Assert.That(secondChoice.IsSelected, Is.True);
 
             fixture.Presentation.Apply(Batch(UiEffect("text.r")));
             Assert.That(fixture.MessageText.text, Is.EqualTo("こんにちは\n"));
@@ -171,6 +183,89 @@ public sealed class KesPresentationTests
         finally
         {
             fixture.Dispose();
+        }
+    }
+
+    [Test]
+    public void Execute_HostSceneEffects_ReportCompletionAndRetainHiddenActorAsset()
+    {
+        var fixture = new PresentationFixture();
+
+        try
+        {
+            fixture.Resolver.Add("assets.actor.riku_normal", fixture.CreateSprite("actor-normal"));
+            var results = new List<KesHostOperationResult>();
+
+            fixture.Presentation.Execute(
+                SceneEffect(
+                    "actor.show",
+                    ("actor", "actors.Riku"),
+                    ("assetBaseName", "riku"),
+                    ("face", "normal")),
+                results.Add);
+            fixture.Presentation.Execute(
+                SceneEffect("actor.hide", ("actor", "actors.Riku")),
+                results.Add);
+
+            Assert.That(results.Select(static result => result.Status), Is.All.EqualTo(KesHostOperationStatus.Succeeded));
+            Assert.That(fixture.Presentation.TryGetActorRenderer("actors.Riku", out var renderer), Is.True);
+            Assert.That(renderer.gameObject.activeSelf, Is.False);
+            Assert.That(renderer.sprite, Is.Not.Null);
+            Assert.That(fixture.Resolver.ReleasedAssetIds, Is.Empty);
+        }
+        finally
+        {
+            fixture.Dispose();
+        }
+    }
+
+    [Test]
+    public void Execute_UnknownSceneEffectFailsWithStableDiagnostic()
+    {
+        var fixture = new PresentationFixture();
+
+        try
+        {
+            KesHostOperationResult result = null;
+
+            fixture.Presentation.Execute(SceneEffect("scene.unknown"), value => result = value);
+
+            Assert.That(result, Is.Not.Null);
+            Assert.That(result.Status, Is.EqualTo(KesHostOperationStatus.Failed));
+            Assert.That(result.Diagnostic.Code, Is.EqualTo("KESU3000"));
+        }
+        finally
+        {
+            fixture.Dispose();
+        }
+    }
+
+    [Test]
+    public void Execute_AutomaticVoiceWithoutResolvedIdWarnsAndContinues()
+    {
+        var gameObject = new GameObject("KesAudioPresenterTest");
+        try
+        {
+            var presenter = gameObject.AddComponent<KesAudioPresenter>();
+            RuntimeDiagnostic warning = null;
+            KesHostOperationResult result = null;
+            presenter.DiagnosticPublished += value => warning = value;
+
+            presenter.Execute(
+                new RuntimeEffect(
+                    RuntimeEffectKind.Audio,
+                    "audio.vo_auto",
+                    new Dictionary<string, string>()),
+                value => result = value);
+
+            Assert.That(result, Is.Not.Null);
+            Assert.That(result.Status, Is.EqualTo(KesHostOperationStatus.Succeeded));
+            Assert.That(warning, Is.Not.Null);
+            Assert.That(warning.Code, Is.EqualTo("KESU4102"));
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(gameObject);
         }
     }
 
@@ -226,11 +321,14 @@ public sealed class KesPresentationTests
             MessageRoot = CreateGameObject("MessageRoot");
             SpeakerText = CreateText("SpeakerText");
             MessageText = CreateText("MessageText");
-            ChoiceRoot = CreateGameObject("ChoiceRoot");
-            ChoiceText = CreateText("ChoiceText");
+            ChoiceRoot = CreateRectGameObject("ChoiceRoot");
+            ChoiceRoot.AddComponent<VerticalLayoutGroup>();
+            var sizeFitter = ChoiceRoot.AddComponent<ContentSizeFitter>();
+            sizeFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            ChoiceItemTemplate = CreateChoiceItemTemplate();
             Presentation = Root.AddComponent<KesPresentation>();
             Presentation.SetSceneReferences(Camera, BackgroundRenderer, actorRoot);
-            Presentation.SetUiReferences(MessageRoot, SpeakerText, MessageText, ChoiceRoot, ChoiceText);
+            Presentation.SetUiReferences(MessageRoot, SpeakerText, MessageText, ChoiceRoot, ChoiceItemTemplate);
             Resolver = new ImmediateAssetResolver();
             Presentation.SetAssetResolver(Resolver);
         }
@@ -249,7 +347,7 @@ public sealed class KesPresentationTests
 
         public GameObject ChoiceRoot { get; }
 
-        public Text ChoiceText { get; }
+        public KesChoiceItemView ChoiceItemTemplate { get; }
 
         public KesPresentation Presentation { get; }
 
@@ -284,6 +382,34 @@ public sealed class KesPresentationTests
             return gameObject;
         }
 
+        private GameObject CreateRectGameObject(string name)
+        {
+            var gameObject = new GameObject(name, typeof(RectTransform));
+            gameObject.transform.SetParent(Root.transform);
+            createdObjects.Add(gameObject);
+            return gameObject;
+        }
+
+        private KesChoiceItemView CreateChoiceItemTemplate()
+        {
+            var item = new GameObject("ChoiceItemTemplate", typeof(RectTransform), typeof(HorizontalLayoutGroup));
+            item.transform.SetParent(ChoiceRoot.transform);
+            createdObjects.Add(item);
+
+            var iconObject = new GameObject("SelectionIcon", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            iconObject.transform.SetParent(item.transform);
+            createdObjects.Add(iconObject);
+
+            var labelObject = new GameObject("Label", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
+            labelObject.transform.SetParent(item.transform);
+            createdObjects.Add(labelObject);
+
+            var view = item.AddComponent<KesChoiceItemView>();
+            view.SetReferences(iconObject.GetComponent<Image>(), labelObject.GetComponent<Text>());
+            item.SetActive(false);
+            return view;
+        }
+
         private Text CreateText(string name)
         {
             var gameObject = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
@@ -296,6 +422,9 @@ public sealed class KesPresentationTests
     private sealed class ImmediateAssetResolver : IKesAssetResolver
     {
         private readonly Dictionary<string, Sprite> sprites = new(StringComparer.Ordinal);
+        private readonly List<string> releasedAssetIds = new();
+
+        public IReadOnlyList<string> ReleasedAssetIds => releasedAssetIds;
 
         public void Add(string assetId, Sprite sprite)
         {
@@ -320,6 +449,7 @@ public sealed class KesPresentationTests
 
         public void Release(string assetId)
         {
+            releasedAssetIds.Add(assetId);
         }
 
         public void ReleaseAll()

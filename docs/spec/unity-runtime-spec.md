@@ -272,79 +272,151 @@ KesSystem
 
 ## VM命令とSTL実行契約
 
-次の表はUnity runtimeの初期契約である。「VM待機」は命令完了まで次のopcodeへ進まないこと、「演出完了待ち」はanimation、fadeまたは入力の完了まで待つことを表す。キャンセルや失敗時の詳細は実装前レビューで変更してよいが、全項目について最終値を確定してから受け入れテストを作成する。
+Unity runtimeは、VM上で完結する処理とUnity hostの完了を必要とする処理を分離する。
+本節は[KES言語STL仕様](kes-language-stl-spec.md)の公開命令をUnity上で実行するためのhost契約を定義する。
+
+### 実行状態と完了通知
+
+KesManagerは少なくとも次の論理状態を区別する。
+
+| 状態 | 意味 |
+|---|---|
+| `Running` | VMが同期命令を実行できる |
+| `WaitingForAdvance` | テキスト表示またはクリック入力を待っている |
+| `WaitingForSelection` | 選択肢の明示的な決定を待っている |
+| `WaitingForHost` | Addressables、演出、音声、時間待機、save/load callbackなどUnity hostの完了を待っている |
+| `Completed` | 現在のscriptが正常終了した |
+| `Faulted` | 診断を発行して進行を停止した |
+| `Stopped` | hostまたはライフサイクルによって明示的に停止された |
+
+- VMは`Running`中に同期命令を順に実行し、入力待ちまたはhost待ちへ到達した時点でUnityのPlayer Loopへ制御を返す。待機中にメインスレッドをブロックしてはならない。
+- `RuntimeEffectBatch`内のeffectは記録順に処理する。待機を開始するeffectより前のeffectは反映し、それより後のeffectは未処理queueへ保持する。`Succeeded`後は未処理effectから再開し、`Failed`または継続しない`Cancelled`では未処理effectを破棄する。待機中は後続のVM命令を実行しない。
+- Unity host処理には、KesManagerの実行世代内で一意なoperation IDを割り当てる。Presenterまたはhost adapterは同じoperation IDに対して1回だけ`Succeeded`、`Cancelled`、`Failed`のいずれかを返す。
+- `Succeeded`を受け取った場合だけ待機中の命令を完了し、VMを再開する。再開後も次の待機へ到達した時点で同様にPlayer Loopへ制御を返す。
+- `Failed`は安定した診断コードとメッセージを伴う。必須処理の失敗では状態を`Faulted`にしてVMを再開しない。
+- `Cancelled`はKesManagerの`Stop`、`OnDisable`、`OnDestroy`、scene unload、またはhost UIによる取消しを表す。命令別に継続が明記されていない取消しでは状態を`Stopped`にし、VMを再開しない。
+- KesManager停止後、実行世代が変わった後、または置き換え済みoperationの遅延完了通知は無視する。破棄済みの`UnityEngine.Object`を更新してはならない。
+- Addressables handle、Coroutine、入力購読、AudioSource、host callback購読はoperationまたはKesManagerのライフタイムに所有させ、完了・失敗・取消しのどの場合も解放する。
+- host待機に使用する時間は`Time.unscaledDeltaTime`を基準とする。ゲーム側の`Time.timeScale`が`0`でも、KESのUI入力、トランジション、BGM fade、`system.wait`がデッドロックしてはならない。
+
+### 同期処理とhost処理の境界
+
+- 算術、比較、変数、配列、object、label、jump、設定値とゲーム変数の読み書きはVMまたはRuntime Core上で同期的に完了する。
+- Sprite、AudioClip、Prefabの解決、uGUIとSpriteRendererの更新、AudioSource操作、animation、入力、時間待機、save/load callbackはUnity host処理とする。
+- 同じasset IDが既に要求型でロード済みかつ表示へ反映済みの場合、host処理は新しい非同期loadを開始せず`Succeeded`を同期通知してよい。
+- 必須assetの解決失敗はruntime errorとする。Voiceの欠落だけは自動再生・明示再生のどちらもwarningを発行して命令を成功扱いとし、テキスト進行を継続する。
+- 未知のeffect名、未対応のSTL命令、payloadの必須key欠落、payload型変換失敗はruntime errorとし、黙って無視してはならない。
 
 ### VM opcode
 
-| opcode | VM待機 | 演出完了待ち | エラー時停止 |
-|---|---:|---:|---:|
-| `PUSH_CONST`, `PUSH_TRUE`, `PUSH_FALSE`, `PUSH_NULL`, `PUSH_INT`, `POP`, `DUP` | no | no | schema/stack違反時yes |
-| `LOAD_VAR`, `STORE_VAR`, `DEF_VAR` | no | no | index/type違反時yes |
-| `ADD`, `SUB`, `MUL`, `DIV`, `NEG` | no | no | type違反、0除算時yes |
-| `EQ`, `NEQ`, `LT`, `LE`, `GT`, `GE`, `AND`, `OR`, `NOT` | no | no | type違反時yes |
-| `JUMP`, `JUMP_FALSE`, `LABEL`, `END` | no | no | offset/schema違反時yes |
-| `SELECT` | yes | ユーザー選択までyes | UI生成、case解決失敗時yes |
-| `CALL`, `CALL_VOID` | calleeによる | calleeによる | command失敗時yes |
-| `SYSCALL`, `SYSCALL_VOID` | syscallによる | syscallによる | 下表による |
-| `ARRAY_NEW`, `ARRAY_GET`, `ARRAY_SET` | no | no | index/type違反時yes |
-| `NEW`, `GET_FIELD`, `SET_FIELD`, `CALL_METHOD`, `CALL_METHOD_VOID`, `DISPOSE` | methodによる | methodによる | class/member/type違反時yes |
+| opcode | 完了境界 | エラー時の状態 |
+|---|---|---|
+| `PUSH_CONST`, `PUSH_TRUE`, `PUSH_FALSE`, `PUSH_NULL`, `PUSH_INT`, `POP`, `DUP` | VM内で同期完了 | schemaまたはstack違反で`Faulted` |
+| `LOAD_VAR`, `STORE_VAR`, `DEF_VAR` | VM内で同期完了 | indexまたは型違反で`Faulted` |
+| `ADD`, `SUB`, `MUL`, `DIV`, `NEG` | VM内で同期完了 | 型違反または0除算で`Faulted` |
+| `EQ`, `NEQ`, `LT`, `LE`, `GT`, `GE`, `AND`, `OR`, `NOT` | VM内で同期完了 | 型違反で`Faulted` |
+| `JUMP`, `JUMP_FALSE`, `LABEL`, `END` | VM内で同期完了 | offsetまたはschema違反で`Faulted` |
+| `SELECT` | UI反映後に`WaitingForSelection` | UI生成またはcase解決失敗で`Faulted` |
+| `CALL`, `CALL_VOID` | calleeの契約に従う | command失敗で`Faulted` |
+| `SYSCALL`, `SYSCALL_VOID` | 下表のsyscall契約に従う | syscall失敗で`Faulted` |
+| `ARRAY_NEW`, `ARRAY_GET`, `ARRAY_SET` | VM内で同期完了 | indexまたは型違反で`Faulted` |
+| `NEW`, `GET_FIELD`, `SET_FIELD`, `CALL_METHOD`, `CALL_METHOD_VOID`, `DISPOSE` | methodの契約に従う | class、member、型または破棄済み参照違反で`Faulted` |
 
-### シナリオ構文とSTL
+### `scenario`、`text`、`flow`の入力契約
 
-| module/命令 | VM待機 | 演出完了待ち | エラー時停止 |
-|---|---:|---:|---:|
-| `scenario.say` | yes | テキスト送りまでyes | UI失敗時yes。自動Voice欠落はwarning継続 |
-| `scenario.nar` | yes | テキスト送りまでyes | UI失敗時yes。自動Voice欠落はwarning継続 |
-| `core.print` | no | no | no |
-| `core.array_len` | no | no | type違反時yes |
-| `core.str_len` | no | no | type違反時yes |
-| `core.range` | no | no | 引数不正時yes |
-| `core.number_to_string` | no | no | type違反時yes |
-| `core.bool_to_string` | no | no | type違反時yes |
-| `core.assert` | no | no | 条件false時yes |
-| `scene.rt_back` | no | no | render target不整合時yes |
-| `scene.rt_front` | no | no | render target不整合時yes |
-| `scene.bg` | yes | Addressables loadと表示反映までyes | asset解決失敗時yes |
-| `scene.trans` | yes | fade/crossfade完了までyes | effect不明・演出失敗時yes |
-| `scene.camera_autofocus` | no | no | 設定不正時yes |
-| `actor.cast` | yes | Addressables load完了までyes | asset解決失敗時yes |
-| `actor.show` | yes | loadと表示反映までyes | actor/face解決失敗時yes |
-| `actor.hide` | no | no | actor未定義時yes |
-| `actor.face` | yes | loadと表示反映までyes | face解決失敗時yes |
-| `actor.move` | yes | move完了までyes | actor未定義・座標不正時yes |
-| `actor.action_jump` | yes | jump animation完了までyes | actor未定義時yes |
-| `text.vo` | yes | Voice loadと再生開始までyes | 明示Voice解決失敗時yes |
-| `text.vf` | yes | Voice load、再生開始、face反映までyes | Voice/face解決失敗時yes |
-| `text.p` | yes | 改ページ後の入力までyes | UI失敗時yes |
-| `text.r` | no | no | UI失敗時yes |
-| `text.l` | yes | 行内入力までyes | UI失敗時yes |
-| `text.cm` | no | no | UI失敗時yes |
-| `text.wait_click` | yes | 入力までyes | input source失敗時yes |
-| `audio.bgm` | yes | loadと再生開始またはfade完了までyes | asset解決失敗時yes |
-| `audio.bgm_stop` | yes | fade指定時は完了までyes | audio失敗時yes |
-| `audio.se` | yes | loadと再生開始までyes | asset解決失敗時yes |
-| `audio.se_stop` | no | no | no。対象なしはno-op |
-| `audio.voice_stop` | no | no | no。対象なしはno-op |
-| `flow.label` | no | no | label schema違反時yes |
-| `flow.jump` | no | no | label解決失敗時yes |
-| `flow.select` | yes | ユーザー選択までyes | UI/case解決失敗時yes |
-| `flow.case` | `select`の一部 | `select`の一部 | case不整合時yes |
-| `state.save` | yes | host callback完了までyes | host失敗時yes、cancel時継続 |
-| `state.load` | yes | host取得と状態復元完了までyes | host/復元失敗時yes、cancel時継続 |
-| `state.autosave` | yes | host callback完了までyes | host失敗時yes |
-| `state.mark_read` | no | no | no |
-| `state.is_read` | no | no | no |
-| `system.wait` | yes | 指定時間経過までyes | 負数・非finite値でyes |
-| `system.set_auto` | no | no | no |
-| `system.set_skip` | no | no | mode不明時yes |
-| `system.set_config_string` | no | no | key/type不正時yes |
-| `system.set_config_number` | no | no | key/type不正時yes |
-| `system.set_config_bool` | no | no | key/type不正時yes |
-| `system.get_config` | no | no | key不明時yes |
-| `system.set_param_string` | no | no | key/type不正時yes |
-| `system.set_param_number` | no | no | key/type不正時yes |
-| `system.set_param_bool` | no | no | key/type不正時yes |
-| `system.get_param` | no | no | key不明時yes |
+| module/命令 | Unity側処理 | 完了条件 | 失敗・取消し |
+|---|---|---|---|
+| `scenario.say` | 話者名と本文を表示し、必要なら自動Voiceを要求する | 本文の全文表示後、決定入力を1回受け取る | UI失敗はerror。自動Voice欠落はwarning継続 |
+| `scenario.nar` | 話者欄を空にして本文を表示し、必要なら自動Voiceを要求する | 本文の全文表示後、決定入力を1回受け取る | UI失敗はerror。自動Voice欠落はwarning継続 |
+| `text.vo` | 指定Voiceを解決してVoiceチャンネルで再生する | loadが成功して`AudioSource.Play`を呼び出す。clip終了は待たない | Voice欠落はwarning継続 |
+| `audio.vo_auto` | 現在のsay/nar文脈からVoice IDを決定して再生する | `text.vo`と同じ | 文脈不正はerror。Voice欠落はwarning継続 |
+| `text.vf` | Voice要求と対象actorのface変更を開始する | Voice要求とface反映の両方が完了する。Voice欠落だけならface完了時に成功 | actor決定不能またはface欠落はerror。Voice欠落はwarning継続 |
+| `text.p` | 現在ページを全文表示し、入力後に本文をクリアして次ページを開始する | ページ送り入力を1回受け取る | UIまたはinput source失敗はerror |
+| `text.r` | 同一ページの本文末尾へ改行を追加する | UI反映時に同期完了 | UI失敗はerror |
+| `text.l` | 現在位置まで本文を表示したまま行内入力待ちにする | 決定入力を1回受け取る | UIまたはinput source失敗はerror |
+| `text.cm` | メッセージウィンドウを非表示にする | UI反映時に同期完了 | UI失敗はerror |
+| `text.wait_click` | 本文表示状態を変更せず明示的な入力待ちにする | 決定入力を1回受け取る | input source失敗はerror |
+| `flow.label` | label位置をVM内で保持する | 同期完了 | label schema違反はerror |
+| `flow.jump` | labelへ命令位置を移す | 同期完了 | label解決失敗はerror |
+| `flow.select` / `flow.case` | caseを定義順でUIへ表示し、選択中indexを管理する | 有効な項目が明示決定されたとき、そのcaseへ移動する | UI生成、空case、indexまたはlabel不整合はerror。取消入力だけではVMを進めない |
+
+- テキストのタイプライター表示中に決定入力を受けた場合、その入力は全文表示だけを完了し、VM再開には使わない。全文表示後の次の決定入力でVMを再開する。
+- 1回の入力イベントは1回の状態遷移だけに消費する。選択肢決定とテキスト送り、メニュー決定とシナリオ進行へ同じ入力を重複利用してはならない。
+- `set_auto true`では全文表示とVoice再生開始後、`autoSpeed`に基づく待機を経て通常の決定入力と同じ進行を行う。選択肢は自動決定しない。
+- skip modeが`read`の場合は既読の本文だけ、`all`の場合は全本文を自動進行できる。選択肢、save/load callback、asset load、errorはskipしない。
+
+### `core`、`scene`、`actor`の実行契約
+
+| module/命令 | Unity側処理 | 完了条件 | 失敗・取消し |
+|---|---|---|---|
+| `core.print` | Unity Consoleへ通常ログを出力する | 同期完了 | ログ出力失敗で進行を止めない |
+| `core.array_len`, `core.str_len`, `core.range`, `core.number_to_string`, `core.bool_to_string` | Runtime Core内で計算する | 同期完了 | 引数または型違反はerror |
+| `core.assert` | falseの場合に実行位置付き診断を生成する | trueなら同期完了 | falseならerror |
+| `scene.rt_back` | 以降のscene/actor変更先を裏画面の論理状態へ切り替える | 同期完了 | 状態不整合はerror |
+| `scene.rt_front` | 裏画面の論理状態を次の表画面候補として確定する | 同期完了 | 状態不整合はerror |
+| `scene.bg` | 背景Spriteを解決し、現在の描画先へ反映する | Addressables loadとSpriteRenderer反映の完了 | asset欠落、型不一致、反映失敗はerror |
+| `scene.trans` | `none`、`fade`、`crossfade`で現在状態から確定済み状態へ遷移する | `none`またはduration 0は同期完了。それ以外は指定秒数の演出完了 | 未知effect、負数・非finite duration、演出失敗はerror |
+| `scene.camera_autofocus` | 表示中actorを追従対象にする論理設定を切り替える | 設定反映時に同期完了 | 設定不正はerror |
+| `actor.cast` | actor定義と既定face素材を解決して非表示のロード済み状態にする | 必要なAddressables load完了 | actorまたは必須asset欠落はerror |
+| `actor.show` | actorをloadし、face、pos、layer、z、bustupを反映して表示する | 必須asset loadとSpriteRenderer反映の完了 | actor、face、座標または型不整合はerror |
+| `actor.hide` | actorを非表示にする。ロード済み素材と論理状態は保持する | UI反映時に同期完了 | 未cast actorはerror。既に非表示なら成功 |
+| `actor.face` | face素材を解決してactorへ反映する | Addressables loadとSpriteRenderer反映の完了 | 未cast actorまたはface欠落はerror |
+| `actor.move` | 現在位置からposへ線形補間する | duration 0は同期完了。それ以外は指定秒数の移動完了 | 未cast actor、非表示actor、負数・非finite durationはerror |
+| `actor.action_jump` | 現在位置を基準に上昇・下降する0.25秒の標準jumpを再生する | 元の位置へ戻った時点 | 未castまたは非表示actor、animation失敗はerror |
+
+- `scene.trans`のduration中は新しいscene/actor命令を実行しない。停止時は演出を中断し、現在の表示状態を保持する。
+- `actor.move`と`actor.action_jump`は`Time.unscaledDeltaTime`で進行する。停止または復元で取り消された場合は、復元先として指定された論理位置を優先する。
+- `actor.cast`、`actor.show`、`actor.face`で取得したhandleはactorのロード済み状態が不要になるまで保持する。`hide`だけでは解放しない。
+
+### `audio`の実行契約
+
+| module/命令 | Unity側処理 | 完了条件 | 失敗・取消し |
+|---|---|---|---|
+| `audio.bgm` | clipを解決し、BGM 1系統へloop設定付きで再生する | load後、fade 0なら再生開始時。それ以外は旧BGMからの切替またはfade-in完了時 | asset欠落、型不一致、負数・非finite fade、再生失敗はerror |
+| `audio.bgm_stop` | BGMを即時停止またはfade-outする | fade 0は同期完了。それ以外はfade-outとhandle解放完了時 | 負数・非finite fadeはerror。未再生なら成功 |
+| `audio.se` | clipを解決し、独立AudioSourceで1回再生する | load成功後に`AudioSource.Play`を呼び出した時点。clip終了は待たない | asset欠落、型不一致、再生失敗はerror |
+| `audio.se_stop` | 指定IDに一致する全SEを停止してhandleを解放する | 同期完了 | 対象なしは成功 |
+| `audio.se_stop_all` | 全SEを停止してhandleを解放する | 同期完了 | 対象なしは成功 |
+| `audio.voice_stop` | Voiceを停止してhandleを解放する | 同期完了 | 対象なしは成功 |
+
+- 新しい`audio.bgm`は新clipのload成功までは現在のBGMを維持する。load失敗時に現在のBGMを破棄してはならない。
+- 同じBGM IDを再要求した場合もloopとfade設定を更新する。重複handleを作成してはならない。
+- SEは同じIDを複数同時再生できる。各再生が終了した時点で、その再生が所有する参照を解放する。
+- 公開命令`se_stop null`は内部effect `audio.se_stop_all`へ変換し、IDを指定した`se_stop`は`audio.se_stop`へ変換する。
+
+### `state`と`system`の実行契約
+
+| module/命令 | Unity側処理 | 完了条件 | 失敗・取消し |
+|---|---|---|---|
+| `state.save` | `CaptureState()`結果、slot、titleをhost callbackへ渡す | hostが保存成功を返す | host失敗はerror。利用者取消しはwarningなしでVM継続 |
+| `state.autosave` | `CaptureState()`結果をautosave callbackへ渡す | hostが保存成功を返す | host失敗はerror。利用者取消しは想定しない |
+| `state.load` | slotをhost callbackへ渡し、取得した状態を検証して復元する | `RestoreState()`がVM、Presentation、BGMの復元を完了する | slotなし、host失敗、検証・復元失敗はerror。利用者取消しはVM継続 |
+| `state.mark_read` | tagをセッションの既読集合へ追加する | 同期完了 | 空tagはerror。重複は成功 |
+| `state.is_read` | セッションの既読集合を参照する | boolを返して同期完了 | 空tagはerror |
+| `system.wait` | KES用のunscaled timerを開始する | 指定秒数経過時。0は同期完了 | 負数または非finite値はerror |
+| `system.set_auto` | auto状態を更新し、入力制御へ反映する | 同期完了 | 型不正はerror |
+| `system.set_skip` | `off`、`read`、`all`のskip状態を更新する | 同期完了 | 未知modeはerror |
+| `system.set_config_string`, `system.set_config_number`, `system.set_config_bool` | 定義済み設定を型付きで更新し、対応するUI・Audio・localeへ反映する | セッション内の値とUnity側反映が完了した時点 | 未知keyまたは型不一致はerror。永続化失敗だけはwarning継続 |
+| `system.get_config` | 設定値をSTL仕様の文字列表現で返す | 同期完了 | 未知keyはerror |
+| `system.set_param_string`, `system.set_param_number`, `system.set_param_bool` | セーブデータ単位のゲーム変数を型付きで更新する | 同期完了 | 空keyまたは型契約違反はerror |
+| `system.get_param` | ゲーム変数をSTL仕様の文字列表現で返す | 同期完了 | 未定義keyはerror |
+
+- Unity packageは保存先を持たず、`state.save`、`state.autosave`、`state.load`をhost callbackなしで実行した場合はruntime errorとする。
+- `state.load`成功時はload命令の次へ進むのではなく、復元されたsnapshotの実行位置とcontinuationを正とする。
+- `system.set_config_*`によるlocale変更は次に開始するeventまたは明示的な再読込から適用し、実行中scriptの途中で別localeの`.klib`へ切り替えない。
+- `localize.get`はUnity targetの公開実行契約に含めない。Unityではローカライズ済み`.klib`を使用し、Unity向け成果物から`localize.get`が実行された場合は未対応命令としてruntime errorにする。
+
+### STL host契約の受け入れテスト
+
+受け入れ条件7は、単にsyscallが診断なしでdispatchされることではなく、本節の完了境界まで検証できた場合に満たしたものとする。
+
+- 各公開命令について、正常系のeffect payload、同期または非同期の完了境界、最終的なVM continuationを検証する。
+- Addressables、animation、audio、timer、save/load callbackについて、完了前に次のVM命令が実行されず、成功通知後に1回だけ再開することを検証する。
+- 必須asset欠落、未知effect、無効なduration、UI失敗、host callback失敗が診断付き`Faulted`になり、以後のVM命令が実行されないことを検証する。
+- Voice欠落がwarningを発行し、本文表示とVM進行を継続することを、自動Voiceと明示Voiceの両方で検証する。
+- KesManager停止、GameObject無効化、scene unload、domain reload相当の取消しで未完了operationが解放され、遅延完了がPresentationへ反映されないことを検証する。
+- タイプライター表示、通常送り、auto、skip、選択肢について、1入力が1回の状態遷移にだけ消費されることをPlay Modeで検証する。
+- save/loadについて、成功、利用者取消し、host失敗、schema不一致、build ID不一致、Presentation再解決失敗を検証する。
 
 ## イベント遷移
 
@@ -418,8 +490,9 @@ Unity 拡張は、ノベルゲーム向けの2D表示を標準の描画モデル
 - 制作座標系は1920x1080のフルHDとする。左上をUI座標原点、画面中央をworld座標原点とし、KES座標からworld座標への変換をPresentation層で一元化する。
 - 実画面サイズが異なる場合も、その表示領域を1920x1080とみなしてKES座標を正規化する。`x_world = (x / 1920 - 0.5) * visibleWorldWidth`、`y_world = (0.5 - y / 1080) * visibleWorldHeight`を基本変換とする。
 - CameraはOrthographic projectionとし、実際のviewport全体を仮想1920x1080へ対応付ける。異なるaspectでもletterboxやcropを標準動作にせず、xとyをそれぞれviewport幅・高さへ正規化する。背景はviewport全体を覆うようscaleし、actorと入力座標には同じ正規化変換を適用する。
-- Canvas ScalerのUI Scale Modeは`Constant Physical Size`とする。このmodeにはReference Resolutionがないため、1920x1080はCanvas Scalerの値ではなくKES UI layoutと座標変換の基準として保持する。
+- Canvas ScalerのUI Scale Modeは`Scale With Screen Size`、Reference Resolutionは`1920x1080`とする。画面比率が異なる場合は`Match Width Or Height`を使用し、標準プレハブのMatch値は`0.5`とする。
 - 背景用sorting layerを`KES Background`、actor用sorting layerを`KES Actor`とし、この順で描画する。同一layer内の順序はVMのlayerとzを`sortingOrder`へ決定的に変換する。
+- SampleProject の Global Light 2D は `Default`、`KES Background`、`KES Actor` を含む全sorting layerを照明対象とし、Sprite-Lit素材が未照明で暗転しないこと。
 - 背景とactorは`SpriteRoot`配下の`SpriteRenderer`で管理する。
 - メッセージウィンドウ、話者名、選択肢、システム UI は `CanvasRoot` 配下の uGUI 要素として管理する。
 - VolumeとRenderer FeatureはURP projectのdefault設定を使用し、v1 packageは追加のRenderer Featureを要求または自動登録しない。
@@ -438,7 +511,7 @@ Unity 拡張は、ノベルゲーム向けの2D表示を標準の描画モデル
 
 - `say` / `nar` のタグ付きテキストに対する Voice 解決規則は言語仕様に従う。
 - クリック送りでテキストをスキップした場合、再生中の Voice は停止してよい。
-- BGM はフェード付き切り替えを推奨するが、v1 では即時切り替えでもよい。
+- BGMの`fade=0`は即時切り替えとする。正の`fade`が指定された場合は「audioの実行契約」に従ってfade完了まで待機する。
 
 ## 入力と UI
 
@@ -521,6 +594,7 @@ Unity 拡張は、Editor と Play Mode の両方で診断を扱う。
 - 実行時エラーはゲーム進行を停止し、開発時には詳細メッセージを表示できること。
 - 診断には分類、安定した KES 診断コード、メッセージ、可能なら manifest path、script ID、bytecode offset、source mapping の file・line・column を含めること。
 - source mapping がない場合は script ID と bytecode offset を表示すること。
+- KesManager の `Log Execution Source` が有効な場合は、各 VM 命令を実行する直前に source mapping の event file・line・column、opcode、bytecode offset を Unity Console へ通常ログとして出力すること。source mapping がない命令は script ID と bytecode offset を出力すること。
 - Debug build または Debug Overlay 有効時は、現在イベント、現在タグ、選択 locale、解決 asset ID を画面表示できること。Release build の標準 UI には内部スタックやローカル絶対パスを表示しないこと。
 
 ## CLI との連携
@@ -555,7 +629,7 @@ v1 の Unity 拡張は、少なくとも次を満たす。
 4. `.klib` 欠落、破損、script ID 不一致、未対応 format version を Play Mode 開始前に Editor 診断として検出できる。
 5. `KesSystem`プレハブへKES Build Assetを設定し、Addressablesをbuildした状態でPlay ModeとWindows Playerからentry eventを開始できる。
 6. Windows runtimeと共有するVMソースが[`.klib`中間表現仕様](k-intermediate-representation-spec.md)の全opcodeを実行できる。
-7. [KES言語STL仕様](kes-language-stl-spec.md)の`core`、`scene`、`actor`、`text`、`audio`、`flow`、`state`、`system`全公開命令と`scenario.say`、`scenario.nar`を本書の実行契約表どおり実行できる。
+7. [KES言語STL仕様](kes-language-stl-spec.md)の`core`、`scene`、`actor`、`text`、`audio`、`flow`、`state`、`system`全公開命令と`scenario.say`、`scenario.nar`について、effect反映だけでなく、host完了待ち、入力消費、成功・失敗・取消し、リソース解放、VM再開を本書の「VM命令とSTL実行契約」および「STL host契約の受け入れテスト」どおり実行できる。
 8. 基準言語、存在するlocale variant、存在しないlocaleから基準言語へのwarning付きフォールバックを検証できる。
 9. Input Systemでテキスト送り、選択肢移動・決定、メニュー、スキップ、オートを操作でき、1入力が重複処理されない。
 10. `CaptureState()`でゲーム変数、システム変数、シナリオ位置、画面状態を取得し、hostが保持した構造体を`RestoreState()`へ渡してVM、表示、BGMを復元できる。ライブラリがファイルI/Oを行わない。

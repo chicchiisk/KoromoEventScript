@@ -38,6 +38,61 @@ public sealed class KesAudioPresenter : MonoBehaviour
 
     public event Action<RuntimeDiagnostic> DiagnosticPublished;
 
+    public void SetChannelVolume(string key, float value)
+    {
+        var volume = Mathf.Clamp01(value);
+        switch (key)
+        {
+            case "masterVolume":
+                if (bgmSource != null)
+                {
+                    bgmSource.volume = volume;
+                }
+
+                if (voiceSource != null)
+                {
+                    voiceSource.volume = volume;
+                }
+
+                for (var i = 0; i < sePlaybacks.Count; i++)
+                {
+                    if (sePlaybacks[i].Source != null)
+                    {
+                        sePlaybacks[i].Source.volume = volume;
+                    }
+                }
+
+                break;
+
+            case "bgmVolume":
+                if (bgmSource != null)
+                {
+                    bgmSource.volume = volume;
+                }
+
+                break;
+
+            case "voiceVolume":
+                if (voiceSource != null)
+                {
+                    voiceSource.volume = volume;
+                }
+
+                break;
+
+            case "seVolume":
+                for (var i = 0; i < sePlaybacks.Count; i++)
+                {
+                    if (sePlaybacks[i].Source != null)
+                    {
+                        sePlaybacks[i].Source.volume = volume;
+                    }
+                }
+
+                break;
+        }
+    }
+
     public void SetReferences(
         IKesAssetResolver resolver,
         AudioSource newBgmSource,
@@ -53,8 +108,17 @@ public sealed class KesAudioPresenter : MonoBehaviour
 
     public void Apply(RuntimeEffect effect)
     {
+        Execute(effect, _ => { });
+    }
+
+    public void Execute(RuntimeEffect effect, Action<KesHostOperationResult> completed)
+    {
         if (effect == null || effect.Kind != RuntimeEffectKind.Audio)
         {
+            completed?.Invoke(KesHostOperationResult.Failed(RuntimeDiagnostic.Error(
+                "KESU3103",
+                "Audio presenter received an invalid audio effect.",
+                RuntimeFailureKind.Runtime)));
             return;
         }
 
@@ -62,38 +126,64 @@ public sealed class KesAudioPresenter : MonoBehaviour
         switch (effect.Name)
         {
             case "audio.bgm":
-                PlayBgm(effect.Payload);
+                PlayBgm(effect.Payload, completed);
                 break;
 
             case "audio.bgm_stop":
-                StopBgm(ReadFloat(effect.Payload, "fade", 0f));
+                StopBgm(ReadFloat(effect.Payload, "fade", 0f), completed);
                 break;
 
             case "audio.se":
-                PlaySe(Read(effect.Payload, "id", string.Empty));
+                PlaySe(Read(effect.Payload, "id", string.Empty), completed);
                 break;
 
             case "audio.se_stop":
                 StopSe(Read(effect.Payload, "id", string.Empty));
+                completed?.Invoke(KesHostOperationResult.Succeeded());
                 break;
 
             case "audio.se_stop_all":
                 StopAllSe();
+                completed?.Invoke(KesHostOperationResult.Succeeded());
                 break;
 
             case "text.vo":
-                PlayVoice(Read(effect.Payload, "id", string.Empty));
+                PlayVoice(Read(effect.Payload, "id", string.Empty), completed);
+                break;
+
+            case "audio.vo_auto":
+                var automaticVoiceId = Read(effect.Payload, "id", string.Empty);
+                if (string.IsNullOrWhiteSpace(automaticVoiceId))
+                {
+                    PublishWarning(
+                        "KESU4102",
+                        "Automatic Voice could not be resolved because the current dialogue did not provide a voice id.");
+                    completed?.Invoke(KesHostOperationResult.Succeeded());
+                }
+                else
+                {
+                    PlayVoice(automaticVoiceId, completed);
+                }
+
                 break;
 
             case "audio.voice_stop":
                 StopVoice();
+                completed?.Invoke(KesHostOperationResult.Succeeded());
+                break;
+
+            default:
+                completed?.Invoke(KesHostOperationResult.Failed(RuntimeDiagnostic.Error(
+                    "KESU3103",
+                    "Unsupported audio effect: " + effect.Name,
+                    RuntimeFailureKind.Runtime)));
                 break;
         }
     }
 
     public void StopAll()
     {
-        StopBgm(0f);
+        StopBgm(0f, null);
         StopVoice();
         StopAllSe();
     }
@@ -103,44 +193,57 @@ public sealed class KesAudioPresenter : MonoBehaviour
         StopAll();
     }
 
-    private void PlayBgm(IReadOnlyDictionary<string, string> payload)
+    private void PlayBgm(
+        IReadOnlyDictionary<string, string> payload,
+        Action<KesHostOperationResult> completed)
     {
         var id = Read(payload, "id", string.Empty);
-        if (!Validate(id, bgmSource, "BGM"))
+        if (!Validate(id, bgmSource, "BGM", completed))
         {
             return;
         }
 
         var requestVersion = ++bgmRequestVersion;
-        Release(ref bgmAssetId);
-        bgmAssetId = id;
+        var previousAssetId = bgmAssetId;
         var loop = ReadBool(payload, "loop", true);
+        var fade = ReadFloat(payload, "fade", 0f);
         assetResolver.LoadAudioClip(
             id,
             clip =>
             {
-                if (requestVersion != bgmRequestVersion || !StringComparer.Ordinal.Equals(bgmAssetId, id))
+                if (requestVersion != bgmRequestVersion)
                 {
                     assetResolver.Release(id);
                     return;
                 }
 
-                bgmSource.clip = clip;
-                bgmSource.loop = loop;
-                bgmSource.volume = 1f;
-                bgmSource.Play();
+                StartCoroutine(SwitchBgm(
+                    previousAssetId,
+                    id,
+                    clip,
+                    loop,
+                    fade,
+                    requestVersion,
+                    completed));
             },
-            error => PublishError("KESU3101", error));
+            error => CompleteError("KESU3101", error, completed));
     }
 
-    private void StopBgm(float fadeSeconds)
+    private void StopBgm(float fadeSeconds, Action<KesHostOperationResult> completed)
     {
         bgmRequestVersion++;
         if (bgmSource != null)
         {
             if (fadeSeconds > 0f && bgmSource.isPlaying)
             {
-                StartCoroutine(FadeAndStop(bgmSource, fadeSeconds, () => Release(ref bgmAssetId)));
+                StartCoroutine(FadeAndStop(
+                    bgmSource,
+                    fadeSeconds,
+                    () =>
+                    {
+                        Release(ref bgmAssetId);
+                        completed?.Invoke(KesHostOperationResult.Succeeded());
+                    }));
                 return;
             }
 
@@ -149,11 +252,12 @@ public sealed class KesAudioPresenter : MonoBehaviour
         }
 
         Release(ref bgmAssetId);
+        completed?.Invoke(KesHostOperationResult.Succeeded());
     }
 
-    private void PlayVoice(string id)
+    private void PlayVoice(string id, Action<KesHostOperationResult> completed)
     {
-        if (!Validate(id, voiceSource, "Voice"))
+        if (!Validate(id, voiceSource, "Voice", completed))
         {
             return;
         }
@@ -174,8 +278,13 @@ public sealed class KesAudioPresenter : MonoBehaviour
                 voiceSource.clip = clip;
                 voiceSource.loop = false;
                 voiceSource.Play();
+                completed?.Invoke(KesHostOperationResult.Succeeded());
             },
-            error => PublishWarning("KESU4101", error));
+            error =>
+            {
+                PublishWarning("KESU4101", error);
+                completed?.Invoke(KesHostOperationResult.Succeeded());
+            });
     }
 
     private void StopVoice()
@@ -190,11 +299,11 @@ public sealed class KesAudioPresenter : MonoBehaviour
         Release(ref voiceAssetId);
     }
 
-    private void PlaySe(string id)
+    private void PlaySe(string id, Action<KesHostOperationResult> completed)
     {
         if (assetResolver == null || string.IsNullOrWhiteSpace(id))
         {
-            PublishError("KESU3102", "SE asset id or resolver is missing.");
+            CompleteError("KESU3102", "SE asset id or resolver is missing.", completed);
             return;
         }
 
@@ -212,8 +321,9 @@ public sealed class KesAudioPresenter : MonoBehaviour
                 sePlaybacks.Add(playback);
                 source.Play();
                 StartCoroutine(ReleaseSeAfterPlayback(playback, clip.length));
+                completed?.Invoke(KesHostOperationResult.Succeeded());
             },
-            error => PublishError("KESU3102", error));
+            error => CompleteError("KESU3102", error, completed));
     }
 
     private void StopSe(string id)
@@ -278,15 +388,78 @@ public sealed class KesAudioPresenter : MonoBehaviour
         assetResolver?.Release(playback.AssetId);
     }
 
-    private bool Validate(string id, AudioSource source, string channel)
+    private bool Validate(
+        string id,
+        AudioSource source,
+        string channel,
+        Action<KesHostOperationResult> completed)
     {
         if (assetResolver != null && !string.IsNullOrWhiteSpace(id) && source != null)
         {
             return true;
         }
 
-        PublishError("KESU3100", channel + " asset id, AudioSource, or resolver is missing.");
+        CompleteError(
+            "KESU3100",
+            channel + " asset id, AudioSource, or resolver is missing.",
+            completed);
         return false;
+    }
+
+    private IEnumerator SwitchBgm(
+        string previousAssetId,
+        string nextAssetId,
+        AudioClip nextClip,
+        bool loop,
+        float fadeSeconds,
+        int requestVersion,
+        Action<KesHostOperationResult> completed)
+    {
+        var startVolume = bgmSource == null ? 1f : bgmSource.volume;
+        if (fadeSeconds > 0f && bgmSource != null && bgmSource.isPlaying)
+        {
+            var elapsed = 0f;
+            while (elapsed < fadeSeconds && requestVersion == bgmRequestVersion)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                bgmSource.volume = Mathf.Lerp(startVolume, 0f, Mathf.Clamp01(elapsed / fadeSeconds));
+                yield return null;
+            }
+        }
+
+        if (requestVersion != bgmRequestVersion || bgmSource == null)
+        {
+            assetResolver?.Release(nextAssetId);
+            yield break;
+        }
+
+        bgmSource.Stop();
+        bgmSource.clip = nextClip;
+        bgmSource.loop = loop;
+        bgmSource.volume = fadeSeconds > 0f ? 0f : startVolume;
+        bgmSource.Play();
+        if (!string.IsNullOrEmpty(previousAssetId))
+        {
+            assetResolver?.Release(previousAssetId);
+        }
+
+        bgmAssetId = nextAssetId;
+        if (fadeSeconds > 0f)
+        {
+            var elapsed = 0f;
+            while (elapsed < fadeSeconds && requestVersion == bgmRequestVersion)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                bgmSource.volume = Mathf.Lerp(0f, startVolume, Mathf.Clamp01(elapsed / fadeSeconds));
+                yield return null;
+            }
+        }
+
+        if (requestVersion == bgmRequestVersion)
+        {
+            bgmSource.volume = startVolume;
+            completed?.Invoke(KesHostOperationResult.Succeeded());
+        }
     }
 
     private void Release(ref string assetId)
@@ -312,6 +485,17 @@ public sealed class KesAudioPresenter : MonoBehaviour
         var diagnostic = RuntimeDiagnostic.Error(code, message, RuntimeFailureKind.Runtime);
         Debug.LogError(code + ": " + message, this);
         DiagnosticPublished?.Invoke(diagnostic);
+    }
+
+    private void CompleteError(
+        string code,
+        string message,
+        Action<KesHostOperationResult> completed)
+    {
+        var diagnostic = RuntimeDiagnostic.Error(code, message, RuntimeFailureKind.Runtime);
+        Debug.LogError(code + ": " + message, this);
+        DiagnosticPublished?.Invoke(diagnostic);
+        completed?.Invoke(KesHostOperationResult.Failed(diagnostic));
     }
 
     private void PublishWarning(string code, string message)

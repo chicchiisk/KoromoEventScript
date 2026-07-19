@@ -91,6 +91,63 @@ public sealed class KesVmSessionTests
         });
     }
 
+    [Test]
+    public void ResumeHostOperation_RestoresRunningContinuationExactlyOnce()
+    {
+        var session = new KesVmSession(CreateDocument());
+        var restored = session.Restore(new RuntimeSaveSnapshot(
+            1,
+            new RuntimeExecutionPosition("chapter001", 1, null),
+            new RuntimeContinuation(
+                RuntimeContinuationKind.WaitingForHost,
+                1,
+                [],
+                "scene.bg",
+                []),
+            [],
+            []));
+
+        var first = session.ResumeHostOperation();
+        var second = session.ResumeHostOperation();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(restored.Succeeded, Is.True);
+            Assert.That(first.Succeeded, Is.True);
+            Assert.That(session.Continuation.Kind, Is.EqualTo(RuntimeContinuationKind.Running));
+            Assert.That(second.Succeeded, Is.False);
+            Assert.That(second.Diagnostics.Single().Code, Is.EqualTo("KESR3003"));
+        });
+    }
+
+    [Test]
+    public void CaptureSnapshotAfterHostOperation_StoresPostOperationPositionAndRunningState()
+    {
+        var session = new KesVmSession(CreateDocument());
+        var restored = session.Restore(new RuntimeSaveSnapshot(
+            1,
+            new RuntimeExecutionPosition("chapter001", 0, null),
+            new RuntimeContinuation(
+                RuntimeContinuationKind.WaitingForHost,
+                1,
+                [],
+                "state.save",
+                []),
+            [RuntimeValue.Number(7)],
+            [new RuntimeVariableSnapshot(3, RuntimeValue.String("saved"))]));
+
+        var snapshot = session.CaptureSnapshotAfterHostOperation();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(restored.Succeeded, Is.True);
+            Assert.That(snapshot.Position.InstructionIndex, Is.EqualTo(1));
+            Assert.That(snapshot.Continuation.Kind, Is.EqualTo(RuntimeContinuationKind.Running));
+            Assert.That(snapshot.OperandStack.Single().NumberValue, Is.EqualTo(7));
+            Assert.That(snapshot.Variables.Single().Value.StringValue, Is.EqualTo("saved"));
+        });
+    }
+
     private static KlibDocument CreateDocument()
     {
         return new KlibDocument(

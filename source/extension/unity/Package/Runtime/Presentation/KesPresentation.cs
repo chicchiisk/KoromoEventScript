@@ -42,7 +42,7 @@ public sealed class KesPresentation : MonoBehaviour
     private GameObject choiceRoot;
 
     [SerializeField]
-    private Text choiceText;
+    private KesChoiceItemView choiceItemTemplate;
 
     [SerializeField]
     private MonoBehaviour assetResolverBehaviour;
@@ -65,6 +65,15 @@ public sealed class KesPresentation : MonoBehaviour
     private readonly Dictionary<string, ActorPresentationState> actors = new(StringComparer.Ordinal);
     private IKesAssetResolver assetResolver;
     private string backgroundAssetId = string.Empty;
+    private readonly List<string> choiceLabels = new();
+    private readonly List<KesChoiceItemView> choiceItems = new();
+    private int operationVersion;
+    private bool isBackRenderTarget;
+    private bool isBackRenderTargetReady;
+    private bool cameraAutofocus;
+    private string fullMessageText = string.Empty;
+    private Coroutine typewriterCoroutine;
+    private float charactersPerSecond = 60f;
 
     public string BackgroundAssetId => backgroundAssetId;
 
@@ -74,7 +83,19 @@ public sealed class KesPresentation : MonoBehaviour
 
     public int ActorCount => actors.Count;
 
+    public int SelectedChoiceIndex { get; private set; } = -1;
+
+    public int ChoiceCount => choiceLabels.Count;
+
     public event Action<RuntimeDiagnostic> DiagnosticPublished;
+
+    public bool IsBackRenderTarget => isBackRenderTarget;
+
+    public bool IsBackRenderTargetReady => isBackRenderTargetReady;
+
+    public bool CameraAutofocus => cameraAutofocus;
+
+    public bool IsTyping { get; private set; }
 
     public void SetSceneReferences(Camera camera, SpriteRenderer background, Transform actorsRoot)
     {
@@ -89,13 +110,17 @@ public sealed class KesPresentation : MonoBehaviour
         Text newSpeakerText,
         Text newMessageText,
         GameObject newChoiceRoot,
-        Text newChoiceText)
+        KesChoiceItemView newChoiceItemTemplate)
     {
         messageRoot = newMessageRoot;
         speakerText = newSpeakerText;
         messageText = newMessageText;
         choiceRoot = newChoiceRoot;
-        choiceText = newChoiceText;
+        choiceItemTemplate = newChoiceItemTemplate;
+        if (choiceItemTemplate != null)
+        {
+            choiceItemTemplate.gameObject.SetActive(false);
+        }
     }
 
     public void SetAssetResolver(IKesAssetResolver resolver)
@@ -126,6 +151,18 @@ public sealed class KesPresentation : MonoBehaviour
         return actors.TryGetValue(actorId, out var actor) ? actor.AssetId : string.Empty;
     }
 
+    public bool TryGetChoiceItem(int choiceIndex, out KesChoiceItemView item)
+    {
+        item = null;
+        if (choiceIndex < 0 || choiceIndex >= choiceLabels.Count || choiceIndex >= choiceItems.Count)
+        {
+            return false;
+        }
+
+        item = choiceItems[choiceIndex];
+        return item != null;
+    }
+
     public void Apply(RuntimeEffectBatch batch)
     {
         if (batch == null)
@@ -138,6 +175,107 @@ public sealed class KesPresentation : MonoBehaviour
         {
             Apply(batch.Effects[i]);
         }
+    }
+
+    public void Execute(RuntimeEffect effect, Action<KesHostOperationResult> completed)
+    {
+        if (effect == null)
+        {
+            completed?.Invoke(Failure("KESU3000", "Presentation received a null effect."));
+            return;
+        }
+
+        EnsureResolver();
+        if (effect.Kind == RuntimeEffectKind.Audio)
+        {
+            if (audioPresenter == null)
+            {
+                completed?.Invoke(Failure("KESU3000", "Audio presenter is not configured."));
+                return;
+            }
+
+            audioPresenter.Execute(effect, completed);
+            return;
+        }
+
+        if (effect.Kind != RuntimeEffectKind.Scene)
+        {
+            Apply(effect);
+            completed?.Invoke(KesHostOperationResult.Succeeded());
+            return;
+        }
+
+        switch (effect.Name)
+        {
+            case "scene.rt_back":
+                isBackRenderTarget = true;
+                isBackRenderTargetReady = false;
+                completed?.Invoke(KesHostOperationResult.Succeeded());
+                break;
+
+            case "scene.rt_front":
+                if (!isBackRenderTarget)
+                {
+                    completed?.Invoke(Failure(
+                        "KESU3010",
+                        "scene.rt_front was called without an active back render target."));
+                    break;
+                }
+
+                isBackRenderTarget = false;
+                isBackRenderTargetReady = true;
+                completed?.Invoke(KesHostOperationResult.Succeeded());
+                break;
+
+            case "scene.camera_autofocus":
+                cameraAutofocus = ReadBool(effect.Payload, "enabled", false);
+                completed?.Invoke(KesHostOperationResult.Succeeded());
+                break;
+
+            case "scene.bg":
+                ExecuteBackground(effect.Payload, completed);
+                break;
+
+            case "scene.trans":
+                ExecuteTransition(effect.Payload, completed);
+                break;
+
+            case "actor.cast":
+                ExecuteActorCast(effect.Payload, completed);
+                break;
+
+            case "actor.show":
+                ExecuteActorShow(effect.Payload, completed);
+                break;
+
+            case "actor.hide":
+                ExecuteActorHide(effect.Payload, completed);
+                break;
+
+            case "actor.face":
+                ExecuteActorFace(effect.Payload, completed);
+                break;
+
+            case "actor.move":
+                ExecuteActorMove(effect.Payload, completed);
+                break;
+
+            case "actor.action_jump":
+                ExecuteActorJump(effect.Payload, completed);
+                break;
+
+            default:
+                completed?.Invoke(Failure(
+                    "KESU3000",
+                    "Unsupported presentation effect: " + effect.Name));
+                break;
+        }
+    }
+
+    public void CancelOperations()
+    {
+        operationVersion++;
+        StopAllCoroutines();
     }
 
     public void ApplyContinuation(RuntimeContinuation continuation)
@@ -159,16 +297,60 @@ public sealed class KesPresentation : MonoBehaviour
             choiceRoot.SetActive(true);
         }
 
-        if (choiceText != null)
+        choiceLabels.Clear();
+        for (var i = 0; i < continuation.PendingChoices.Count; i++)
         {
-            var choices = new string[continuation.PendingChoices.Count];
-            for (var i = 0; i < continuation.PendingChoices.Count; i++)
-            {
-                choices[i] = continuation.PendingChoices[i].Text;
-            }
-
-            choiceText.text = string.Join("\n", choices);
+            choiceLabels.Add(continuation.PendingChoices[i].Text);
         }
+
+        SelectedChoiceIndex = choiceLabels.Count > 0 ? 0 : -1;
+        RenderChoiceItems();
+    }
+
+    public void SetSelectedChoiceIndex(int choiceIndex)
+    {
+        SelectedChoiceIndex = choiceIndex >= 0 && choiceIndex < choiceLabels.Count ? choiceIndex : -1;
+        RenderChoiceItems();
+    }
+
+    public void ClearDialoguePage()
+    {
+        if (messageText != null)
+        {
+            messageText.text = string.Empty;
+        }
+    }
+
+    public void SetTextSpeed(float value)
+    {
+        charactersPerSecond = Mathf.Max(1f, value * 60f);
+    }
+
+    public void SetAudioVolume(string key, float value)
+    {
+        audioPresenter?.SetChannelVolume(key, value);
+    }
+
+    public bool CompleteTyping()
+    {
+        if (!IsTyping)
+        {
+            return false;
+        }
+
+        if (typewriterCoroutine != null)
+        {
+            StopCoroutine(typewriterCoroutine);
+            typewriterCoroutine = null;
+        }
+
+        IsTyping = false;
+        if (messageText != null)
+        {
+            messageText.text = fullMessageText;
+        }
+
+        return true;
     }
 
     public void ResetPresentation()
@@ -267,14 +449,13 @@ public sealed class KesPresentation : MonoBehaviour
         switch (effect.Name)
         {
             case "scenario.say":
-                SetDialogue(
+                BeginDialogue(
                     NormalizeSpeaker(Read(effect.Payload, "actor", string.Empty)),
-                    Read(effect.Payload, "text", string.Empty),
-                    true);
+                    Read(effect.Payload, "text", string.Empty));
                 break;
 
             case "scenario.nar":
-                SetDialogue(string.Empty, Read(effect.Payload, "text", string.Empty), true);
+                BeginDialogue(string.Empty, Read(effect.Payload, "text", string.Empty));
                 break;
 
             case "text.cm":
@@ -380,14 +561,381 @@ public sealed class KesPresentation : MonoBehaviour
         {
             actor.IsVisible = false;
             actor.RequestVersion++;
-            if (assetResolver != null && !string.IsNullOrEmpty(actor.AssetId))
+            actor.Renderer.gameObject.SetActive(false);
+        }
+    }
+
+    private void ExecuteBackground(
+        IReadOnlyDictionary<string, string> payload,
+        Action<KesHostOperationResult> completed)
+    {
+        var id = Read(payload, "id", string.Empty);
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            completed?.Invoke(Failure("KESU3001", "scene.bg did not provide a background asset id."));
+            return;
+        }
+
+        var newAssetId = id.StartsWith("assets.", StringComparison.Ordinal)
+            ? id
+            : "assets.bg." + id;
+        if (StringComparer.Ordinal.Equals(backgroundAssetId, newAssetId) &&
+            backgroundRenderer != null &&
+            backgroundRenderer.sprite != null)
+        {
+            completed?.Invoke(KesHostOperationResult.Succeeded());
+            return;
+        }
+
+        var previousAssetId = backgroundAssetId;
+        var version = operationVersion;
+        LoadSprite(
+            newAssetId,
+            sprite =>
             {
-                assetResolver.Release(actor.AssetId);
-                actor.IsAssetLoaded = false;
-                actor.Renderer.sprite = null;
+                if (version != operationVersion || backgroundRenderer == null)
+                {
+                    assetResolver?.Release(newAssetId);
+                    return;
+                }
+
+                backgroundAssetId = newAssetId;
+                backgroundRenderer.sprite = sprite;
+                ConfigureRenderer(backgroundRenderer, backgroundSortingLayer, backgroundSortingOrder);
+                FitRenderer(backgroundRenderer, new Vector2(960f, 540f), new Vector2(1920f, 1080f));
+                if (!string.IsNullOrEmpty(previousAssetId) &&
+                    !StringComparer.Ordinal.Equals(previousAssetId, newAssetId))
+                {
+                    assetResolver?.Release(previousAssetId);
+                }
+
+                completed?.Invoke(KesHostOperationResult.Succeeded());
+            },
+            error => completed?.Invoke(Failure(
+                "KESU3005",
+                "Could not resolve sprite '" + newAssetId + "': " + error)));
+    }
+
+    private void ExecuteActorCast(
+        IReadOnlyDictionary<string, string> payload,
+        Action<KesHostOperationResult> completed)
+    {
+        var actor = EnsureActor(payload, visible: false, out var failure);
+        if (actor == null)
+        {
+            completed?.Invoke(failure);
+            return;
+        }
+
+        ExecuteActorSpriteLoad(actor, completed);
+    }
+
+    private void ExecuteActorShow(
+        IReadOnlyDictionary<string, string> payload,
+        Action<KesHostOperationResult> completed)
+    {
+        var actor = EnsureActor(payload, visible: true, out var failure);
+        if (actor == null)
+        {
+            completed?.Invoke(failure);
+            return;
+        }
+
+        ExecuteActorSpriteLoad(actor, completed);
+    }
+
+    private void ExecuteActorHide(
+        IReadOnlyDictionary<string, string> payload,
+        Action<KesHostOperationResult> completed)
+    {
+        var actorId = Read(payload, "actor", string.Empty);
+        if (!actors.TryGetValue(actorId, out var actor))
+        {
+            completed?.Invoke(Failure(
+                "KESU3003",
+                "actor.hide referenced an actor that has not been cast: " + actorId));
+            return;
+        }
+
+        actor.IsVisible = false;
+        actor.Renderer.gameObject.SetActive(false);
+        completed?.Invoke(KesHostOperationResult.Succeeded());
+    }
+
+    private void ExecuteActorFace(
+        IReadOnlyDictionary<string, string> payload,
+        Action<KesHostOperationResult> completed)
+    {
+        var actorId = Read(payload, "actor", string.Empty);
+        if (!actors.TryGetValue(actorId, out var actor))
+        {
+            completed?.Invoke(Failure(
+                "KESU3003",
+                "actor.face referenced an actor that has not been cast: " + actorId));
+            return;
+        }
+
+        actor.AssetBaseName = Read(payload, "assetBaseName", actor.AssetBaseName);
+        actor.Face = Read(payload, "exp", Read(payload, "face", actor.Face));
+        ExecuteActorSpriteLoad(actor, completed);
+    }
+
+    private void ExecuteActorMove(
+        IReadOnlyDictionary<string, string> payload,
+        Action<KesHostOperationResult> completed)
+    {
+        var actorId = Read(payload, "actor", string.Empty);
+        if (!actors.TryGetValue(actorId, out var actor) || !actor.IsVisible)
+        {
+            completed?.Invoke(Failure(
+                "KESU3004",
+                "actor.move requires a visible cast actor: " + actorId));
+            return;
+        }
+
+        var targetPosition = ReadFloat(payload, "pos", actor.Position);
+        var duration = ReadFloat(payload, "duration", 0f);
+        if (!IsValidDuration(duration))
+        {
+            completed?.Invoke(Failure("KESU3006", "actor.move duration must be finite and non-negative."));
+            return;
+        }
+
+        if (duration <= 0f)
+        {
+            actor.Position = targetPosition;
+            PositionActor(actor);
+            completed?.Invoke(KesHostOperationResult.Succeeded());
+            return;
+        }
+
+        StartCoroutine(AnimateActorMove(actor, targetPosition, duration, operationVersion, completed));
+    }
+
+    private void ExecuteActorJump(
+        IReadOnlyDictionary<string, string> payload,
+        Action<KesHostOperationResult> completed)
+    {
+        var actorId = Read(payload, "actor", string.Empty);
+        if (!actors.TryGetValue(actorId, out var actor) || !actor.IsVisible)
+        {
+            completed?.Invoke(Failure(
+                "KESU3007",
+                "actor.action_jump requires a visible cast actor: " + actorId));
+            return;
+        }
+
+        StartCoroutine(AnimateActorJump(actor, operationVersion, completed));
+    }
+
+    private void ExecuteTransition(
+        IReadOnlyDictionary<string, string> payload,
+        Action<KesHostOperationResult> completed)
+    {
+        var effect = Read(payload, "effect", "crossfade");
+        var duration = ReadFloat(payload, "duration", 0f);
+        if (effect is not ("none" or "fade" or "crossfade"))
+        {
+            completed?.Invoke(Failure("KESU3008", "Unsupported transition effect: " + effect));
+            return;
+        }
+
+        if (!IsValidDuration(duration))
+        {
+            completed?.Invoke(Failure("KESU3008", "Transition duration must be finite and non-negative."));
+            return;
+        }
+
+        if (effect == "none" || duration <= 0f)
+        {
+            isBackRenderTargetReady = false;
+            completed?.Invoke(KesHostOperationResult.Succeeded());
+            return;
+        }
+
+        StartCoroutine(AnimateTransition(duration, operationVersion, completed));
+    }
+
+    private ActorPresentationState EnsureActor(
+        IReadOnlyDictionary<string, string> payload,
+        bool visible,
+        out KesHostOperationResult failure)
+    {
+        failure = null;
+        var actorId = Read(payload, "actor", string.Empty);
+        if (string.IsNullOrWhiteSpace(actorId))
+        {
+            failure = Failure("KESU3002", "Actor effect did not provide an actor id.");
+            return null;
+        }
+
+        if (!actors.TryGetValue(actorId, out var actor))
+        {
+            var actorObject = new GameObject("Actor - " + NormalizeSpeaker(actorId));
+            actorObject.transform.SetParent(actorRoot == null ? transform : actorRoot, false);
+            actor = new ActorPresentationState(actorObject.AddComponent<SpriteRenderer>());
+            actors.Add(actorId, actor);
+        }
+
+        actor.AssetBaseName = Read(
+            payload,
+            "assetBaseName",
+            string.IsNullOrEmpty(actor.AssetBaseName)
+                ? NormalizeSpeaker(actorId).ToLowerInvariant()
+                : actor.AssetBaseName);
+        actor.Face = Read(payload, "face", Read(payload, "exp", string.IsNullOrEmpty(actor.Face) ? "normal" : actor.Face));
+        actor.Position = ReadFloat(payload, "pos", actor.Position);
+        actor.SortingOffset = Mathf.RoundToInt(ReadFloat(payload, "layer", 0f) * 100f) +
+            Mathf.RoundToInt(ReadFloat(payload, "z", 0f));
+        actor.IsVisible = visible;
+        actor.Renderer.gameObject.SetActive(visible);
+        ConfigureRenderer(actor.Renderer, actorSortingLayer, actorSortingOrder + actor.SortingOffset);
+        PositionActor(actor);
+        return actor;
+    }
+
+    private void ExecuteActorSpriteLoad(
+        ActorPresentationState actor,
+        Action<KesHostOperationResult> completed)
+    {
+        var requestedId = "assets.actor." + actor.AssetBaseName + "_" + actor.Face;
+        if (actor.IsAssetLoaded && StringComparer.Ordinal.Equals(actor.AssetId, requestedId))
+        {
+            completed?.Invoke(KesHostOperationResult.Succeeded());
+            return;
+        }
+
+        var previousAssetId = actor.AssetId;
+        var requestVersion = ++actor.RequestVersion;
+        var version = operationVersion;
+        actor.AssetId = requestedId;
+        LoadSprite(
+            requestedId,
+            sprite =>
+            {
+                if (version != operationVersion ||
+                    requestVersion != actor.RequestVersion ||
+                    actor.Renderer == null)
+                {
+                    assetResolver?.Release(requestedId);
+                    return;
+                }
+
+                actor.Renderer.sprite = sprite;
+                actor.IsAssetLoaded = true;
+                actor.Renderer.gameObject.SetActive(actor.IsVisible);
+                PositionActor(actor);
+                if (!string.IsNullOrEmpty(previousAssetId) &&
+                    !StringComparer.Ordinal.Equals(previousAssetId, requestedId))
+                {
+                    assetResolver?.Release(previousAssetId);
+                }
+
+                completed?.Invoke(KesHostOperationResult.Succeeded());
+            },
+            error => completed?.Invoke(Failure(
+                "KESU3005",
+                "Could not resolve actor sprite '" + requestedId + "': " + error)));
+    }
+
+    private System.Collections.IEnumerator AnimateActorMove(
+        ActorPresentationState actor,
+        float targetPosition,
+        float duration,
+        int version,
+        Action<KesHostOperationResult> completed)
+    {
+        var start = actor.Position;
+        var elapsed = 0f;
+        while (elapsed < duration && version == operationVersion)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            actor.Position = Mathf.Lerp(start, targetPosition, Mathf.Clamp01(elapsed / duration));
+            PositionActor(actor);
+            yield return null;
+        }
+
+        if (version == operationVersion)
+        {
+            actor.Position = targetPosition;
+            PositionActor(actor);
+            completed?.Invoke(KesHostOperationResult.Succeeded());
+        }
+    }
+
+    private System.Collections.IEnumerator AnimateActorJump(
+        ActorPresentationState actor,
+        int version,
+        Action<KesHostOperationResult> completed)
+    {
+        var start = actor.Renderer.transform.position;
+        const float duration = 0.25f;
+        var height = KesCoordinateMapper.DesignSizeToWorld(
+            presentationCamera,
+            new Vector2(0f, 90f),
+            start.z).y;
+        var elapsed = 0f;
+        while (elapsed < duration && version == operationVersion)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            var normalized = Mathf.Clamp01(elapsed / duration);
+            var offset = Mathf.Sin(normalized * Mathf.PI) * height;
+            actor.Renderer.transform.position = start + new Vector3(0f, offset, 0f);
+            yield return null;
+        }
+
+        if (version == operationVersion)
+        {
+            actor.Renderer.transform.position = start;
+            completed?.Invoke(KesHostOperationResult.Succeeded());
+        }
+    }
+
+    private System.Collections.IEnumerator AnimateTransition(
+        float duration,
+        int version,
+        Action<KesHostOperationResult> completed)
+    {
+        var renderers = new List<SpriteRenderer>();
+        if (backgroundRenderer != null)
+        {
+            renderers.Add(backgroundRenderer);
+        }
+
+        foreach (var actor in actors.Values)
+        {
+            if (actor.Renderer != null && actor.IsVisible)
+            {
+                renderers.Add(actor.Renderer);
+            }
+        }
+
+        var elapsed = 0f;
+        while (elapsed < duration && version == operationVersion)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            var alpha = Mathf.Clamp01(elapsed / duration);
+            for (var i = 0; i < renderers.Count; i++)
+            {
+                var color = renderers[i].color;
+                color.a = alpha;
+                renderers[i].color = color;
             }
 
-            actor.Renderer.gameObject.SetActive(false);
+            yield return null;
+        }
+
+        if (version == operationVersion)
+        {
+            for (var i = 0; i < renderers.Count; i++)
+            {
+                var color = renderers[i].color;
+                color.a = 1f;
+                renderers[i].color = color;
+            }
+
+            isBackRenderTargetReady = false;
+            completed?.Invoke(KesHostOperationResult.Succeeded());
         }
     }
 
@@ -475,8 +1023,20 @@ public sealed class KesPresentation : MonoBehaviour
 
     private void LoadSprite(string assetId, Action<Sprite> onLoaded)
     {
+        LoadSprite(
+            assetId,
+            onLoaded,
+            error => PublishError("KESU3005", "Could not resolve sprite '" + assetId + "': " + error));
+    }
+
+    private void LoadSprite(
+        string assetId,
+        Action<Sprite> onLoaded,
+        Action<string> onFailed)
+    {
         if (assetResolver == null)
         {
+            onFailed?.Invoke("Asset resolver is not configured.");
             return;
         }
 
@@ -488,12 +1048,13 @@ public sealed class KesPresentation : MonoBehaviour
                 if (sprite == null)
                 {
                     PublishError("KESU3005", "Resolved sprite is null: " + requestedId);
+                    onFailed?.Invoke("Resolved sprite is null.");
                     return;
                 }
 
                 onLoaded(sprite);
             },
-            error => PublishError("KESU3005", "Could not resolve sprite '" + requestedId + "': " + error));
+            onFailed);
     }
 
     private void SetDialogue(string speaker, string text, bool visible)
@@ -514,16 +1075,109 @@ public sealed class KesPresentation : MonoBehaviour
         }
     }
 
+    private void BeginDialogue(string speaker, string text)
+    {
+        CompleteTyping();
+        fullMessageText = text ?? string.Empty;
+        if (!Application.isPlaying)
+        {
+            IsTyping = false;
+            SetDialogue(speaker, fullMessageText, true);
+            return;
+        }
+
+        SetDialogue(speaker, string.Empty, true);
+        if (string.IsNullOrEmpty(fullMessageText))
+        {
+            IsTyping = false;
+            return;
+        }
+
+        IsTyping = true;
+        typewriterCoroutine = StartCoroutine(TypeDialogue());
+    }
+
+    private System.Collections.IEnumerator TypeDialogue()
+    {
+        var visibleCharacters = 0f;
+        while (visibleCharacters < fullMessageText.Length)
+        {
+            visibleCharacters += charactersPerSecond * Time.unscaledDeltaTime;
+            if (messageText != null)
+            {
+                messageText.text = fullMessageText.Substring(
+                    0,
+                    Mathf.Min(fullMessageText.Length, Mathf.FloorToInt(visibleCharacters)));
+            }
+
+            yield return null;
+        }
+
+        if (messageText != null)
+        {
+            messageText.text = fullMessageText;
+        }
+
+        IsTyping = false;
+        typewriterCoroutine = null;
+    }
+
     private void HideChoices()
     {
+        choiceLabels.Clear();
+        SelectedChoiceIndex = -1;
         if (choiceRoot != null)
         {
             choiceRoot.SetActive(false);
         }
 
-        if (choiceText != null)
+        for (var i = 0; i < choiceItems.Count; i++)
         {
-            choiceText.text = string.Empty;
+            if (choiceItems[i] != null)
+            {
+                choiceItems[i].SetContent(string.Empty, false);
+                choiceItems[i].gameObject.SetActive(false);
+            }
+        }
+    }
+
+    private void RenderChoiceItems()
+    {
+        if (choiceItemTemplate == null)
+        {
+            return;
+        }
+
+        EnsureChoiceItemCount(choiceLabels.Count);
+        for (var i = 0; i < choiceLabels.Count; i++)
+        {
+            var item = choiceItems[i];
+            if (item == null)
+            {
+                continue;
+            }
+
+            item.SetContent(choiceLabels[i], i == SelectedChoiceIndex);
+            item.gameObject.SetActive(true);
+        }
+
+        for (var i = choiceLabels.Count; i < choiceItems.Count; i++)
+        {
+            if (choiceItems[i] != null)
+            {
+                choiceItems[i].gameObject.SetActive(false);
+            }
+        }
+    }
+
+    private void EnsureChoiceItemCount(int count)
+    {
+        while (choiceItems.Count < count)
+        {
+            var item = Instantiate(choiceItemTemplate, choiceItemTemplate.transform.parent, false);
+            item.name = "ChoiceItem" + (choiceItems.Count + 1).ToString(CultureInfo.InvariantCulture);
+            item.gameObject.SetActive(false);
+            choiceItems.Add(item);
         }
     }
 
@@ -537,6 +1191,7 @@ public sealed class KesPresentation : MonoBehaviour
 
     private void OnDestroy()
     {
+        CancelOperations();
         if (assetResolver != null && !string.IsNullOrEmpty(backgroundAssetId))
         {
             assetResolver.Release(backgroundAssetId);
@@ -558,6 +1213,14 @@ public sealed class KesPresentation : MonoBehaviour
         var diagnostic = RuntimeDiagnostic.Error(code, message, RuntimeFailureKind.Runtime);
         Debug.LogError(code + ": " + message, this);
         DiagnosticPublished?.Invoke(diagnostic);
+    }
+
+    private KesHostOperationResult Failure(string code, string message)
+    {
+        var diagnostic = RuntimeDiagnostic.Error(code, message, RuntimeFailureKind.Runtime);
+        Debug.LogError(code + ": " + message, this);
+        DiagnosticPublished?.Invoke(diagnostic);
+        return KesHostOperationResult.Failed(diagnostic);
     }
 
     private static void ConfigureRenderer(SpriteRenderer renderer, string sortingLayer, int sortingOrder)
@@ -619,6 +1282,20 @@ public sealed class KesPresentation : MonoBehaviour
             float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var number)
             ? number
             : fallback;
+    }
+
+    private static bool ReadBool(IReadOnlyDictionary<string, string> payload, string key, bool fallback)
+    {
+        return payload != null &&
+            payload.TryGetValue(key, out var value) &&
+            bool.TryParse(value, out var result)
+            ? result
+            : fallback;
+    }
+
+    private static bool IsValidDuration(float duration)
+    {
+        return duration >= 0f && !float.IsNaN(duration) && !float.IsInfinity(duration);
     }
 
     private sealed class ActorPresentationState

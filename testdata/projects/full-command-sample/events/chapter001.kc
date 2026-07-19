@@ -28,33 +28,45 @@ assert boolTextHasText "bool_to_string result must not be empty"
 
 rt_back
 bg "bg_morning"
-camera_autofocus true
 show riku 0 "normal" 0 0 false
+rt_front
+trans "crossfade" 0.2
+camera_autofocus true
 face riku "normal"
-move riku 0 0
+move riku -1 0.15
+move riku 0 0.15
 action_jump riku
 vf riku "normal"
-trans "crossfade" 0
-rt_front
-bgm "assets.audio.bgm.bgm_001_alice2" true 1
+trans "fade" 0.1
+trans "none" 0
+bgm "assets.audio.bgm.bgm_001_alice2" true 0.2
 vo
+vo "assets.voice.voice_001_sample"
 voice_stop
+set_config_number "masterVolume" 1
+set_config_number "bgmVolume" 0.8
+set_config_number "seVolume" 0.9
+set_config_number "voiceVolume" 1
 set_config_number "textSpeed" 1
+set_config_number "autoSpeed" 1
 set_config_bool "fullscreen" false
+set_config_string "skipMode" "off"
 set_config_string "locale" "ja-JP"
 var configuredLocale: string = get_config "locale"
 var configuredLocaleLength: number = str_len configuredLocale
 var configuredLocaleHasText: bool = configuredLocaleLength > 0
 assert configuredLocaleHasText "locale config must be readable"
+set_auto true
 set_auto false
+set_skip "read"
+set_skip "all"
 set_skip "off"
-wait 0
+wait 0.05
 mark_read "chapter001_intro"
 var chapterWasRead: bool = is_read "chapter001_intro"
 assert chapterWasRead "mark_read must set read state"
 autosave
 save 1 "STLサンプル"
-load 1
 set_param_number "sample_score" castCount
 set_param_bool "sample_flag" true
 var sampleScoreText: string = get_param "sample_score"

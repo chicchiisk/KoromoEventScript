@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text;
 using KoromoEventScript.Runtime.Core.Klib;
+using KoromoEventScript.Runtime.Core.Execution;
 using NUnit.Framework;
 using UnityEditor;
 
@@ -40,7 +41,8 @@ public sealed class KesImporterTests
             "  \"gameId\": \"import-test\",\n" +
             "  \"defaultLocale\": \"ja-JP\",\n" +
             "  \"target\": \"unity\",\n" +
-            "  \"scripts\": [{\"scriptId\":\"events/chapter001\",\"locale\":\"ja-JP\",\"klibPath\":\"events/chapter001.klib\"}],\n" +
+            "  \"scripts\": [{\"scriptId\":\"events/chapter001\",\"locale\":\"ja-JP\",\"klibPath\":\"events/chapter001.klib\",\"isEntry\":true,\"startLabel\":\"\"}],\n" +
+            "  \"events\": [{\"eventId\":\"chapter001_intro\",\"type\":\"story\",\"chapter\":\"events/chapter001.kc\",\"scriptId\":\"events/chapter001\",\"isEntry\":true,\"trigger\":{\"conditions\":[{\"kind\":\"from\",\"from\":\"prologue\",\"param\":null,\"value\":null},{\"kind\":\"is\",\"from\":null,\"param\":\"route\",\"value\":{\"kind\":\"string\",\"text\":\"chapter001_intro\"}}],\"or\":[]}}],\n" +
             "  \"localizations\": [],\n" +
             "  \"build\": {\"buildId\":\"unity-import-test-1\"}\n" +
             "}");
@@ -54,13 +56,27 @@ public sealed class KesImporterTests
         Assert.That(buildAsset.BuildId, Is.EqualTo("unity-import-test-1"));
         Assert.That(buildAsset.Scripts, Has.Count.EqualTo(1));
         Assert.That(buildAsset.Scripts[0].ScriptId, Is.EqualTo("events/chapter001"));
+        Assert.That(buildAsset.Scripts[0].IsEntry, Is.True);
         Assert.That(buildAsset.Scripts[0].Klib.Data.Length, Is.EqualTo(klibData.Length));
+        Assert.That(buildAsset.Events, Has.Count.EqualTo(1));
+        Assert.That(buildAsset.Events[0].EventId, Is.EqualTo("chapter001_intro"));
+        Assert.That(buildAsset.Events[0].ScriptId, Is.EqualTo("events/chapter001"));
+        Assert.That(buildAsset.Events[0].IsEntry, Is.True);
+        var parameters = new RuntimeGameParameterStore();
+        parameters.Set("route", RuntimeValue.String("chapter001_intro"));
+        Assert.That(
+            new KoromoEventScript.Runtime.Core.Manifests.RuntimeTriggerEvaluator(parameters)
+                .IsMatch(buildAsset.Events[0].Trigger, "prologue"),
+            Is.True);
         var loadResult = new KlibModuleLoader().Load(buildAsset.Scripts[0].Klib.Data, klibPath);
         Assert.That(loadResult.Succeeded, Is.True);
         Assert.That(loadResult.Document.Module.ScriptId, Is.EqualTo("events/chapter001"));
     }
 
-    internal static byte[] BuildMinimalKlib(string scriptId = "events/chapter001")
+    internal static byte[] BuildMinimalKlib(
+        string scriptId = "events/chapter001",
+        int? sourceLine = null,
+        int sourceColumn = 1)
     {
         var sections = new[]
         {
@@ -83,7 +99,17 @@ public sealed class KesImporterTests
             {
                 writer.Write(0);
                 writer.Write(0);
-                writer.Write(0);
+                writer.Write(sourceLine.HasValue ? 1 : 0);
+                if (sourceLine.HasValue)
+                {
+                    writer.Write(0);
+                    writer.Write(0);
+                    writer.Write(sourceLine.Value);
+                    writer.Write(sourceColumn);
+                    writer.Write(sourceLine.Value);
+                    writer.Write(sourceColumn);
+                    writer.Write((int)KlibMappingKind.Statement);
+                }
             }),
         };
 

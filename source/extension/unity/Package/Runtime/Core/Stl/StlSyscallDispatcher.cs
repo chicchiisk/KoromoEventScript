@@ -27,11 +27,21 @@ public sealed record RuntimeSyscallResult(
     RuntimeValue? ReturnValue,
     IReadOnlyList<RuntimeDiagnostic> Diagnostics,
     RuntimeFailureKind FailureKind,
-    bool WaitForAdvance = false)
+    bool WaitForAdvance = false,
+    bool WaitForHost = false)
 {
-    public static RuntimeSyscallResult Success(RuntimeValue? returnValue = null, bool waitForAdvance = false)
+    public static RuntimeSyscallResult Success(
+        RuntimeValue? returnValue = null,
+        bool waitForAdvance = false,
+        bool waitForHost = false)
     {
-        return new RuntimeSyscallResult(true, returnValue, Array.Empty<RuntimeDiagnostic>(), RuntimeFailureKind.None, waitForAdvance);
+        return new RuntimeSyscallResult(
+            true,
+            returnValue,
+            Array.Empty<RuntimeDiagnostic>(),
+            RuntimeFailureKind.None,
+            waitForAdvance,
+            waitForHost);
     }
 
     public static RuntimeSyscallResult Failure(RuntimeFailureKind failureKind, params RuntimeDiagnostic[] diagnostics)
@@ -98,6 +108,8 @@ public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
 
     private readonly IRuntimeEffectSink? effectSink;
     private readonly IRuntimeGameParameterStore gameParameters;
+    private readonly bool waitForHostEffects;
+    private readonly bool supportsRuntimeLocalization;
     private readonly HashSet<string> readTags = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> config = new(StringComparer.Ordinal)
     {
@@ -112,10 +124,16 @@ public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
         ["locale"] = "ja-JP",
     };
 
-    public StlSyscallDispatcher(IRuntimeEffectSink? effectSink = null, IRuntimeGameParameterStore? gameParameters = null)
+    public StlSyscallDispatcher(
+        IRuntimeEffectSink? effectSink = null,
+        IRuntimeGameParameterStore? gameParameters = null,
+        bool waitForHostEffects = false,
+        bool supportsRuntimeLocalization = true)
     {
         this.effectSink = effectSink;
         this.gameParameters = gameParameters ?? new RuntimeGameParameterStore();
+        this.waitForHostEffects = waitForHostEffects;
+        this.supportsRuntimeLocalization = supportsRuntimeLocalization;
     }
 
     public RuntimeSyscallResult Invoke(RuntimeSyscallInvocation invocation, KesVmSession session)
@@ -144,9 +162,9 @@ public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
             "scene.bg" => SceneString(invocation, "id"),
             "scene.camera_autofocus" => SceneBool(invocation, "enabled"),
             "scene.trans" => SceneTransition(invocation),
-            "actor.cast" => ActorSingle(invocation),
-            "actor.hide" => ActorSingle(invocation),
-            "actor.action_jump" => ActorSingle(invocation),
+            "actor.cast" => ActorSingle(invocation, session),
+            "actor.hide" => ActorSingle(invocation, session),
+            "actor.action_jump" => ActorSingle(invocation, session),
             "actor.face" => ActorFace(invocation),
             "actor.move" => ActorMove(invocation),
             "actor.show" => ActorShow(invocation),
@@ -349,11 +367,11 @@ public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
             return ArgumentFailure(invocation, "Syscall 'scene.trans' requires effect:string and duration:number arguments.");
         }
 
-        if (duration < 0)
+        if (!IsFiniteNonNegative(duration))
         {
             return RuntimeSyscallResult.Failure(
                 RuntimeFailureKind.Runtime,
-                Error("KESR3402", invocation, "Syscall 'scene.trans' duration must not be negative."));
+                Error("KESR3402", invocation, "Syscall 'scene.trans' duration must be finite and non-negative."));
         }
 
         return PublishSceneEffect(
@@ -365,14 +383,46 @@ public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
             });
     }
 
-    private RuntimeSyscallResult ActorSingle(RuntimeSyscallInvocation invocation)
+    private RuntimeSyscallResult ActorSingle(RuntimeSyscallInvocation invocation, KesVmSession session)
     {
         if (!TryReadActor(invocation, 0, out var actor) || invocation.Arguments.Count != 1)
         {
             return ArgumentFailure(invocation, $"Syscall '{invocation.Id}' requires one actor argument.");
         }
 
-        return PublishSceneEffect(invocation, new Dictionary<string, string?> { ["actor"] = actor });
+        var payload = new Dictionary<string, string?> { ["actor"] = actor };
+        if (StringComparer.Ordinal.Equals(invocation.Id, "actor.cast"))
+        {
+            payload["assetBaseName"] = ReadActorStringFieldOrDefault(
+                session,
+                actor,
+                "assetBaseName",
+                NormalizeActorReference(actor));
+            payload["face"] = ReadActorStringFieldOrDefault(session, actor, "defaultFace", "normal");
+        }
+
+        return PublishSceneEffect(invocation, payload);
+    }
+
+    private static string ReadActorStringFieldOrDefault(
+        KesVmSession session,
+        string actorReference,
+        string fieldName,
+        string fallback)
+    {
+        return session.ObjectStore.TryGetField(actorReference, fieldName, out var value, out _) &&
+            value.Kind == RuntimeValueKind.String &&
+            !string.IsNullOrWhiteSpace(value.StringValue)
+            ? value.StringValue!
+            : fallback;
+    }
+
+    private static string NormalizeActorReference(string actorReference)
+    {
+        var dotIndex = actorReference.LastIndexOf('.');
+        return dotIndex >= 0 && dotIndex + 1 < actorReference.Length
+            ? actorReference[(dotIndex + 1)..]
+            : actorReference;
     }
 
     private RuntimeSyscallResult ActorFace(RuntimeSyscallInvocation invocation)
@@ -403,11 +453,11 @@ public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
             return ArgumentFailure(invocation, "Syscall 'actor.move' requires actor, pos:number, and duration:number arguments.");
         }
 
-        if (duration < 0)
+        if (!IsFiniteNonNegative(duration))
         {
             return RuntimeSyscallResult.Failure(
                 RuntimeFailureKind.Runtime,
-                Error("KESR3402", invocation, "Syscall 'actor.move' duration must not be negative."));
+                Error("KESR3402", invocation, "Syscall 'actor.move' duration must be finite and non-negative."));
         }
 
         return PublishSceneEffect(
@@ -528,9 +578,9 @@ public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
             return ArgumentFailure(invocation, "Syscall 'audio.bgm' requires id:string, loop:bool, and fade:number arguments.");
         }
 
-        if (fade < 0)
+        if (!IsFiniteNonNegative(fade))
         {
-            return RuntimeSyscallResult.Failure(RuntimeFailureKind.Runtime, Error("KESR3402", invocation, "Syscall 'audio.bgm' fade must not be negative."));
+            return RuntimeSyscallResult.Failure(RuntimeFailureKind.Runtime, Error("KESR3402", invocation, "Syscall 'audio.bgm' fade must be finite and non-negative."));
         }
 
         return PublishAudioEffect(
@@ -550,9 +600,9 @@ public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
             return ArgumentFailure(invocation, "Syscall 'audio.bgm_stop' requires one fade:number argument.");
         }
 
-        if (fade < 0)
+        if (!IsFiniteNonNegative(fade))
         {
-            return RuntimeSyscallResult.Failure(RuntimeFailureKind.Runtime, Error("KESR3402", invocation, "Syscall 'audio.bgm_stop' fade must not be negative."));
+            return RuntimeSyscallResult.Failure(RuntimeFailureKind.Runtime, Error("KESR3402", invocation, "Syscall 'audio.bgm_stop' fade must be finite and non-negative."));
         }
 
         return PublishAudioEffect(invocation, new Dictionary<string, string?> { ["fade"] = FormatNumber(fade) });
@@ -641,11 +691,21 @@ public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
         return PublishSaveEffect(invocation, new Dictionary<string, string?> { ["slot"] = slot.ToString(CultureInfo.InvariantCulture) });
     }
 
-    private static RuntimeSyscallResult LocalizeGet(RuntimeSyscallInvocation invocation)
+    private RuntimeSyscallResult LocalizeGet(RuntimeSyscallInvocation invocation)
     {
         if (!TryReadString(invocation, 0, out var tag) || invocation.Arguments.Count != 1)
         {
             return ArgumentFailure(invocation, "Syscall 'localize.get' requires one tag:string argument.");
+        }
+
+        if (!supportsRuntimeLocalization)
+        {
+            return RuntimeSyscallResult.Failure(
+                RuntimeFailureKind.Runtime,
+                Error(
+                    "KESR3407",
+                    invocation,
+                    "Syscall 'localize.get' is not supported by this runtime target."));
         }
 
         return RuntimeSyscallResult.Success(RuntimeValue.String(tag));
@@ -658,16 +718,16 @@ public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
             return ArgumentFailure(invocation, "Syscall 'system.wait' requires one seconds:number argument.");
         }
 
-        if (seconds < 0)
+        if (!IsFiniteNonNegative(seconds))
         {
-            return RuntimeSyscallResult.Failure(RuntimeFailureKind.Runtime, Error("KESR3402", invocation, "Syscall 'system.wait' seconds must not be negative."));
+            return RuntimeSyscallResult.Failure(RuntimeFailureKind.Runtime, Error("KESR3402", invocation, "Syscall 'system.wait' seconds must be finite and non-negative."));
         }
 
         PublishEffects(new RuntimeEffect(
             RuntimeEffectKind.Wait,
             invocation.Id,
             new Dictionary<string, string?> { ["kind"] = RuntimeWaitKind.Timed.ToString(), ["seconds"] = FormatNumber(seconds) }));
-        return RuntimeSyscallResult.Success();
+        return RuntimeSyscallResult.Success(waitForHost: waitForHostEffects);
     }
 
     private RuntimeSyscallResult SystemBool(RuntimeSyscallInvocation invocation, string key)
@@ -864,7 +924,7 @@ public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
     private RuntimeSyscallResult PublishSceneEffect(RuntimeSyscallInvocation invocation, IReadOnlyDictionary<string, string?> payload)
     {
         PublishEffects(new RuntimeEffect(RuntimeEffectKind.Scene, invocation.Id, payload));
-        return RuntimeSyscallResult.Success();
+        return RuntimeSyscallResult.Success(waitForHost: waitForHostEffects);
     }
 
     private RuntimeSyscallResult PublishUiEffect(
@@ -879,13 +939,14 @@ public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
     private RuntimeSyscallResult PublishAudioEffect(RuntimeSyscallInvocation invocation, IReadOnlyDictionary<string, string?> payload)
     {
         PublishEffects(new RuntimeEffect(RuntimeEffectKind.Audio, invocation.Id, payload));
-        return RuntimeSyscallResult.Success();
+        return RuntimeSyscallResult.Success(waitForHost: waitForHostEffects);
     }
 
     private RuntimeSyscallResult PublishSaveEffect(RuntimeSyscallInvocation invocation, IReadOnlyDictionary<string, string?> payload)
     {
         PublishEffects(new RuntimeEffect(RuntimeEffectKind.Save, invocation.Id, payload));
-        return RuntimeSyscallResult.Success();
+        var waitForHost = invocation.Id is "state.save" or "state.autosave" or "state.load";
+        return RuntimeSyscallResult.Success(waitForHost: waitForHost && waitForHostEffects);
     }
 
     private RuntimeSyscallResult PublishSettingsEffect(RuntimeSyscallInvocation invocation, IReadOnlyDictionary<string, string?> payload)
@@ -1000,6 +1061,11 @@ public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
     private static string FormatBool(bool value)
     {
         return value ? "true" : "false";
+    }
+
+    private static bool IsFiniteNonNegative(double value)
+    {
+        return value >= 0 && !double.IsNaN(value) && !double.IsInfinity(value);
     }
 }
 }

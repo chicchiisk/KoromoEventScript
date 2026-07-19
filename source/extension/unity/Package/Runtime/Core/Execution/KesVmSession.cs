@@ -91,10 +91,34 @@ public sealed class KesVmSession
 
     public RuntimeSaveSnapshot CaptureSnapshot()
     {
+        return CreateSnapshot(Position, Continuation);
+    }
+
+    public RuntimeSaveSnapshot CaptureSnapshotAfterHostOperation()
+    {
+        if (Continuation.Kind != RuntimeContinuationKind.WaitingForHost)
+        {
+            return CaptureSnapshot();
+        }
+
+        if (Continuation.ResumeInstructionIndex is int resumeInstructionIndex)
+        {
+            return CreateSnapshot(
+                Position.WithInstructionIndex(resumeInstructionIndex),
+                RuntimeContinuation.Running);
+        }
+
+        return CreateSnapshot(Position, RuntimeContinuation.Completed);
+    }
+
+    private RuntimeSaveSnapshot CreateSnapshot(
+        RuntimeExecutionPosition position,
+        RuntimeContinuation continuation)
+    {
         return new RuntimeSaveSnapshot(
             SchemaVersion: 1,
-            Position,
-            Continuation,
+            position,
+            continuation,
             operandStack.ToArray(),
             variables
                 .OrderBy(static pair => pair.Key)
@@ -151,6 +175,41 @@ public sealed class KesVmSession
         }
 
         return RuntimeSessionRestoreResult.Success();
+    }
+
+    public RuntimeSessionRestoreResult ResumeHostOperation()
+    {
+        if (Continuation.Kind != RuntimeContinuationKind.WaitingForHost)
+        {
+            return RuntimeSessionRestoreResult.Failure(
+                RuntimeFailureKind.Runtime,
+                RuntimeDiagnostic.Error(
+                    "KESR3003",
+                    "The runtime session is not waiting for a host operation.",
+                    RuntimeFailureKind.Runtime));
+        }
+
+        if (Continuation.ResumeInstructionIndex is int resumeInstructionIndex)
+        {
+            SetInstructionIndex(resumeInstructionIndex);
+            Continuation = RuntimeContinuation.Running;
+        }
+        else
+        {
+            Continuation = RuntimeContinuation.Completed;
+        }
+
+        return RuntimeSessionRestoreResult.Success();
+    }
+
+    public void Fault()
+    {
+        Continuation = RuntimeContinuation.Faulted;
+    }
+
+    public void Stop()
+    {
+        Continuation = RuntimeContinuation.Stopped;
     }
 
     private bool IsKnownInstructionIndex(int instructionIndex)
@@ -233,7 +292,10 @@ public enum RuntimeContinuationKind
     Running = 0,
     WaitingForAdvance = 1,
     WaitingForSelection = 2,
-    Completed = 3,
+    WaitingForHost = 3,
+    Completed = 4,
+    Faulted = 5,
+    Stopped = 6,
 }
 
 public sealed record RuntimeContinuation(
@@ -246,6 +308,10 @@ public sealed record RuntimeContinuation(
     public static RuntimeContinuation Running { get; } = new(RuntimeContinuationKind.Running, null, Array.Empty<int>(), null, Array.Empty<RuntimeSelectionChoice>());
 
     public static RuntimeContinuation Completed { get; } = new(RuntimeContinuationKind.Completed, null, Array.Empty<int>(), null, Array.Empty<RuntimeSelectionChoice>());
+
+    public static RuntimeContinuation Faulted { get; } = new(RuntimeContinuationKind.Faulted, null, Array.Empty<int>(), null, Array.Empty<RuntimeSelectionChoice>());
+
+    public static RuntimeContinuation Stopped { get; } = new(RuntimeContinuationKind.Stopped, null, Array.Empty<int>(), null, Array.Empty<RuntimeSelectionChoice>());
 }
 
 public sealed record RuntimeSelectionChoice(

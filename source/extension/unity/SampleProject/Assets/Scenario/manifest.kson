@@ -394,6 +394,12 @@
       "kind": "background",
       "path": "../../assets/bg/bg_morning.png",
       "locale": null
+    },
+    {
+      "assetId": "assets.voice.voice_001_sample",
+      "kind": "voice",
+      "path": "../../assets/voice/voice_001_sample.wav",
+      "locale": null
     }
   ],
   "defaults": {

@@ -144,6 +144,50 @@ public sealed class KesVmExecutorTests
         });
     }
 
+    [Test]
+    public void Run_WithInstructionTrace_ReportsEachInstructionBeforeExecution()
+    {
+        var instructions = new[]
+        {
+            new KlibInstruction(
+                0,
+                12,
+                KlibOpCode.PushTrue,
+                [],
+                new KlibSourceLocation(24, 5),
+                KlibMappingKind.Statement),
+            new KlibInstruction(
+                1,
+                13,
+                KlibOpCode.End,
+                [],
+                new KlibSourceLocation(25, 1),
+                KlibMappingKind.Statement),
+        };
+        var document = CreateDocument([], instructions);
+        var session = new KesVmSession(document);
+        var traced = new List<(KlibDocument Document, KlibInstruction Instruction)>();
+        var executor = new KesVmExecutor(
+            instructionExecuting: (tracedDocument, instruction) =>
+                traced.Add((tracedDocument, instruction)));
+
+        var result = executor.Run(session);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Succeeded, Is.True);
+            Assert.That(traced, Has.Count.EqualTo(2));
+            Assert.That(traced.Select(static item => item.Instruction.OpCode), Is.EqualTo(new[]
+            {
+                KlibOpCode.PushTrue,
+                KlibOpCode.End,
+            }));
+            Assert.That(traced[0].Document, Is.SameAs(document));
+            Assert.That(traced[0].Instruction.Source?.Line, Is.EqualTo(24));
+            Assert.That(traced[0].Instruction.Source?.Column, Is.EqualTo(5));
+        });
+    }
+
     private static KlibDocument CreateDocument(
         IReadOnlyList<KlibConstant> constants,
         IReadOnlyList<KlibInstruction> instructions)

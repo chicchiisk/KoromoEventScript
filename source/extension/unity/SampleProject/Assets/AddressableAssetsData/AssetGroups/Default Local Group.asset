@@ -65,6 +65,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 6d3d330dc643d0041a462a8410cd186a
+    m_Address: assets.voice.voice_001_sample
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 85be72094c26d6342b77e17524b90ca4
     m_Address: assets.actor.riku_serious
     m_ReadOnly: 0

@@ -17,6 +17,8 @@ public sealed class KesVmExecutor
     private readonly IRuntimeSyscallDispatcher syscallDispatcher;
     private readonly IRuntimeEffectSink? effectSink;
     private readonly IRuntimeGameParameterStore gameParameters;
+    private readonly bool waitForHostEffects;
+    private readonly Action<KlibDocument, KlibInstruction>? instructionExecuting;
 
     public static ISet<KlibOpCode> DispatchedOpCodes { get; } = new HashSet<KlibOpCode>
     {
@@ -64,11 +66,19 @@ public sealed class KesVmExecutor
         KlibOpCode.Dispose,
     };
 
-    public KesVmExecutor(IRuntimeSyscallDispatcher? syscallDispatcher = null, IRuntimeEffectSink? effectSink = null, IRuntimeGameParameterStore? gameParameters = null)
+    public KesVmExecutor(
+        IRuntimeSyscallDispatcher? syscallDispatcher = null,
+        IRuntimeEffectSink? effectSink = null,
+        IRuntimeGameParameterStore? gameParameters = null,
+        bool waitForHostEffects = false,
+        Action<KlibDocument, KlibInstruction>? instructionExecuting = null)
     {
         this.effectSink = effectSink;
         this.gameParameters = gameParameters ?? new RuntimeGameParameterStore();
-        this.syscallDispatcher = syscallDispatcher ?? new StlSyscallDispatcher(effectSink, this.gameParameters);
+        this.waitForHostEffects = waitForHostEffects;
+        this.instructionExecuting = instructionExecuting;
+        this.syscallDispatcher = syscallDispatcher ??
+            new StlSyscallDispatcher(effectSink, this.gameParameters, waitForHostEffects);
     }
 
     public KesVmExecutionResult Run(KesVmSession session, int maxInstructionCount = DefaultMaxInstructionCount)
@@ -92,6 +102,7 @@ public sealed class KesVmExecutor
                 return Fault(session, "KESR3100", $"Instruction index '{session.Position.InstructionIndex}' does not exist.");
             }
 
+            instructionExecuting?.Invoke(session.Document, instruction);
             var result = Execute(session, instruction);
             if (!result.Succeeded)
             {
@@ -691,6 +702,25 @@ public sealed class KesVmExecutor
             Array.Empty<RuntimeDiagnostic>()));
     }
 
+    private KesVmExecutionResult WaitForPublishedHostEffect(
+        KesVmSession session,
+        KlibInstruction instruction,
+        string operationName)
+    {
+        if (!waitForHostEffects)
+        {
+            return KesVmExecutionResult.Success();
+        }
+
+        session.SetContinuation(new RuntimeContinuation(
+            RuntimeContinuationKind.WaitingForHost,
+            FindNextInstructionIndex(session, instruction),
+            Array.Empty<int>(),
+            operationName,
+            Array.Empty<RuntimeSelectionChoice>()));
+        return KesVmExecutionResult.Success();
+    }
+
     private static string ReadActorStringFieldOrDefault(KesVmSession session, string actorReference, string fieldName, string fallback)
     {
         return session.ObjectStore.TryGetField(actorReference, fieldName, out var value, out _) &&
@@ -892,6 +922,15 @@ public sealed class KesVmExecutor
                 null,
                 Array.Empty<RuntimeSelectionChoice>()));
         }
+        else if (result.WaitForHost)
+        {
+            session.SetContinuation(new RuntimeContinuation(
+                RuntimeContinuationKind.WaitingForHost,
+                resumeInstructionIndex,
+                Array.Empty<int>(),
+                syscallId,
+                Array.Empty<RuntimeSelectionChoice>()));
+        }
 
         return KesVmExecutionResult.Success();
     }
@@ -932,6 +971,15 @@ public sealed class KesVmExecutor
                 FindNextInstructionIndex(session, instruction),
                 Array.Empty<int>(),
                 null,
+                Array.Empty<RuntimeSelectionChoice>()));
+        }
+        else if (result.WaitForHost)
+        {
+            session.SetContinuation(new RuntimeContinuation(
+                RuntimeContinuationKind.WaitingForHost,
+                FindNextInstructionIndex(session, instruction),
+                Array.Empty<int>(),
+                syscallId,
                 Array.Empty<RuntimeSelectionChoice>()));
         }
 
@@ -1073,7 +1121,7 @@ public sealed class KesVmExecutor
                     session.PushOperand(RuntimeValue.Null);
                 }
 
-                return KesVmExecutionResult.Success();
+                return WaitForPublishedHostEffect(session, instruction, "actor.action_jump");
 
             case "bg":
                 if (arguments.Count != 1 || arguments[0].Kind != RuntimeValueKind.String)
@@ -1092,7 +1140,7 @@ public sealed class KesVmExecutor
                     session.PushOperand(RuntimeValue.Null);
                 }
 
-                return KesVmExecutionResult.Success();
+                return WaitForPublishedHostEffect(session, instruction, "scene.bg");
 
             case "show":
                 if (arguments.Count is < 1 or > 6 || arguments[0].Kind != RuntimeValueKind.Reference || string.IsNullOrEmpty(arguments[0].ReferenceId))
@@ -1147,7 +1195,7 @@ public sealed class KesVmExecutor
                     session.PushOperand(RuntimeValue.Null);
                 }
 
-                return KesVmExecutionResult.Success();
+                return WaitForPublishedHostEffect(session, instruction, "actor.show");
 
             case "hide":
                 if (arguments.Count != 1 || arguments[0].Kind != RuntimeValueKind.Reference || string.IsNullOrEmpty(arguments[0].ReferenceId))
@@ -1167,7 +1215,7 @@ public sealed class KesVmExecutor
                     session.PushOperand(RuntimeValue.Null);
                 }
 
-                return KesVmExecutionResult.Success();
+                return WaitForPublishedHostEffect(session, instruction, "actor.hide");
 
             case "face":
                 if (arguments.Count != 2 || arguments[0].Kind != RuntimeValueKind.Reference || string.IsNullOrEmpty(arguments[0].ReferenceId) || arguments[1].Kind != RuntimeValueKind.String)
@@ -1190,7 +1238,7 @@ public sealed class KesVmExecutor
                     session.PushOperand(RuntimeValue.Null);
                 }
 
-                return KesVmExecutionResult.Success();
+                return WaitForPublishedHostEffect(session, instruction, "actor.face");
 
             case "move":
                 if (arguments.Count is < 2 or > 3 || arguments[0].Kind != RuntimeValueKind.Reference || string.IsNullOrEmpty(arguments[0].ReferenceId) || arguments[1].Kind != RuntimeValueKind.Number)
@@ -1217,7 +1265,7 @@ public sealed class KesVmExecutor
                     session.PushOperand(RuntimeValue.Null);
                 }
 
-                return KesVmExecutionResult.Success();
+                return WaitForPublishedHostEffect(session, instruction, "actor.move");
 
             case "trans":
                 if (arguments.Count > 2 || (arguments.Count >= 1 && arguments[0].Kind != RuntimeValueKind.String))
@@ -1242,7 +1290,7 @@ public sealed class KesVmExecutor
                     session.PushOperand(RuntimeValue.Null);
                 }
 
-                return KesVmExecutionResult.Success();
+                return WaitForPublishedHostEffect(session, instruction, "scene.trans");
 
             case "bgm":
                 if (arguments.Count is < 1 or > 3 || arguments[0].Kind != RuntimeValueKind.String)
@@ -1261,9 +1309,9 @@ public sealed class KesVmExecutor
                 }
 
                 var bgmFade = arguments.Count >= 3 ? arguments[2].NumberValue.GetValueOrDefault() : 0d;
-                if (bgmFade < 0)
+                if (bgmFade < 0 || double.IsNaN(bgmFade) || double.IsInfinity(bgmFade))
                 {
-                    return Fault(session, "KESR3310", "Callable 'bgm' fade must not be negative.");
+                    return Fault(session, "KESR3310", "Callable 'bgm' fade must be finite and non-negative.");
                 }
 
                 PublishAudioEffect(
@@ -1279,7 +1327,7 @@ public sealed class KesVmExecutor
                     session.PushOperand(RuntimeValue.Null);
                 }
 
-                return KesVmExecutionResult.Success();
+                return WaitForPublishedHostEffect(session, instruction, "audio.bgm");
 
             case "bgm_stop":
                 if (arguments.Count > 1 || (arguments.Count == 1 && arguments[0].Kind != RuntimeValueKind.Number))
@@ -1288,9 +1336,9 @@ public sealed class KesVmExecutor
                 }
 
                 var bgmStopFade = arguments.Count == 1 ? arguments[0].NumberValue.GetValueOrDefault() : 0d;
-                if (bgmStopFade < 0)
+                if (bgmStopFade < 0 || double.IsNaN(bgmStopFade) || double.IsInfinity(bgmStopFade))
                 {
-                    return Fault(session, "KESR3310", "Callable 'bgm_stop' fade must not be negative.");
+                    return Fault(session, "KESR3310", "Callable 'bgm_stop' fade must be finite and non-negative.");
                 }
 
                 PublishAudioEffect(
@@ -1304,7 +1352,7 @@ public sealed class KesVmExecutor
                     session.PushOperand(RuntimeValue.Null);
                 }
 
-                return KesVmExecutionResult.Success();
+                return WaitForPublishedHostEffect(session, instruction, "audio.bgm_stop");
 
             case "se":
                 if (arguments.Count != 1 || arguments[0].Kind != RuntimeValueKind.String)
@@ -1323,7 +1371,7 @@ public sealed class KesVmExecutor
                     session.PushOperand(RuntimeValue.Null);
                 }
 
-                return KesVmExecutionResult.Success();
+                return WaitForPublishedHostEffect(session, instruction, "audio.se");
 
             case "se_stop":
                 if (arguments.Count > 1 || (arguments.Count == 1 && arguments[0].Kind is not RuntimeValueKind.String and not RuntimeValueKind.Null))
@@ -1350,7 +1398,12 @@ public sealed class KesVmExecutor
                     session.PushOperand(RuntimeValue.Null);
                 }
 
-                return KesVmExecutionResult.Success();
+                return WaitForPublishedHostEffect(
+                    session,
+                    instruction,
+                    arguments.Count == 0 || arguments[0].Kind == RuntimeValueKind.Null
+                        ? "audio.se_stop_all"
+                        : "audio.se_stop");
 
             case "se_stop_all":
                 if (arguments.Count != 0)
@@ -1364,7 +1417,7 @@ public sealed class KesVmExecutor
                     session.PushOperand(RuntimeValue.Null);
                 }
 
-                return KesVmExecutionResult.Success();
+                return WaitForPublishedHostEffect(session, instruction, "audio.se_stop_all");
 
             case "voice_stop":
                 if (arguments.Count != 0)
@@ -1378,7 +1431,7 @@ public sealed class KesVmExecutor
                     session.PushOperand(RuntimeValue.Null);
                 }
 
-                return KesVmExecutionResult.Success();
+                return WaitForPublishedHostEffect(session, instruction, "audio.voice_stop");
 
             case "number_to_string":
                 return InvokeMappedSyscall(session, instruction, "core.number_to_string", arguments, returnsValue);

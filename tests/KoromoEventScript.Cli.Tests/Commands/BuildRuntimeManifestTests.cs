@@ -40,7 +40,7 @@ public sealed class BuildRuntimeManifestTests
             Assert.That(manifest.RootElement.GetProperty("events")[0].GetProperty("eventId").GetString(), Is.EqualTo("chapter001_intro"));
             Assert.That(manifest.RootElement.GetProperty("events")[0].GetProperty("trigger").GetProperty("or").GetArrayLength(), Is.EqualTo(2));
             Assert.That(manifest.RootElement.GetProperty("events")[1].GetProperty("trigger").GetProperty("conditions").GetArrayLength(), Is.EqualTo(2));
-            Assert.That(manifest.RootElement.GetProperty("assets").GetArrayLength(), Is.EqualTo(15));
+            Assert.That(manifest.RootElement.GetProperty("assets").GetArrayLength(), Is.EqualTo(16));
             Assert.That(
                 manifest.RootElement.GetProperty("assets").EnumerateArray().Select(static asset => asset.GetProperty("assetId").GetString()),
                 Does.Contain("assets.actor.riku_normal"));
@@ -53,6 +53,9 @@ public sealed class BuildRuntimeManifestTests
             Assert.That(
                 manifest.RootElement.GetProperty("assets").EnumerateArray().Select(static asset => asset.GetProperty("assetId").GetString()),
                 Does.Contain("assets.audio.se.se_001_door"));
+            Assert.That(
+                manifest.RootElement.GetProperty("assets").EnumerateArray().Select(static asset => asset.GetProperty("assetId").GetString()),
+                Does.Contain("assets.voice.voice_001_sample"));
             Assert.That(manifest.RootElement.GetProperty("defaults").GetProperty("width").GetInt32(), Is.EqualTo(1280));
             Assert.That(manifest.RootElement.GetProperty("defaults").GetProperty("height").GetInt32(), Is.EqualTo(720));
             Assert.That(manifest.RootElement.GetProperty("build").GetProperty("target").GetString(), Is.EqualTo("windows"));

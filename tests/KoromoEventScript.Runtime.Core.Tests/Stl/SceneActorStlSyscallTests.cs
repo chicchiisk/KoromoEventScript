@@ -55,6 +55,49 @@ public sealed class SceneActorStlSyscallTests
     }
 
     [Test]
+    public void Run_WithUnityHostWaiting_StopsUntilHostCompletion()
+    {
+        var sink = new CollectingEffectSink();
+        var document = CreateDocument(
+            [
+                String("scene.bg"),
+                String("bg_living"),
+                String("core.print"),
+                String("after"),
+            ],
+            [
+                Instruction(0, KlibOpCode.PushConst, [1]),
+                Instruction(1, KlibOpCode.SysCallVoid, [0, 1]),
+                Instruction(2, KlibOpCode.PushConst, [3]),
+                Instruction(3, KlibOpCode.SysCallVoid, [2, 1]),
+                Instruction(4, KlibOpCode.End),
+            ]);
+        var session = new KesVmSession(document);
+        var executor = new KesVmExecutor(effectSink: sink, waitForHostEffects: true);
+
+        var firstRun = executor.Run(session);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(firstRun.Succeeded, Is.True);
+            Assert.That(session.Continuation.Kind, Is.EqualTo(RuntimeContinuationKind.WaitingForHost));
+            Assert.That(session.Position.InstructionIndex, Is.EqualTo(2));
+            Assert.That(sink.Effects.Select(static effect => effect.Name), Is.EqualTo(["scene.bg"]));
+        });
+
+        var resumed = session.ResumeHostOperation();
+        var secondRun = executor.Run(session);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(resumed.Succeeded, Is.True);
+            Assert.That(secondRun.Succeeded, Is.True);
+            Assert.That(session.Continuation.Kind, Is.EqualTo(RuntimeContinuationKind.Completed));
+            Assert.That(sink.Effects.Select(static effect => effect.Name), Is.EqualTo(["scene.bg", "KESR3401"]));
+        });
+    }
+
+    [Test]
     public void Run_WithActorSyscalls_PublishesActorEffectsInOrder()
     {
         var sink = new CollectingEffectSink();
@@ -109,6 +152,8 @@ public sealed class SceneActorStlSyscallTests
                     "actor.hide",
                 ]));
             Assert.That(sink.Effects[1].Payload["actor"], Is.EqualTo("Noa"));
+            Assert.That(sink.Effects[0].Payload["assetBaseName"], Is.EqualTo("Noa"));
+            Assert.That(sink.Effects[0].Payload["face"], Is.EqualTo("normal"));
             Assert.That(sink.Effects[1].Payload["face"], Is.EqualTo("normal"));
             Assert.That(sink.Effects[1].Payload["layer"], Is.EqualTo("1"));
             Assert.That(sink.Effects[2].Payload["exp"], Is.EqualTo("smile"));

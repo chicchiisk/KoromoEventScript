@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text.Json;
 using UnityEditor;
 using UnityEditor.AssetImporters;
 using UnityEngine;
@@ -11,11 +12,20 @@ namespace KoromoEventScript.Unity.Editor
 [ScriptedImporter(1, "kson")]
 public sealed class KesKsonImporter : ScriptedImporter
 {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        IncludeFields = true,
+        PropertyNameCaseInsensitive = false,
+        ReadCommentHandling = JsonCommentHandling.Skip,
+        AllowTrailingCommas = true,
+    };
+
     public override void OnImportAsset(AssetImportContext context)
     {
         var json = File.ReadAllText(context.assetPath);
         var manifest = ParseManifest(json);
         var scriptReferences = ResolveScripts(context, manifest);
+        var eventReferences = ResolveEvents(manifest, scriptReferences);
 
         var asset = ScriptableObject.CreateInstance<KesBuildAsset>();
         asset.name = Path.GetFileNameWithoutExtension(context.assetPath);
@@ -25,7 +35,8 @@ public sealed class KesKsonImporter : ScriptedImporter
             manifest.gameId,
             manifest.build.buildId,
             manifest.defaultLocale,
-            scriptReferences);
+            scriptReferences,
+            eventReferences);
 
         context.AddObjectToAsset("main", asset);
         context.SetMainObject(asset);
@@ -41,9 +52,9 @@ public sealed class KesKsonImporter : ScriptedImporter
         KesManifestData manifest;
         try
         {
-            manifest = JsonUtility.FromJson<KesManifestData>(json);
+            manifest = JsonSerializer.Deserialize<KesManifestData>(json, JsonOptions);
         }
-        catch (ArgumentException exception)
+        catch (JsonException exception)
         {
             throw new InvalidDataException("KESU1101: manifest.kson is not valid JSON.", exception);
         }
@@ -150,8 +161,88 @@ public sealed class KesKsonImporter : ScriptedImporter
                     $"KESU1112: manifest scriptId '{script.scriptId}' does not match Klib scriptId '{loadResult.Document.Module.ScriptId}'.");
             }
 
-            result.Add(new KesScriptAssetReference(script.scriptId, locale, klib));
+            result.Add(new KesScriptAssetReference(
+                script.scriptId,
+                locale,
+                klib,
+                script.isEntry,
+                script.startLabel));
         }
+    }
+
+    private static List<KesEventAssetReference> ResolveEvents(
+        KesManifestData manifest,
+        IReadOnlyList<KesScriptAssetReference> scripts)
+    {
+        var result = new List<KesEventAssetReference>();
+        var eventIds = new HashSet<string>(StringComparer.Ordinal);
+        var scriptIds = new HashSet<string>(StringComparer.Ordinal);
+        for (var i = 0; i < scripts.Count; i++)
+        {
+            scriptIds.Add(scripts[i].ScriptId);
+        }
+
+        foreach (var entry in manifest.events ?? Array.Empty<KesManifestEventData>())
+        {
+            if (entry == null ||
+                string.IsNullOrWhiteSpace(entry.eventId) ||
+                string.IsNullOrWhiteSpace(entry.scriptId))
+            {
+                throw new InvalidDataException("KESU1113: event entry is incomplete.");
+            }
+
+            if (!eventIds.Add(entry.eventId))
+            {
+                throw new InvalidDataException($"KESU1114: duplicate eventId '{entry.eventId}'.");
+            }
+
+            if (!scriptIds.Contains(entry.scriptId))
+            {
+                throw new InvalidDataException(
+                    $"KESU1115: event '{entry.eventId}' references unknown scriptId '{entry.scriptId}'.");
+            }
+
+            result.Add(new KesEventAssetReference(
+                entry.eventId,
+                entry.type,
+                entry.chapter,
+                entry.scriptId,
+                entry.isEntry,
+                ConvertTrigger(entry.trigger)));
+        }
+
+        return result;
+    }
+
+    private static KesTriggerAssetReference ConvertTrigger(KesManifestTriggerData trigger)
+    {
+        if (trigger == null)
+        {
+            return null;
+        }
+
+        var conditions = new List<KesTriggerConditionAssetReference>();
+        foreach (var condition in trigger.conditions ?? Array.Empty<KesManifestTriggerConditionData>())
+        {
+            conditions.Add(new KesTriggerConditionAssetReference(
+                condition?.kind,
+                condition?.from,
+                condition?.param,
+                condition?.value == null
+                    ? null
+                    : new KesTriggerValueAssetReference(condition.value.kind, condition.value.text)));
+        }
+
+        var nested = new List<KesTriggerAssetReference>();
+        foreach (var item in trigger.or ?? Array.Empty<KesManifestTriggerData>())
+        {
+            if (item != null)
+            {
+                nested.Add(ConvertTrigger(item));
+            }
+        }
+
+        return new KesTriggerAssetReference(conditions, nested);
     }
 
     internal static string ResolveAssetPath(string manifestAssetPath, string relativePath)

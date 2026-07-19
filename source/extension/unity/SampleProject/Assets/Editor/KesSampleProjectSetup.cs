@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using KoromoEventScript.Unity;
 using UnityEditor;
 using UnityEditor.AddressableAssets;
@@ -8,12 +9,45 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
+using UnityEngine.InputSystem.UI;
+using UnityEngine.Rendering.Universal;
 
 internal static class KesSampleProjectSetup
 {
+    private const int SetupRevision = 4;
     private const string PrefabPath = "Assets/KesSystem.prefab";
     private const string ScenePath = "Assets/Scenes/SampleScene.unity";
     private const string ManifestPath = "Assets/Scenario/manifest.kson";
+    private const string ChoiceIconPath = "Assets/SampleAssets/ui/choice_selected.png";
+    private const string AutoConfigureRequestFileName = "KesSampleProjectAutoConfigure.request";
+
+    [InitializeOnLoadMethod]
+    private static void ConfigureWhenRequested()
+    {
+        var requestPath = Path.GetFullPath(Path.Combine(
+            Application.dataPath,
+            "..",
+            "Temp",
+            AutoConfigureRequestFileName));
+        if (!File.Exists(requestPath))
+        {
+            return;
+        }
+
+        EditorApplication.delayCall += () =>
+        {
+            try
+            {
+                Configure();
+                Debug.Log($"KoromoEventScript sample project configuration completed (revision {SetupRevision}).");
+            }
+            finally
+            {
+                File.Delete(requestPath);
+            }
+        };
+    }
 
     [MenuItem("Tools/KoromoEventScript/Configure Sample Project")]
     public static void Configure()
@@ -74,6 +108,7 @@ internal static class KesSampleProjectSetup
             ["assets.actor.noa_smile"] = "Assets/SampleAssets/actor/noa_smile.png",
             ["assets.audio.bgm.bgm_001_alice2"] = "Assets/SampleAssets/audio/bgm/bgm_001_alice2.wav",
             ["assets.audio.se.se_001_door"] = "Assets/SampleAssets/audio/se/se_001_door.wav",
+            ["assets.voice.voice_001_sample"] = "Assets/SampleAssets/audio/voice/voice_001_sample.wav",
         };
 
         foreach (var pair in addresses)
@@ -98,12 +133,17 @@ internal static class KesSampleProjectSetup
         {
             var manager = root.AddComponent<KesManager>();
             manager.SetPlayOnStart(true);
+            manager.SetLogExecutionSource(true);
             var resolver = root.AddComponent<KesAddressablesAssetResolver>();
             var presentation = root.AddComponent<KesPresentation>();
             var audioPresenter = root.AddComponent<KesAudioPresenter>();
+            var inputSource = root.AddComponent<KesInputSystemSource>();
+            var inputController = root.AddComponent<KesInputController>();
+            var saveHost = root.AddComponent<KesSampleSaveHost>();
             presentation.SetAssetResolver(resolver);
             presentation.SetAudioPresenter(audioPresenter);
             manager.SetPresentation(presentation);
+            manager.SetSaveHost(saveHost);
 
             var spriteRoot = Child(root.transform, "SpriteRoot");
             var background = Child(spriteRoot.transform, "Background").AddComponent<SpriteRenderer>();
@@ -114,10 +154,10 @@ internal static class KesSampleProjectSetup
             var canvas = canvasRoot.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             var scaler = canvasRoot.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPhysicalSize;
-            scaler.physicalUnit = CanvasScaler.Unit.Points;
-            scaler.fallbackScreenDPI = 96f;
-            scaler.defaultSpriteDPI = 96f;
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920f, 1080f);
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+            scaler.matchWidthOrHeight = 0.5f;
             canvasRoot.AddComponent<GraphicRaycaster>();
 
             var messageRoot = UiChild(canvasRoot.transform, "MessageRoot", new Vector2(160f, 60f), new Vector2(1760f, 340f));
@@ -126,13 +166,41 @@ internal static class KesSampleProjectSetup
             var speaker = TextChild(messageRoot.transform, "Speaker", new Vector2(40f, 190f), new Vector2(1560f, 260f), 30);
             var message = TextChild(messageRoot.transform, "Message", new Vector2(40f, 30f), new Vector2(1560f, 190f), 32);
 
-            var choiceRoot = UiChild(canvasRoot.transform, "ChoiceRoot", new Vector2(460f, 360f), new Vector2(1460f, 760f));
+            var choiceRoot = CenteredUiChild(canvasRoot.transform, "ChoiceRoot", 1000f, 80f);
             var choicePanel = choiceRoot.AddComponent<Image>();
             choicePanel.color = new Color(0f, 0f, 0f, 0.82f);
-            var choices = TextChild(choiceRoot.transform, "Choices", new Vector2(40f, 40f), new Vector2(920f, 360f), 30);
+            var choiceLayout = choiceRoot.AddComponent<VerticalLayoutGroup>();
+            choiceLayout.padding = new RectOffset(32, 32, 24, 24);
+            choiceLayout.spacing = 12f;
+            choiceLayout.childAlignment = TextAnchor.UpperCenter;
+            choiceLayout.childControlWidth = true;
+            choiceLayout.childControlHeight = true;
+            choiceLayout.childForceExpandWidth = true;
+            choiceLayout.childForceExpandHeight = false;
+            var choiceSizeFitter = choiceRoot.AddComponent<ContentSizeFitter>();
+            choiceSizeFitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+            choiceSizeFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            var choiceItemTemplate = CreateChoiceItemTemplate(choiceRoot.transform);
             choiceRoot.SetActive(false);
 
-            presentation.SetUiReferences(messageRoot, speaker, message, choiceRoot, choices);
+            var menuRoot = UiChild(canvasRoot.transform, "MenuRoot", new Vector2(560f, 260f), new Vector2(1360f, 820f));
+            var menuPanel = menuRoot.AddComponent<Image>();
+            menuPanel.color = new Color(0f, 0f, 0f, 0.9f);
+            var menuTitle = TextChild(menuRoot.transform, "MenuTitle", new Vector2(40f, 440f), new Vector2(760f, 520f), 36);
+            menuTitle.text = "Menu";
+            menuTitle.alignment = TextAnchor.MiddleCenter;
+            var menuHelp = TextChild(menuRoot.transform, "MenuHelp", new Vector2(40f, 80f), new Vector2(760f, 420f), 26);
+            menuHelp.text = "Right Click / Esc: Close\nTab: Auto\nCtrl: Skip";
+            menuHelp.alignment = TextAnchor.MiddleCenter;
+            menuRoot.SetActive(false);
+
+            var eventSystemRoot = Child(root.transform, "EventSystem");
+            eventSystemRoot.AddComponent<EventSystem>();
+            eventSystemRoot.AddComponent<InputSystemUIInputModule>();
+
+            presentation.SetUiReferences(messageRoot, speaker, message, choiceRoot, choiceItemTemplate);
+            inputController.SetReferences(manager, inputSource, presentation, menuRoot);
             var audioRoot = Child(root.transform, "AudioRoot");
             var bgmSource = Child(audioRoot.transform, "BGM").AddComponent<AudioSource>();
             var voiceSource = Child(audioRoot.transform, "Voice").AddComponent<AudioSource>();
@@ -161,9 +229,28 @@ internal static class KesSampleProjectSetup
         instanceManager.SetBuildAsset(AssetDatabase.LoadAssetAtPath<KesBuildAsset>(ManifestPath));
         instanceManager.SetLocale(string.Empty);
         instanceManager.SetStartScriptId(string.Empty);
+        ConfigureGlobalLights(scene);
         EditorUtility.SetDirty(instanceManager);
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene, ScenePath);
+    }
+
+    private static void ConfigureGlobalLights(Scene scene)
+    {
+        var sortingLayers = Array.ConvertAll(SortingLayer.layers, layer => layer.id);
+        foreach (var root in scene.GetRootGameObjects())
+        {
+            foreach (var light in root.GetComponentsInChildren<Light2D>(true))
+            {
+                if (light.lightType != Light2D.LightType.Global)
+                {
+                    continue;
+                }
+
+                light.targetSortingLayers = sortingLayers;
+                EditorUtility.SetDirty(light);
+            }
+        }
     }
 
     private static GameObject Child(Transform parent, string name)
@@ -183,6 +270,69 @@ internal static class KesSampleProjectSetup
         rect.offsetMin = Vector2.zero;
         rect.offsetMax = Vector2.zero;
         return child;
+    }
+
+    private static GameObject CenteredUiChild(Transform parent, string name, float width, float y)
+    {
+        var child = new GameObject(name, typeof(RectTransform));
+        var rect = (RectTransform)child.transform;
+        rect.SetParent(parent, false);
+        rect.anchorMin = new Vector2(0.5f, 0.5f);
+        rect.anchorMax = new Vector2(0.5f, 0.5f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = new Vector2(0f, y);
+        rect.sizeDelta = new Vector2(width, 0f);
+        return child;
+    }
+
+    private static KesChoiceItemView CreateChoiceItemTemplate(Transform parent)
+    {
+        var item = new GameObject("ChoiceItemTemplate", typeof(RectTransform));
+        item.transform.SetParent(parent, false);
+
+        var itemBackground = item.AddComponent<Image>();
+        itemBackground.color = new Color(1f, 1f, 1f, 0.06f);
+        var itemLayout = item.AddComponent<HorizontalLayoutGroup>();
+        itemLayout.padding = new RectOffset(18, 22, 10, 10);
+        itemLayout.spacing = 18f;
+        itemLayout.childAlignment = TextAnchor.MiddleLeft;
+        itemLayout.childControlWidth = true;
+        itemLayout.childControlHeight = true;
+        itemLayout.childForceExpandWidth = false;
+        itemLayout.childForceExpandHeight = true;
+        var itemSize = item.AddComponent<LayoutElement>();
+        itemSize.minHeight = 72f;
+
+        var iconObject = new GameObject("SelectionIcon", typeof(RectTransform));
+        iconObject.transform.SetParent(item.transform, false);
+        var icon = iconObject.AddComponent<Image>();
+        icon.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(ChoiceIconPath);
+        icon.preserveAspect = true;
+        icon.raycastTarget = false;
+        var iconSize = iconObject.AddComponent<LayoutElement>();
+        iconSize.minWidth = 48f;
+        iconSize.preferredWidth = 48f;
+        iconSize.minHeight = 48f;
+        iconSize.preferredHeight = 48f;
+        iconSize.flexibleWidth = 0f;
+
+        var labelObject = new GameObject("Label", typeof(RectTransform));
+        labelObject.transform.SetParent(item.transform, false);
+        var label = labelObject.AddComponent<Text>();
+        label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        label.fontSize = 30;
+        label.color = Color.white;
+        label.alignment = TextAnchor.MiddleLeft;
+        label.horizontalOverflow = HorizontalWrapMode.Wrap;
+        label.verticalOverflow = VerticalWrapMode.Overflow;
+        label.raycastTarget = false;
+        var labelSize = labelObject.AddComponent<LayoutElement>();
+        labelSize.flexibleWidth = 1f;
+
+        var view = item.AddComponent<KesChoiceItemView>();
+        view.SetReferences(icon, label);
+        item.SetActive(false);
+        return view;
     }
 
     private static Text TextChild(

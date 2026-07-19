@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using KoromoEventScript.Cli.Commands;
 using KoromoEventScript.Cli.Commands.Build;
 
@@ -111,6 +112,41 @@ public class BuildCommandTests
             Assert.That(File.ReadAllText(chapter002Text), Does.Contain("SYSCALLVOID"));
             Assert.That(File.ReadAllText(commonText), Does.Contain("CALL"));
         });
+    }
+
+    [Test]
+    public void FullCommandSampleSourcesCoverEveryPublicStlCommandAndFlowSyntax()
+    {
+        var projectRoot = GetTestDataPath("projects", "full-command-sample");
+        var source = string.Join(
+            Environment.NewLine,
+            Directory.EnumerateFiles(Path.Combine(projectRoot, "events"), "*.kc", SearchOption.AllDirectories)
+                .Order(StringComparer.Ordinal)
+                .Select(File.ReadAllText));
+        var expectedCommands = new[]
+        {
+            "print", "array_len", "str_len", "range", "number_to_string", "bool_to_string", "assert",
+            "rt_back", "rt_front", "bg", "trans", "camera_autofocus",
+            "standby", "show", "hide", "face", "move", "action_jump",
+            "vo", "vf", "p", "r", "l", "cm", "wait_click",
+            "bgm", "bgm_stop", "se", "se_stop", "se_stop_all", "voice_stop",
+            "save", "load", "autosave", "mark_read", "is_read",
+            "wait", "set_auto", "set_skip",
+            "set_config_string", "set_config_number", "set_config_bool", "get_config",
+            "set_param_string", "set_param_number", "set_param_bool", "get_param",
+            "say", "nar", "label", "jump", "select", "case",
+        };
+
+        foreach (var command in expectedCommands)
+        {
+            Assert.That(
+                Regex.IsMatch(source, $@"(?<![A-Za-z0-9_]){Regex.Escape(command)}(?![A-Za-z0-9_])"),
+                Is.True,
+                $"The full-command sample does not cover '{command}'.");
+        }
+
+        Assert.That(source, Does.Contain("vo \"assets.voice.voice_001_sample\""));
+        Assert.That(source, Does.Match(@"(?m)^\s*vo\s*$"));
     }
 
     [Test]
