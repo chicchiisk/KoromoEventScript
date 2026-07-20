@@ -87,6 +87,7 @@ label #select_route_1
 select #se_chapter001_0002:
     case "中庭の二章へ進む" #route_chapter002
     case "図書室の三章へ進む" #route_chapter003
+    case "立ち絵・アニメーションテスト" #route_actor_animation_test
 
 label #route_chapter002
 set_param_string "route_1" "chapter002_intro"
@@ -100,6 +101,12 @@ set_param_string "route_1" "chapter003_intro"
 se "assets.audio.se.se_001_door"
 say noa #sy_chapter001_0004:
     図書室で手がかりを探そう。
+jump #end
+
+label #route_actor_animation_test
+set_param_string "route_1" "actor_animation_test"
+say riku #sy_chapter001_0005:
+    立ち絵とアニメーションの専用テストを開始する。
 
 label #end
 

@@ -1,0 +1,16 @@
+var candidate: number = 104707
+var range_end: number = candidate + 1
+var sieve: number[] = range 0 range_end
+sieve[0] = 0
+sieve[1] = 0
+
+var factor: number = 2
+while factor * factor <= candidate:
+    if sieve[factor] != 0:
+        var multiple: number = factor * factor
+        while multiple <= candidate:
+            sieve[multiple] = 0
+            multiple = multiple + factor
+    factor = factor + 1
+
+var is_prime: bool = sieve[candidate] != 0

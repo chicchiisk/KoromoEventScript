@@ -86,3 +86,15 @@ chapter005_intro = {
         }
     }
 }
+
+actor_animation_test = {
+    type = story
+    chapter = "events/actor_animation_test.kc"
+    trigger = {
+        from = chapter001_intro
+        is = {
+            param = route_1
+            value = actor_animation_test
+        }
+    }
+}

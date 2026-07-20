@@ -14,6 +14,7 @@ public sealed class FullCommandSampleExecutionTests
     [TestCase("events/chapter003.klib", 1, new[] { "三章目の図書室ルート。こちらも二つの結末候補へ分岐する。", "星空の手がかりを追おう。" })]
     [TestCase("events/chapter004.klib", null, new[] { "四章目。夕焼けの答えを得たので、もう一度一章へ戻る。", "イベント遷移は trigger によって次の一章を選ぶ。" })]
     [TestCase("events/chapter005.klib", null, new[] { "五章目。星空の答えを得たので、もう一度一章へ戻る。", "こちらの経路でも同じ trigger でループできる。" })]
+    [TestCase("events/actor_animation_test.klib", null, new string[0])]
     [TestCase("events/lib/Common.klib", null, new[] { "共通ロジックの初期化が完了した。" })]
     public void BuiltFullCommandSampleKlib_ReachesEnd(string relativeKlibPath, int? selectedIndex, string[] expectedTranscript)
     {

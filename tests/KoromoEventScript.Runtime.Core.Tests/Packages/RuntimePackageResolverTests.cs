@@ -32,13 +32,13 @@ public sealed class RuntimePackageResolverTests
             Assert.That(packageResult.Package!.SelectedLocale, Is.EqualTo("ja-JP"));
             Assert.That(
                 packageResult.Package.Scripts.Select(static script => script.Entry.ScriptId),
-                Is.EqualTo(["events/chapter001", "events/chapter002", "events/chapter003", "events/chapter004", "events/chapter005", "events/lib/Common"]));
+                Is.EqualTo(["events/chapter001", "events/chapter002", "events/chapter003", "events/chapter004", "events/chapter005", "events/actor_animation_test", "events/lib/Common"]));
             Assert.That(
                 packageResult.Package.Scripts.Select(static script => script.Entry.KlibPath),
-                Is.EqualTo(["events/chapter001.klib", "events/chapter002.klib", "events/chapter003.klib", "events/chapter004.klib", "events/chapter005.klib", "events/lib/Common.klib"]));
+                Is.EqualTo(["events/chapter001.klib", "events/chapter002.klib", "events/chapter003.klib", "events/chapter004.klib", "events/chapter005.klib", "events/actor_animation_test.klib", "events/lib/Common.klib"]));
             Assert.That(
                 packageResult.Package.Scripts.Select(static script => script.Document.Module.ScriptId),
-                Is.EqualTo(["events/chapter001", "events/chapter002", "events/chapter003", "events/chapter004", "events/chapter005", "events/lib/Common"]));
+                Is.EqualTo(["events/chapter001", "events/chapter002", "events/chapter003", "events/chapter004", "events/chapter005", "events/actor_animation_test", "events/lib/Common"]));
         });
     }
 

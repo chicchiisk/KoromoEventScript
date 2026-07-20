@@ -370,6 +370,15 @@ public sealed class KlibCompiler
                 return;
             }
 
+            if (assignment.IndexTokens is not null)
+            {
+                instructions.Add(new InstructionBuilder(KlibOpCode.LoadVar, assignment.TargetLocation, KlibMappingKind.Expression, targetIndex));
+                CompileExpression(assignment.IndexTokens, requireValue: true);
+                CompileExpression(assignment.ValueTokens, requireValue: true);
+                instructions.Add(new InstructionBuilder(KlibOpCode.ArraySet, assignment.TargetLocation, KlibMappingKind.Statement));
+                return;
+            }
+
             CompileExpression(assignment.ValueTokens, requireValue: true);
             instructions.Add(new InstructionBuilder(KlibOpCode.StoreVar, assignment.TargetLocation, KlibMappingKind.Statement, targetIndex));
         }
@@ -1121,6 +1130,12 @@ public sealed class KlibCompiler
                     return null;
                 }
 
+                if (context.TryResolveVariable(token.Lexeme, out var variableIndex))
+                {
+                    context.instructions.Add(new InstructionBuilder(KlibOpCode.LoadVar, ToLocation(token), KlibMappingKind.Expression, variableIndex));
+                    return token.Lexeme;
+                }
+
                 if (!IsAtEnd() && !IsBinaryOrDelimiter(Current.Kind) &&
                     (context.builtIns.TryResolve(token.Lexeme, out _) || LooksLikeCallArgumentStart(Current.Kind)))
                 {
@@ -1138,12 +1153,6 @@ public sealed class KlibCompiler
                         context.constantPool.GetStringIndex(token.Lexeme),
                         arguments.Count));
                     return null;
-                }
-
-                if (context.TryResolveVariable(token.Lexeme, out var variableIndex))
-                {
-                    context.instructions.Add(new InstructionBuilder(KlibOpCode.LoadVar, ToLocation(token), KlibMappingKind.Expression, variableIndex));
-                    return token.Lexeme;
                 }
 
                 if (context.TryEmitImportedConstant(token.Lexeme, ToLocation(token)))

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<KoromoEventScript
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="kes-config.xsd">
+    <Project
+        Name="FunctionPerformanceSample"
+        Version="0.1.0"
+        Entry="events/main.kel" />
+
+    <Paths
+        Events="events"
+        Assets="assets"
+        Locale="locale"
+        Build="build"
+        Dist="dist" />
+
+    <Build
+        Target="unity"
+        WarningsAsErrors="false" />
+</KoromoEventScript>

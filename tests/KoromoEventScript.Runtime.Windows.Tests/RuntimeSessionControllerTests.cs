@@ -73,7 +73,9 @@ public sealed class RuntimeSessionControllerTests
         Assert.Multiple(() =>
         {
             Assert.That(viewModel.AreChoicesVisible, Is.True);
-            Assert.That(viewModel.Choices, Is.EqualTo(["中庭の二章へ進む", "図書室の三章へ進む"]));
+            Assert.That(
+                viewModel.Choices,
+                Is.EqualTo(["中庭の二章へ進む", "図書室の三章へ進む", "立ち絵・アニメーションテスト"]));
         });
     }
 
@@ -109,10 +111,13 @@ public sealed class RuntimeSessionControllerTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(audioBackend.Plays.Select(static play => play.Channel), Is.EqualTo([AudioChannel.Bgm, AudioChannel.Se]));
+            Assert.That(
+                audioBackend.Plays.Select(static play => play.Channel),
+                Is.EqualTo([AudioChannel.Bgm, AudioChannel.Voice, AudioChannel.Se]));
             Assert.That(audioBackend.Plays[0].Asset.AssetId, Is.EqualTo("assets.audio.bgm.bgm_001_alice2"));
             Assert.That(audioBackend.Plays[0].Options.Loop, Is.True);
-            Assert.That(audioBackend.Plays[1].Asset.AssetId, Is.EqualTo("assets.audio.se.se_001_door"));
+            Assert.That(audioBackend.Plays[1].Asset.AssetId, Is.EqualTo("assets.voice.voice_001_sample"));
+            Assert.That(audioBackend.Plays[2].Asset.AssetId, Is.EqualTo("assets.audio.se.se_001_door"));
         });
     }
 

@@ -1,0 +1,52 @@
+{
+  "schemaVersion": "1.0",
+  "gameId": "functionperformancesample",
+  "title": "FunctionPerformanceSample",
+  "defaultLocale": "ja-JP",
+  "cliVersion": "1.0.0.0",
+  "target": "unity",
+  "entryEventListPath": "events/main.kel",
+  "inputs": [
+    {
+      "path": "events/main.kel",
+      "kind": "kel"
+    },
+    {
+      "path": "events/prime_sieve.kc",
+      "kind": "kc"
+    }
+  ],
+  "scripts": [
+    {
+      "scriptId": "events/prime_sieve",
+      "locale": "ja-JP",
+      "isEntry": true,
+      "startLabel": "__while_start_0",
+      "sourcePath": "events/prime_sieve.kc",
+      "klibPath": "events/prime_sieve.klib",
+      "klibTextPath": "events/prime_sieve.klibtxt"
+    }
+  ],
+  "events": [
+    {
+      "eventId": "prime_sieve",
+      "type": "test",
+      "chapter": "events/prime_sieve.kc",
+      "scriptId": "events/prime_sieve",
+      "isEntry": true,
+      "trigger": null
+    }
+  ],
+  "assets": [],
+  "defaults": {
+    "width": 1280,
+    "height": 720,
+    "fullscreen": false
+  },
+  "build": {
+    "buildId": "unity-functionperformancesample-1",
+    "cliVersion": "1.0.0.0",
+    "target": "unity"
+  },
+  "localizations": []
+}

@@ -1,0 +1,82 @@
+import Common
+
+standby:
+    riku : Riku
+    amane : Amane
+    noa : Noa
+
+print "actor-animation-test: begin"
+bg "bg_morning"
+
+print "actor-animation-test: single actor display"
+show riku -1 "normal" 0 0 false
+wait 0.75
+
+print "actor-animation-test: face variants"
+face riku "smile"
+wait 0.5
+face riku "serious"
+wait 0.5
+face riku "trouble"
+wait 0.5
+face riku "sleep"
+wait 0.5
+face riku "pumpkin"
+wait 0.5
+face riku "normal"
+wait 0.5
+
+print "actor-animation-test: timed horizontal movement"
+move riku 0 0.8
+move riku 1 0.8
+move riku -1 0.8
+
+print "actor-animation-test: immediate movement and jump"
+move riku 0 0
+action_jump riku
+wait 0.5
+
+print "actor-animation-test: hide and bust-up redisplay"
+hide riku
+wait 0.5
+show riku 0 "normal_dress" 0 0 true
+wait 0.75
+hide riku
+
+print "actor-animation-test: three actors and sorting order"
+show riku -1 "normal" 0 0 false
+show amane 0 "smile" 1 0 false
+show noa 1 "normal" 2 0 false
+wait 0.75
+
+print "actor-animation-test: overlap at center"
+move riku 0 0.4
+move amane 0 0.4
+move noa 0 0.4
+wait 0.75
+
+print "actor-animation-test: return to left-center-right"
+move riku -1 0.4
+move amane 0 0.4
+move noa 1 0.4
+face noa "smile"
+wait 0.5
+
+print "actor-animation-test: jump each actor"
+action_jump riku
+action_jump amane
+action_jump noa
+wait 0.5
+
+print "actor-animation-test: hide and redisplay"
+hide riku
+hide amane
+hide noa
+wait 0.5
+show:
+    riku -1 "smile"
+    amane 0 "normal"
+    noa 1 "smile"
+wait 2
+
+print "actor-animation-test: completed with three actors visible"

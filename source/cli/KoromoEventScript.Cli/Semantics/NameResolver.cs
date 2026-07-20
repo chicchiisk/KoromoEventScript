@@ -287,6 +287,14 @@ public sealed class NameResolver
 
             case AssignmentStatementSyntax assignment:
                 yield return new Reference(ReferenceKind.Variable, assignment.TargetName, documentContext.Document.ProjectRelativePath, assignment.TargetLocation.Line, assignment.TargetLocation.Column, scopeId);
+                if (assignment.IndexTokens is not null)
+                {
+                    foreach (var reference in FromExpressionTokens(documentContext, assignment.IndexTokens, scopeId))
+                    {
+                        yield return reference;
+                    }
+                }
+
                 foreach (var reference in FromExpressionTokens(documentContext, assignment.ValueTokens, scopeId))
                 {
                     yield return reference;

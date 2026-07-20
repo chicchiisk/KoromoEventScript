@@ -1,0 +1,6 @@
+entry = prime_sieve
+
+prime_sieve = {
+    type = test
+    chapter = "events/prime_sieve.kc"
+}

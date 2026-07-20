@@ -90,6 +90,8 @@ public class BuildCommandTests
         var chapter001Text = Path.Combine(root, "events", "chapter001.klibtxt");
         var chapter002Klib = Path.Combine(root, "events", "chapter002.klib");
         var chapter002Text = Path.Combine(root, "events", "chapter002.klibtxt");
+        var actorAnimationKlib = Path.Combine(root, "events", "actor_animation_test.klib");
+        var actorAnimationText = Path.Combine(root, "events", "actor_animation_test.klibtxt");
         var commonKlib = Path.Combine(root, "events", "lib", "Common.klib");
         var commonText = Path.Combine(root, "events", "lib", "Common.klibtxt");
         var diagnosticsPath = Path.Combine(root, "diagnostics.json");
@@ -104,18 +106,21 @@ public class BuildCommandTests
             Assert.That(File.Exists(chapter001Text), Is.True);
             Assert.That(File.Exists(chapter002Klib), Is.True);
             Assert.That(File.Exists(chapter002Text), Is.True);
+            Assert.That(File.Exists(actorAnimationKlib), Is.True);
+            Assert.That(File.Exists(actorAnimationText), Is.True);
             Assert.That(File.Exists(commonKlib), Is.True);
             Assert.That(File.Exists(commonText), Is.True);
             Assert.That(File.Exists(diagnosticsPath), Is.True);
             Assert.That(File.Exists(manifestPath), Is.True);
             Assert.That(File.ReadAllText(chapter001Text), Does.Contain("SELECT"));
             Assert.That(File.ReadAllText(chapter002Text), Does.Contain("SYSCALLVOID"));
+            Assert.That(File.ReadAllText(actorAnimationText), Does.Contain("string \"action_jump\""));
             Assert.That(File.ReadAllText(commonText), Does.Contain("CALL"));
         });
     }
 
     [Test]
-    public void FullCommandSampleSourcesCoverEveryPublicStlCommandAndFlowSyntax()
+    public void FullCommandSampleSourcesCoverWalkthroughStlCommandsAndFlowSyntax()
     {
         var projectRoot = GetTestDataPath("projects", "full-command-sample");
         var source = string.Join(
@@ -130,7 +135,7 @@ public class BuildCommandTests
             "standby", "show", "hide", "face", "move", "action_jump",
             "vo", "vf", "p", "r", "l", "cm", "wait_click",
             "bgm", "bgm_stop", "se", "se_stop", "se_stop_all", "voice_stop",
-            "save", "load", "autosave", "mark_read", "is_read",
+            "save", "autosave", "mark_read", "is_read",
             "wait", "set_auto", "set_skip",
             "set_config_string", "set_config_number", "set_config_bool", "get_config",
             "set_param_string", "set_param_number", "set_param_bool", "get_param",

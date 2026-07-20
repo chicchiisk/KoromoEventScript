@@ -252,7 +252,29 @@ public sealed class TypeChecker
         {
             var targetType = ResolveValue(assignment.TargetName);
             var valueType = Evaluate(assignment.ValueTokens, requireValue: true);
-            RequireAssignable(targetType, valueType, assignment.TargetLocation, $"Cannot assign {valueType} to {targetType} variable '{assignment.TargetName}'.");
+            if (assignment.IndexTokens is null)
+            {
+                RequireAssignable(targetType, valueType, assignment.TargetLocation, $"Cannot assign {valueType} to {targetType} variable '{assignment.TargetName}'.");
+                return;
+            }
+
+            var indexType = Evaluate(assignment.IndexTokens, requireValue: true);
+            RequireAssignable(KesType.Number, indexType, assignment.TargetLocation, "Array index must be number.");
+            if (targetType.Kind == KesTypeKind.Array)
+            {
+                RequireAssignable(
+                    targetType.ElementType!,
+                    valueType,
+                    assignment.TargetLocation,
+                    $"Cannot assign {valueType} to {targetType.ElementType} element of '{assignment.TargetName}'.");
+            }
+            else if (targetType.Kind != KesTypeKind.Unknown)
+            {
+                diagnostics.Add(Diagnostic(
+                    document.Document.ProjectRelativePath,
+                    assignment.TargetLocation,
+                    $"Indexed assignment target '{assignment.TargetName}' must be an array, but got {targetType}."));
+            }
         }
 
         private void CheckFunction(FunctionDeclarationSyntax function)

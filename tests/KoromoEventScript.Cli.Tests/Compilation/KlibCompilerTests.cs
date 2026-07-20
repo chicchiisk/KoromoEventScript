@@ -41,6 +41,35 @@ public class KlibCompilerTests
         });
     }
 
+    [Test]
+    public void BuildCommand_CompilesArrayElementAssignment()
+    {
+        using var fixture = TemporaryProject.Create();
+        fixture.WriteConfig(entry: "events/main.kel");
+        fixture.WriteFile("events/main.kel", """
+entry = intro
+intro = {
+    chapter = "events/main.kc"
+}
+""");
+        fixture.WriteFile("events/main.kc", """
+var values: number[] = [1, 2]
+var index: number = 1
+values[index] = 3
+var selected: number = values[index]
+""");
+
+        var result = ExecuteBuild(fixture);
+        var textIr = ReadGeneratedTextIr(fixture);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.ExitCode, Is.EqualTo(CliExitCode.Success));
+            Assert.That(textIr, Does.Contain("ARRAYSET"));
+            Assert.That(textIr, Does.Contain("ARRAYGET"));
+        });
+    }
+
     private static TemporaryProject CreateBroadSurfaceFixture()
     {
         var fixture = TemporaryProject.Create();

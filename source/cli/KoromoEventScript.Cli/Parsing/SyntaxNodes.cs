@@ -41,7 +41,8 @@ public sealed record VarStatementSyntax(
 public sealed record AssignmentStatementSyntax(
     string TargetName,
     IReadOnlyList<Token> ValueTokens,
-    SourceLocation TargetLocation = default) : StatementSyntax;
+    SourceLocation TargetLocation = default,
+    IReadOnlyList<Token>? IndexTokens = null) : StatementSyntax;
 
 public sealed record ParameterSyntax(
     string Name,

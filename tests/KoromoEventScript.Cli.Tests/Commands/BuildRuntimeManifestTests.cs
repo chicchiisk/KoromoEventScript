@@ -33,10 +33,10 @@ public sealed class BuildRuntimeManifestTests
             Assert.That(manifest.RootElement.GetProperty("gameId").GetString(), Is.EqualTo("fullcommandsample"));
             Assert.That(manifest.RootElement.GetProperty("title").GetString(), Is.EqualTo("FullCommandSample"));
             Assert.That(manifest.RootElement.GetProperty("defaultLocale").GetString(), Is.EqualTo("ja-JP"));
-            Assert.That(manifest.RootElement.GetProperty("scripts").GetArrayLength(), Is.EqualTo(6));
+            Assert.That(manifest.RootElement.GetProperty("scripts").GetArrayLength(), Is.EqualTo(7));
             Assert.That(manifest.RootElement.GetProperty("scripts")[0].GetProperty("scriptId").GetString(), Is.EqualTo("events/chapter001"));
             Assert.That(manifest.RootElement.GetProperty("scripts")[0].GetProperty("isEntry").GetBoolean(), Is.True);
-            Assert.That(manifest.RootElement.GetProperty("events").GetArrayLength(), Is.EqualTo(5));
+            Assert.That(manifest.RootElement.GetProperty("events").GetArrayLength(), Is.EqualTo(6));
             Assert.That(manifest.RootElement.GetProperty("events")[0].GetProperty("eventId").GetString(), Is.EqualTo("chapter001_intro"));
             Assert.That(manifest.RootElement.GetProperty("events")[0].GetProperty("trigger").GetProperty("or").GetArrayLength(), Is.EqualTo(2));
             Assert.That(manifest.RootElement.GetProperty("events")[1].GetProperty("trigger").GetProperty("conditions").GetArrayLength(), Is.EqualTo(2));
@@ -60,8 +60,8 @@ public sealed class BuildRuntimeManifestTests
             Assert.That(manifest.RootElement.GetProperty("defaults").GetProperty("height").GetInt32(), Is.EqualTo(720));
             Assert.That(manifest.RootElement.GetProperty("build").GetProperty("target").GetString(), Is.EqualTo("windows"));
             Assert.That(runtimeManifest.Succeeded, Is.True);
-            Assert.That(runtimeManifest.Document!.Scripts.Select(static script => script.ScriptId), Is.EqualTo(["events/chapter001", "events/chapter002", "events/chapter003", "events/chapter004", "events/chapter005", "events/lib/Common"]));
-            Assert.That(runtimeManifest.Document.Events.Select(static entry => entry.EventId), Is.EqualTo(["chapter001_intro", "chapter002_intro", "chapter003_intro", "chapter004_intro", "chapter005_intro"]));
+            Assert.That(runtimeManifest.Document!.Scripts.Select(static script => script.ScriptId), Is.EqualTo(["events/chapter001", "events/chapter002", "events/chapter003", "events/chapter004", "events/chapter005", "events/actor_animation_test", "events/lib/Common"]));
+            Assert.That(runtimeManifest.Document.Events.Select(static entry => entry.EventId), Is.EqualTo(["chapter001_intro", "chapter002_intro", "chapter003_intro", "chapter004_intro", "chapter005_intro", "actor_animation_test"]));
         });
     }
 

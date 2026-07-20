@@ -6,6 +6,7 @@ using KoromoEventScript.Runtime.Core.Effects;
 using KoromoEventScript.Runtime.Core.Execution;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.TestTools;
 using UnityEngine.UI;
 
 namespace KoromoEventScript.Unity.Editor.Tests
@@ -228,6 +229,7 @@ public sealed class KesPresentationTests
         {
             KesHostOperationResult result = null;
 
+            LogAssert.Expect(LogType.Error, "KESU3000: Unsupported presentation effect: scene.unknown");
             fixture.Presentation.Execute(SceneEffect("scene.unknown"), value => result = value);
 
             Assert.That(result, Is.Not.Null);

@@ -62,6 +62,30 @@ for actor in actors:
     }
 
     [Test]
+    public void CheckTypes_ValidatesArrayElementAssignment()
+    {
+        const string source = """
+var values: number[] = [1, 2]
+var index: number = 0
+values[index] = 3
+values[true] = 4
+values[0] = "bad"
+index[0] = 1
+""";
+
+        var result = Check(source);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Succeeded, Is.False);
+            Assert.That(result.Diagnostics.Select(static diagnostic => diagnostic.Message),
+                Has.Some.Contains("Array index")
+                    .And.Some.Contains("element")
+                    .And.Some.Contains("must be an array"));
+        });
+    }
+
+    [Test]
     public void CheckTypes_ChecksUserDefinedFunctionArguments()
     {
         const string source = """

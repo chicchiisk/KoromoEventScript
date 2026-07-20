@@ -534,6 +534,16 @@ public sealed class KeParser
             return new AssignmentStatementSyntax(nameToken.Lexeme, lineTokens.Skip(2).ToArray(), ToLocation(nameToken));
         }
 
+        var assignmentIndex = FindArrayAssignmentEquals(lineTokens);
+        if (assignmentIndex > 3)
+        {
+            return new AssignmentStatementSyntax(
+                nameToken.Lexeme,
+                lineTokens.Skip(assignmentIndex + 1).ToArray(),
+                ToLocation(nameToken),
+                lineTokens.Skip(2).Take(assignmentIndex - 3).ToArray());
+        }
+
         if (lineTokens[^1].Kind == TokenKind.Colon)
         {
             var sharedArguments = lineTokens.Skip(1).Take(lineTokens.Count - 2).ToArray();
@@ -543,6 +553,36 @@ public sealed class KeParser
 
         var arguments = lineTokens.Skip(1).ToArray();
         return new CommandStatementSyntax(nameToken.Lexeme, arguments, ToLocation(nameToken));
+    }
+
+    private static int FindArrayAssignmentEquals(IReadOnlyList<Token> tokens)
+    {
+        if (tokens.Count < 6 || tokens[1].Kind != TokenKind.OpenBracket)
+        {
+            return -1;
+        }
+
+        var depth = 0;
+        for (var index = 1; index < tokens.Count; index++)
+        {
+            switch (tokens[index].Kind)
+            {
+                case TokenKind.OpenBracket:
+                    depth++;
+                    break;
+                case TokenKind.CloseBracket:
+                    depth--;
+                    if (depth == 0)
+                    {
+                        return index + 1 < tokens.Count && tokens[index + 1].Kind == TokenKind.Equals
+                            ? index + 1
+                            : -1;
+                    }
+                    break;
+            }
+        }
+
+        return -1;
     }
 
     private IReadOnlyList<LessBlockItemSyntax> ParseLessBlock()

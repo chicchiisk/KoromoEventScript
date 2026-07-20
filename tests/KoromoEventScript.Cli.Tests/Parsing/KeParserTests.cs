@@ -321,6 +321,20 @@ select #se_sample_0001:
     }
 
     [Test]
+    public void Parse_RecognizesArrayElementAssignment()
+    {
+        var syntax = KeParser.Parse("sieve[index + 1] = 0\n");
+
+        var assignment = (AssignmentStatementSyntax)syntax.Statements.Single();
+        Assert.Multiple(() =>
+        {
+            Assert.That(assignment.TargetName, Is.EqualTo("sieve"));
+            Assert.That(assignment.IndexTokens!.Select(static token => token.Lexeme), Is.EqualTo(["index", "+", "1"]));
+            Assert.That(assignment.ValueTokens.Select(static token => token.Lexeme), Is.EqualTo(["0"]));
+        });
+    }
+
+    [Test]
     public void Parse_ReportsImportAfterOtherStatements()
     {
         const string source = """

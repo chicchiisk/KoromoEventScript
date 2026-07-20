@@ -32,6 +32,10 @@
       "kind": "kc"
     },
     {
+      "path": "events/actor_animation_test.kc",
+      "kind": "kc"
+    },
+    {
       "path": "events/lib/Common.kc",
       "kind": "kc"
     }
@@ -80,6 +84,15 @@
       "startLabel": "#sy_chapter005_0001",
       "sourcePath": "events/chapter005.kc",
       "klibPath": "events/chapter005.klib",
+      "klibTextPath": null
+    },
+    {
+      "scriptId": "events/actor_animation_test",
+      "locale": "ja-JP",
+      "isEntry": false,
+      "startLabel": null,
+      "sourcePath": "events/actor_animation_test.kc",
+      "klibPath": "events/actor_animation_test.klib",
       "klibTextPath": null
     },
     {
@@ -302,6 +315,33 @@
           }
         ]
       }
+    },
+    {
+      "eventId": "actor_animation_test",
+      "type": "story",
+      "chapter": "events/actor_animation_test.kc",
+      "scriptId": "events/actor_animation_test",
+      "isEntry": false,
+      "trigger": {
+        "conditions": [
+          {
+            "kind": "from",
+            "from": "chapter001_intro",
+            "param": null,
+            "value": null
+          },
+          {
+            "kind": "is",
+            "from": null,
+            "param": "route_1",
+            "value": {
+              "kind": "string",
+              "text": "actor_animation_test"
+            }
+          }
+        ],
+        "or": []
+      }
     }
   ],
   "assets": [
@@ -408,7 +448,7 @@
     "fullscreen": false
   },
   "build": {
-    "buildId": "unity-fullcommandsample-6",
+    "buildId": "unity-fullcommandsample-7",
     "cliVersion": "1.0.0.0",
     "target": "unity"
   },
