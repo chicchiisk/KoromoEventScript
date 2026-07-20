@@ -34,6 +34,26 @@ public sealed class KesVmObjectModelTests
     }
 
     [Test]
+    public void ObjectStore_UsesTypedIntegerHandlesForInternalObjects()
+    {
+        var store = new RuntimeObjectStore();
+        var firstArray = store.CreateArray([RuntimeValue.Number(1)]);
+        var secondArray = store.CreateArray([RuntimeValue.Number(2)]);
+        var instance = store.CreateInstance("Hero");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(firstArray.ReferenceKind, Is.EqualTo(RuntimeReferenceKind.Array));
+            Assert.That(firstArray.ObjectHandle, Is.EqualTo(0));
+            Assert.That(firstArray.ReferenceId, Is.Null);
+            Assert.That(secondArray.ReferenceKind, Is.EqualTo(RuntimeReferenceKind.Array));
+            Assert.That(secondArray.ObjectHandle, Is.EqualTo(1));
+            Assert.That(instance.ReferenceKind, Is.EqualTo(RuntimeReferenceKind.Instance));
+            Assert.That(instance.ObjectHandle, Is.EqualTo(0));
+        });
+    }
+
+    [Test]
     public void Run_WithNewSetFieldAndGetField_CompletesWithStoredValue()
     {
         var document = CreateDocument(

@@ -227,14 +227,14 @@ public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
     {
         if (invocation.Arguments.Count != 1 ||
             invocation.Arguments[0].Kind != RuntimeValueKind.Reference ||
-            string.IsNullOrEmpty(invocation.Arguments[0].ReferenceId))
+            invocation.Arguments[0].ReferenceKind != RuntimeReferenceKind.Array)
         {
             return RuntimeSyscallResult.Failure(
                 RuntimeFailureKind.Runtime,
                 Error("KESR3402", invocation, "Syscall 'core.array_len' requires one array reference argument."));
         }
 
-        if (!session.ObjectStore.TryGetArrayLength(invocation.Arguments[0].ReferenceId!, out var length, out var error))
+        if (!session.ObjectStore.TryGetArrayLength(invocation.Arguments[0], out var length, out var error))
         {
             return RuntimeSyscallResult.Failure(
                 RuntimeFailureKind.Runtime,

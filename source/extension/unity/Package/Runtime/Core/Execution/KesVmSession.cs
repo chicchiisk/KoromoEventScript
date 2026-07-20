@@ -481,6 +481,13 @@ public enum RuntimeValueKind
     Reference = 4,
 }
 
+public enum RuntimeReferenceKind
+{
+    External = 0,
+    Array = 1,
+    Instance = 2,
+}
+
 public readonly struct RuntimeValue : IEquatable<RuntimeValue>
 {
     [JsonConstructor]
@@ -489,13 +496,17 @@ public readonly struct RuntimeValue : IEquatable<RuntimeValue>
         double? NumberValue = null,
         bool? BoolValue = null,
         string? StringValue = null,
-        string? ReferenceId = null)
+        string? ReferenceId = null,
+        RuntimeReferenceKind ReferenceKind = RuntimeReferenceKind.External,
+        int ObjectHandle = -1)
     {
         this.Kind = Kind;
         this.NumberValue = NumberValue;
         this.BoolValue = BoolValue;
         this.StringValue = StringValue;
         this.ReferenceId = ReferenceId;
+        this.ReferenceKind = ReferenceKind;
+        this.ObjectHandle = ObjectHandle;
     }
 
     public RuntimeValueKind Kind { get; }
@@ -507,6 +518,10 @@ public readonly struct RuntimeValue : IEquatable<RuntimeValue>
     public string? StringValue { get; }
 
     public string? ReferenceId { get; }
+
+    public RuntimeReferenceKind ReferenceKind { get; }
+
+    public int ObjectHandle { get; }
 
     public static RuntimeValue Null { get; } = new RuntimeValue(RuntimeValueKind.Null);
 
@@ -530,6 +545,24 @@ public readonly struct RuntimeValue : IEquatable<RuntimeValue>
         return new RuntimeValue(RuntimeValueKind.Reference, ReferenceId: referenceId);
     }
 
+    public static RuntimeValue ObjectReference(RuntimeReferenceKind referenceKind, int objectHandle)
+    {
+        if (referenceKind == RuntimeReferenceKind.External)
+        {
+            throw new ArgumentOutOfRangeException(nameof(referenceKind), "An object reference must have an internal reference kind.");
+        }
+
+        if (objectHandle < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(objectHandle), "Object handle must be non-negative.");
+        }
+
+        return new RuntimeValue(
+            RuntimeValueKind.Reference,
+            ReferenceKind: referenceKind,
+            ObjectHandle: objectHandle);
+    }
+
     public object? ToObject()
     {
         return Kind switch
@@ -549,7 +582,9 @@ public readonly struct RuntimeValue : IEquatable<RuntimeValue>
             NumberValue == other.NumberValue &&
             BoolValue == other.BoolValue &&
             StringComparer.Ordinal.Equals(StringValue, other.StringValue) &&
-            StringComparer.Ordinal.Equals(ReferenceId, other.ReferenceId);
+            StringComparer.Ordinal.Equals(ReferenceId, other.ReferenceId) &&
+            ReferenceKind == other.ReferenceKind &&
+            ObjectHandle == other.ObjectHandle;
     }
 
     public override bool Equals(object? obj)
@@ -566,6 +601,8 @@ public readonly struct RuntimeValue : IEquatable<RuntimeValue>
             hashCode = (hashCode * 397) ^ BoolValue.GetHashCode();
             hashCode = (hashCode * 397) ^ (StringValue == null ? 0 : StringComparer.Ordinal.GetHashCode(StringValue));
             hashCode = (hashCode * 397) ^ (ReferenceId == null ? 0 : StringComparer.Ordinal.GetHashCode(ReferenceId));
+            hashCode = (hashCode * 397) ^ (int)ReferenceKind;
+            hashCode = (hashCode * 397) ^ ObjectHandle;
             return hashCode;
         }
     }

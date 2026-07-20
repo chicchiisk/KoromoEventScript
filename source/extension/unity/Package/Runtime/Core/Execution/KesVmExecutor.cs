@@ -376,12 +376,12 @@ public sealed class KesVmExecutor
                 return KesVmExecutionResult.Success();
 
             case KlibOpCode.ArrayGet:
-                if (!TryPopIndexAndReference(session, "ARRAY_GET", out var getReferenceId, out var getIndex, out var getFault))
+                if (!TryPopIndexAndReference(session, "ARRAY_GET", out var getReference, out var getIndex, out var getFault))
                 {
                     return getFault!;
                 }
 
-                if (!session.ObjectStore.TryGetArrayValue(getReferenceId!, getIndex, out var arrayValue, out var arrayError))
+                if (!session.ObjectStore.TryGetArrayValue(getReference, getIndex, out var arrayValue, out var arrayError))
                 {
                     return Fault(session, "KESR3302", arrayError ?? "ARRAY_GET failed.");
                 }
@@ -396,12 +396,12 @@ public sealed class KesVmExecutor
                     return Fault(session, "KESR3101", "Operand stack underflow while executing ARRAY_SET.");
                 }
 
-                if (!TryPopIndexAndReference(session, "ARRAY_SET", out var setReferenceId, out var setIndex, out var setFault))
+                if (!TryPopIndexAndReference(session, "ARRAY_SET", out var setReference, out var setIndex, out var setFault))
                 {
                     return setFault!;
                 }
 
-                if (!session.ObjectStore.TrySetArrayValue(setReferenceId!, setIndex, assignedValue, out var setError))
+                if (!session.ObjectStore.TrySetArrayValue(setReference, setIndex, assignedValue, out var setError))
                 {
                     return Fault(session, "KESR3302", setError ?? "ARRAY_SET failed.");
                 }
@@ -442,12 +442,12 @@ public sealed class KesVmExecutor
                     return Fault(session, "KESR3304", getFieldResolveError ?? "GET_FIELD field reference could not be resolved.");
                 }
 
-                if (!TryPopReference(session, "GET_FIELD", out var getReceiverId, out var getReceiverFault))
+                if (!TryPopReference(session, "GET_FIELD", out var getReceiver, out var getReceiverFault))
                 {
                     return getReceiverFault!;
                 }
 
-                if (!session.ObjectStore.TryGetField(getReceiverId!, getFieldId!, out var fieldValue, out var getFieldError))
+                if (!session.ObjectStore.TryGetField(getReceiver, getFieldId!, out var fieldValue, out var getFieldError))
                 {
                     return Fault(session, "KESR3304", getFieldError ?? "GET_FIELD failed.");
                 }
@@ -472,12 +472,12 @@ public sealed class KesVmExecutor
                     return Fault(session, "KESR3101", "Operand stack underflow while executing SET_FIELD.");
                 }
 
-                if (!TryPopReference(session, "SET_FIELD", out var setReceiverId, out var setReceiverFault))
+                if (!TryPopReference(session, "SET_FIELD", out var setReceiver, out var setReceiverFault))
                 {
                     return setReceiverFault!;
                 }
 
-                if (!session.ObjectStore.TrySetField(setReceiverId!, setFieldId!, setFieldValue, out var setFieldError))
+                if (!session.ObjectStore.TrySetField(setReceiver, setFieldId!, setFieldValue, out var setFieldError))
                 {
                     return Fault(session, "KESR3304", setFieldError ?? "SET_FIELD failed.");
                 }
@@ -498,12 +498,12 @@ public sealed class KesVmExecutor
                 return ExecuteSyscall(session, instruction);
 
             case KlibOpCode.Dispose:
-                if (!TryPopReference(session, "DISPOSE", out var disposeReferenceId, out var disposeFault))
+                if (!TryPopReference(session, "DISPOSE", out var disposeReference, out var disposeFault))
                 {
                     return disposeFault!;
                 }
 
-                if (!session.ObjectStore.TryDispose(disposeReferenceId!, out var disposeError))
+                if (!session.ObjectStore.TryDispose(disposeReference, out var disposeError))
                 {
                     return Fault(session, "KESR3305", disposeError ?? "DISPOSE failed.");
                 }
@@ -754,11 +754,11 @@ public sealed class KesVmExecutor
     private static bool TryPopIndexAndReference(
         KesVmSession session,
         string opcodeName,
-        out string? referenceId,
+        out RuntimeValue reference,
         out int index,
         out KesVmExecutionResult? fault)
     {
-        referenceId = null;
+        reference = RuntimeValue.Null;
         index = 0;
         fault = null;
 
@@ -770,7 +770,7 @@ public sealed class KesVmExecutor
             return false;
         }
 
-        if (!TryPopReference(session, opcodeName, out referenceId, out fault))
+        if (!TryPopReference(session, opcodeName, out reference, out fault))
         {
             return false;
         }
@@ -788,21 +788,24 @@ public sealed class KesVmExecutor
     private static bool TryPopReference(
         KesVmSession session,
         string opcodeName,
-        out string? referenceId,
+        out RuntimeValue reference,
         out KesVmExecutionResult? fault)
     {
-        referenceId = null;
+        reference = RuntimeValue.Null;
         fault = null;
 
         if (!session.TryPopOperand(out var referenceValue) ||
             referenceValue.Kind != RuntimeValueKind.Reference ||
-            string.IsNullOrEmpty(referenceValue.ReferenceId))
+            (referenceValue.ReferenceKind == RuntimeReferenceKind.External &&
+             string.IsNullOrEmpty(referenceValue.ReferenceId)) ||
+            (referenceValue.ReferenceKind != RuntimeReferenceKind.External &&
+             referenceValue.ObjectHandle < 0))
         {
             fault = Fault(session, "KESR3300", $"{opcodeName} requires an object reference.");
             return false;
         }
 
-        referenceId = referenceValue.ReferenceId;
+        reference = referenceValue;
         return true;
     }
 
@@ -857,7 +860,7 @@ public sealed class KesVmExecutor
             return Fault(session, "KESR3101", "Not enough method arguments on the stack.");
         }
 
-        if (!TryPopReference(session, "CALL_METHOD", out var receiverId, out var receiverFault))
+        if (!TryPopReference(session, "CALL_METHOD", out var receiver, out var receiverFault))
         {
             return receiverFault!;
         }
@@ -867,7 +870,7 @@ public sealed class KesVmExecutor
             return Fault(session, "KESR3311", $"Method '{methodName}' is not supported.");
         }
 
-        if (!session.ObjectStore.TryDispose(receiverId!, out var disposeError))
+        if (!session.ObjectStore.TryDispose(receiver, out var disposeError))
         {
             return Fault(session, "KESR3305", disposeError ?? "Method 'dispose' failed.");
         }

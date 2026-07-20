@@ -9,16 +9,15 @@ namespace KoromoEventScript.Runtime.Core.Execution
 
 public sealed class RuntimeObjectStore
 {
-    private readonly Dictionary<string, List<RuntimeValue>> arrays = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, Dictionary<string, RuntimeValue>> instances = new(StringComparer.Ordinal);
-    private int nextArrayId;
-    private int nextInstanceId;
+    private readonly List<List<RuntimeValue>?> arrays = new List<List<RuntimeValue>?>();
+    private readonly List<Dictionary<string, RuntimeValue>?> instances = new List<Dictionary<string, RuntimeValue>?>();
+    private readonly Dictionary<string, Dictionary<string, RuntimeValue>> externalInstances = new Dictionary<string, Dictionary<string, RuntimeValue>>(StringComparer.Ordinal);
 
     public RuntimeValue CreateArray(IEnumerable<RuntimeValue> values)
     {
-        var referenceId = $"array:{nextArrayId++}";
-        arrays[referenceId] = values.ToList();
-        return RuntimeValue.Reference(referenceId);
+        var handle = arrays.Count;
+        arrays.Add(values.ToList());
+        return RuntimeValue.ObjectReference(RuntimeReferenceKind.Array, handle);
     }
 
     public RuntimeValue CreateInstance(string classId)
@@ -28,9 +27,9 @@ public sealed class RuntimeObjectStore
             throw new ArgumentException("Class id must not be null or empty.", nameof(classId));
         }
 
-        var referenceId = $"instance:{nextInstanceId++}";
-        instances[referenceId] = CreateInstanceFields(classId);
-        return RuntimeValue.Reference(referenceId);
+        var handle = instances.Count;
+        instances.Add(CreateInstanceFields(classId));
+        return RuntimeValue.ObjectReference(RuntimeReferenceKind.Instance, handle);
     }
 
     public void EnsureActorReference(string referenceId)
@@ -40,22 +39,22 @@ public sealed class RuntimeObjectStore
             throw new ArgumentException("Reference id must not be null or empty.", nameof(referenceId));
         }
 
-        if (instances.ContainsKey(referenceId))
+        if (externalInstances.ContainsKey(referenceId))
         {
             return;
         }
 
-        instances[referenceId] = CreateInstanceFields("Actor");
+        externalInstances[referenceId] = CreateInstanceFields("Actor");
     }
 
-    public bool TryGetArrayValue(string referenceId, int index, out RuntimeValue value, out string? error)
+    public bool TryGetArrayValue(RuntimeValue reference, int index, out RuntimeValue value, out string? error)
     {
         value = RuntimeValue.Null;
         error = null;
 
-        if (!arrays.TryGetValue(referenceId, out var array))
+        if (!TryGetArray(reference, out var array))
         {
-            error = $"Array reference '{referenceId}' does not exist.";
+            error = $"Array handle '{reference.ObjectHandle}' does not exist.";
             return false;
         }
 
@@ -69,13 +68,13 @@ public sealed class RuntimeObjectStore
         return true;
     }
 
-    public bool TrySetArrayValue(string referenceId, int index, RuntimeValue value, out string? error)
+    public bool TrySetArrayValue(RuntimeValue reference, int index, RuntimeValue value, out string? error)
     {
         error = null;
 
-        if (!arrays.TryGetValue(referenceId, out var array))
+        if (!TryGetArray(reference, out var array))
         {
-            error = $"Array reference '{referenceId}' does not exist.";
+            error = $"Array handle '{reference.ObjectHandle}' does not exist.";
             return false;
         }
 
@@ -89,14 +88,14 @@ public sealed class RuntimeObjectStore
         return true;
     }
 
-    public bool TryGetArrayLength(string referenceId, out int length, out string? error)
+    public bool TryGetArrayLength(RuntimeValue reference, out int length, out string? error)
     {
         length = 0;
         error = null;
 
-        if (!arrays.TryGetValue(referenceId, out var array))
+        if (!TryGetArray(reference, out var array))
         {
-            error = $"Array reference '{referenceId}' does not exist.";
+            error = $"Array handle '{reference.ObjectHandle}' does not exist.";
             return false;
         }
 
@@ -104,19 +103,14 @@ public sealed class RuntimeObjectStore
         return true;
     }
 
-    public bool TryGetField(string referenceId, string fieldId, out RuntimeValue value, out string? error)
+    public bool TryGetField(RuntimeValue reference, string fieldId, out RuntimeValue value, out string? error)
     {
         value = RuntimeValue.Null;
         error = null;
 
-        if (IsActorReference(referenceId))
+        if (!TryGetInstance(reference, out var fields))
         {
-            EnsureActorReference(referenceId);
-        }
-
-        if (!instances.TryGetValue(referenceId, out var fields))
-        {
-            error = $"Instance reference '{referenceId}' does not exist.";
+            error = $"Instance handle '{reference.ObjectHandle}' does not exist.";
             return false;
         }
 
@@ -124,18 +118,13 @@ public sealed class RuntimeObjectStore
         return true;
     }
 
-    public bool TrySetField(string referenceId, string fieldId, RuntimeValue value, out string? error)
+    public bool TrySetField(RuntimeValue reference, string fieldId, RuntimeValue value, out string? error)
     {
         error = null;
 
-        if (IsActorReference(referenceId))
+        if (!TryGetInstance(reference, out var fields))
         {
-            EnsureActorReference(referenceId);
-        }
-
-        if (!instances.TryGetValue(referenceId, out var fields))
-        {
-            error = $"Instance reference '{referenceId}' does not exist.";
+            error = $"Instance handle '{reference.ObjectHandle}' does not exist.";
             return false;
         }
 
@@ -143,22 +132,96 @@ public sealed class RuntimeObjectStore
         return true;
     }
 
-    public bool TryDispose(string referenceId, out string? error)
+    public bool TryGetField(string referenceId, string fieldId, out RuntimeValue value, out string? error)
+    {
+        EnsureActorReference(referenceId);
+        value = externalInstances[referenceId].TryGetValue(fieldId, out var storedValue)
+            ? storedValue
+            : RuntimeValue.Null;
+        error = null;
+        return true;
+    }
+
+    public bool TrySetField(string referenceId, string fieldId, RuntimeValue value, out string? error)
+    {
+        EnsureActorReference(referenceId);
+        externalInstances[referenceId][fieldId] = value;
+        error = null;
+        return true;
+    }
+
+    public bool TryDispose(RuntimeValue reference, out string? error)
     {
         error = null;
 
-        if (arrays.Remove(referenceId) || instances.Remove(referenceId))
+        if (reference.ReferenceKind == RuntimeReferenceKind.Array &&
+            reference.ObjectHandle >= 0 &&
+            reference.ObjectHandle < arrays.Count &&
+            arrays[reference.ObjectHandle] != null)
+        {
+            arrays[reference.ObjectHandle] = null;
+            return true;
+        }
+
+        if (reference.ReferenceKind == RuntimeReferenceKind.Instance &&
+            reference.ObjectHandle >= 0 &&
+            reference.ObjectHandle < instances.Count &&
+            instances[reference.ObjectHandle] != null)
+        {
+            instances[reference.ObjectHandle] = null;
+            return true;
+        }
+
+        if (reference.ReferenceKind == RuntimeReferenceKind.External &&
+            !string.IsNullOrEmpty(reference.ReferenceId) &&
+            externalInstances.Remove(reference.ReferenceId))
         {
             return true;
         }
 
-        error = $"Object reference '{referenceId}' does not exist.";
+        error = $"Object handle '{reference.ObjectHandle}' does not exist.";
         return false;
     }
 
-    private static bool IsActorReference(string referenceId)
+    private bool TryGetArray(RuntimeValue reference, out List<RuntimeValue> array)
     {
-        return referenceId.StartsWith("actor.", StringComparison.Ordinal);
+        if (reference.Kind == RuntimeValueKind.Reference &&
+            reference.ReferenceKind == RuntimeReferenceKind.Array &&
+            reference.ObjectHandle >= 0 &&
+            reference.ObjectHandle < arrays.Count &&
+            arrays[reference.ObjectHandle] is List<RuntimeValue> stored)
+        {
+            array = stored;
+            return true;
+        }
+
+        array = null!;
+        return false;
+    }
+
+    private bool TryGetInstance(RuntimeValue reference, out Dictionary<string, RuntimeValue> fields)
+    {
+        if (reference.Kind == RuntimeValueKind.Reference &&
+            reference.ReferenceKind == RuntimeReferenceKind.Instance &&
+            reference.ObjectHandle >= 0 &&
+            reference.ObjectHandle < instances.Count &&
+            instances[reference.ObjectHandle] is Dictionary<string, RuntimeValue> stored)
+        {
+            fields = stored;
+            return true;
+        }
+
+        if (reference.Kind == RuntimeValueKind.Reference &&
+            reference.ReferenceKind == RuntimeReferenceKind.External &&
+            !string.IsNullOrEmpty(reference.ReferenceId))
+        {
+            EnsureActorReference(reference.ReferenceId);
+            fields = externalInstances[reference.ReferenceId];
+            return true;
+        }
+
+        fields = null!;
+        return false;
     }
 
     private static Dictionary<string, RuntimeValue> CreateInstanceFields(string classId)
