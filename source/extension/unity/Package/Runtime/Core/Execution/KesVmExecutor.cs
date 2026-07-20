@@ -1621,9 +1621,12 @@ public sealed record KesVmExecutionResult(
     IReadOnlyList<RuntimeDiagnostic> Diagnostics,
     RuntimeFailureKind FailureKind)
 {
+    private static readonly KesVmExecutionResult SuccessfulResult =
+        new KesVmExecutionResult(true, Array.Empty<RuntimeDiagnostic>(), RuntimeFailureKind.None);
+
     public static KesVmExecutionResult Success()
     {
-        return new KesVmExecutionResult(true, Array.Empty<RuntimeDiagnostic>(), RuntimeFailureKind.None);
+        return SuccessfulResult;
     }
 
     public static KesVmExecutionResult Failure(RuntimeFailureKind failureKind, params RuntimeDiagnostic[] diagnostics)

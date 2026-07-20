@@ -224,6 +224,21 @@ public sealed class KesVmExecutorTests
         Assert.That(counters.CaptureSnapshot().TotalInstructions, Is.Zero);
     }
 
+    [Test]
+    public void ExecutionResult_Success_ReusesImmutableSingleton()
+    {
+        var first = KesVmExecutionResult.Success();
+        var second = KesVmExecutionResult.Success();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(second, Is.SameAs(first));
+            Assert.That(first.Succeeded, Is.True);
+            Assert.That(first.Diagnostics, Is.Empty);
+            Assert.That(first.FailureKind, Is.EqualTo(RuntimeFailureKind.None));
+        });
+    }
+
     private static KlibDocument CreateDocument(
         IReadOnlyList<KlibConstant> constants,
         IReadOnlyList<KlibInstruction> instructions)
