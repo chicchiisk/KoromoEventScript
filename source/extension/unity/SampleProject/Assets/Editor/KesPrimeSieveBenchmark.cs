@@ -42,7 +42,8 @@ internal static class KesPrimeSieveBenchmark
 
         var document = loadResult.Document;
         var resultSlot = FindVariableSlot(document, ResultVariableName);
-        var executor = new KesVmExecutor();
+        var counters = new KesVmPerformanceCounters();
+        var executor = new KesVmExecutor(performanceCounters: counters);
 
         for (var index = 0; index < WarmupCount; index++)
         {
@@ -50,11 +51,12 @@ internal static class KesPrimeSieveBenchmark
             EnsurePrime(RunKes(document, executor, resultSlot), "KES warmup");
         }
 
+        counters.Reset();
         GC.Collect();
         GC.WaitForPendingFinalizers();
         GC.Collect();
 
-        currentRun = new BenchmarkRun(document, executor, resultSlot);
+        currentRun = new BenchmarkRun(document, executor, counters, resultSlot);
         EditorApplication.update += MeasureNextPair;
         Debug.Log($"[KES PRIME BENCHMARK] Started {MeasurementCount} measured runs for C# and KES.");
     }
@@ -78,9 +80,10 @@ internal static class KesPrimeSieveBenchmark
 
             var csharp = Statistics.Create(currentRun.CSharpTimings);
             var kes = Statistics.Create(currentRun.KesTimings);
+            var performance = currentRun.Counters.CaptureSnapshot();
             EditorApplication.update -= MeasureNextPair;
             currentRun = null;
-            LogResults(csharp, kes);
+            LogResults(csharp, kes, performance);
         }
         catch (Exception exception)
         {
@@ -90,7 +93,10 @@ internal static class KesPrimeSieveBenchmark
         }
     }
 
-    private static void LogResults(Statistics csharp, Statistics kes)
+    private static void LogResults(
+        Statistics csharp,
+        Statistics kes,
+        KesVmPerformanceSnapshot performance)
     {
         Debug.Log(
             "[KES PRIME BENCHMARK]\n" +
@@ -98,6 +104,10 @@ internal static class KesPrimeSieveBenchmark
             $"Warmup: {WarmupCount}, measured runs: {MeasurementCount} each, alternating C# then KES\n" +
             $"CSharp: {csharp}\n" +
             $"KES: {kes}\n" +
+            $"KES VM: runs={performance.RunInvocations:N0}, " +
+            $"instructions={performance.TotalInstructions:N0}, " +
+            $"instructions/sec={performance.TotalInstructions / (kes.TotalMilliseconds / 1000d):N0}, " +
+            $"max stack depth={performance.MaximumObservedOperandStackDepth:N0}\n" +
             $"KES/CSharp total time ratio: {kes.TotalMilliseconds / csharp.TotalMilliseconds:F2}x");
     }
 
@@ -238,10 +248,15 @@ internal static class KesPrimeSieveBenchmark
 
     private sealed class BenchmarkRun
     {
-        public BenchmarkRun(KlibDocument document, KesVmExecutor executor, int resultSlot)
+        public BenchmarkRun(
+            KlibDocument document,
+            KesVmExecutor executor,
+            KesVmPerformanceCounters counters,
+            int resultSlot)
         {
             Document = document;
             Executor = executor;
+            Counters = counters;
             ResultSlot = resultSlot;
             CSharpTimings = new double[MeasurementCount];
             KesTimings = new double[MeasurementCount];
@@ -249,6 +264,7 @@ internal static class KesPrimeSieveBenchmark
 
         public KlibDocument Document { get; }
         public KesVmExecutor Executor { get; }
+        public KesVmPerformanceCounters Counters { get; }
         public int ResultSlot { get; }
         public double[] CSharpTimings { get; }
         public double[] KesTimings { get; }

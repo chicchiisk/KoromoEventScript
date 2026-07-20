@@ -188,6 +188,42 @@ public sealed class KesVmExecutorTests
         });
     }
 
+    [Test]
+    public void Run_WithPerformanceCounters_ReportsRunsInstructionsAndOpcodes()
+    {
+        var document = CreateDocument(
+            [],
+            [
+                Instruction(0, KlibOpCode.PushInt, [2]),
+                Instruction(1, KlibOpCode.PushInt, [3]),
+                Instruction(2, KlibOpCode.Add),
+                Instruction(3, KlibOpCode.End),
+            ]);
+        var counters = new KesVmPerformanceCounters();
+        var executor = new KesVmExecutor(performanceCounters: counters);
+
+        var firstResult = executor.Run(new KesVmSession(document));
+        var secondResult = executor.Run(new KesVmSession(document));
+        var snapshot = counters.CaptureSnapshot();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(firstResult.Succeeded, Is.True);
+            Assert.That(secondResult.Succeeded, Is.True);
+            Assert.That(snapshot.RunInvocations, Is.EqualTo(2));
+            Assert.That(snapshot.SuccessfulRunInvocations, Is.EqualTo(2));
+            Assert.That(snapshot.FailedRunInvocations, Is.Zero);
+            Assert.That(snapshot.TotalInstructions, Is.EqualTo(8));
+            Assert.That(snapshot.OpcodeCounts[KlibOpCode.PushInt], Is.EqualTo(4));
+            Assert.That(snapshot.OpcodeCounts[KlibOpCode.Add], Is.EqualTo(2));
+            Assert.That(snapshot.OpcodeCounts[KlibOpCode.End], Is.EqualTo(2));
+            Assert.That(snapshot.MaximumObservedOperandStackDepth, Is.EqualTo(2));
+        });
+
+        counters.Reset();
+        Assert.That(counters.CaptureSnapshot().TotalInstructions, Is.Zero);
+    }
+
     private static KlibDocument CreateDocument(
         IReadOnlyList<KlibConstant> constants,
         IReadOnlyList<KlibInstruction> instructions)

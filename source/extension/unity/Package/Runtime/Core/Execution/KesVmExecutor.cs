@@ -19,6 +19,7 @@ public sealed class KesVmExecutor
     private readonly IRuntimeGameParameterStore gameParameters;
     private readonly bool waitForHostEffects;
     private readonly Action<KlibDocument, KlibInstruction>? instructionExecuting;
+    private readonly KesVmPerformanceCounters? performanceCounters;
 
     public static ISet<KlibOpCode> DispatchedOpCodes { get; } = new HashSet<KlibOpCode>
     {
@@ -71,12 +72,14 @@ public sealed class KesVmExecutor
         IRuntimeEffectSink? effectSink = null,
         IRuntimeGameParameterStore? gameParameters = null,
         bool waitForHostEffects = false,
-        Action<KlibDocument, KlibInstruction>? instructionExecuting = null)
+        Action<KlibDocument, KlibInstruction>? instructionExecuting = null,
+        KesVmPerformanceCounters? performanceCounters = null)
     {
         this.effectSink = effectSink;
         this.gameParameters = gameParameters ?? new RuntimeGameParameterStore();
         this.waitForHostEffects = waitForHostEffects;
         this.instructionExecuting = instructionExecuting;
+        this.performanceCounters = performanceCounters;
         this.syscallDispatcher = syscallDispatcher ??
             new StlSyscallDispatcher(effectSink, this.gameParameters, waitForHostEffects);
     }
@@ -88,29 +91,39 @@ public sealed class KesVmExecutor
             throw new ArgumentNullException(nameof(session));
         }
 
+        performanceCounters?.BeginRun();
         var executed = 0;
         while (session.Continuation.Kind == RuntimeContinuationKind.Running)
         {
             if (executed++ >= maxInstructionCount)
             {
-                return Fault(session, "KESR3198", "VM execution exceeded the maximum instruction count.");
+                return CompleteMeasuredRun(
+                    Fault(session, "KESR3198", "VM execution exceeded the maximum instruction count."));
             }
 
             var instruction = session.CurrentInstruction();
             if (instruction is null)
             {
-                return Fault(session, "KESR3100", $"Instruction index '{session.Position.InstructionIndex}' does not exist.");
+                return CompleteMeasuredRun(
+                    Fault(session, "KESR3100", $"Instruction index '{session.Position.InstructionIndex}' does not exist."));
             }
 
+            performanceCounters?.RecordInstruction(instruction.OpCode, session.OperandStack.Count);
             instructionExecuting?.Invoke(session.Document, instruction);
             var result = Execute(session, instruction);
             if (!result.Succeeded)
             {
-                return result;
+                return CompleteMeasuredRun(result);
             }
         }
 
-        return KesVmExecutionResult.Success();
+        return CompleteMeasuredRun(KesVmExecutionResult.Success());
+    }
+
+    private KesVmExecutionResult CompleteMeasuredRun(KesVmExecutionResult result)
+    {
+        performanceCounters?.CompleteRun(result.Succeeded);
+        return result;
     }
 
     public KesVmExecutionResult ChooseSelection(KesVmSession session, int choiceIndex)
@@ -1626,4 +1639,89 @@ public sealed record KesVmExecutionResult(
         return new KesVmExecutionResult(false, diagnostics, failureKind);
     }
 }
+
+public sealed class KesVmPerformanceCounters
+{
+    private readonly long[] opcodeCounts = new long[256];
+
+    public long RunInvocations { get; private set; }
+
+    public long SuccessfulRunInvocations { get; private set; }
+
+    public long FailedRunInvocations { get; private set; }
+
+    public long TotalInstructions { get; private set; }
+
+    public int MaximumObservedOperandStackDepth { get; private set; }
+
+    internal void BeginRun()
+    {
+        RunInvocations++;
+    }
+
+    internal void RecordInstruction(KlibOpCode opCode, int operandStackDepth)
+    {
+        TotalInstructions++;
+        opcodeCounts[(byte)opCode]++;
+        if (operandStackDepth > MaximumObservedOperandStackDepth)
+        {
+            MaximumObservedOperandStackDepth = operandStackDepth;
+        }
+    }
+
+    internal void CompleteRun(bool succeeded)
+    {
+        if (succeeded)
+        {
+            SuccessfulRunInvocations++;
+        }
+        else
+        {
+            FailedRunInvocations++;
+        }
+    }
+
+    public long GetOpcodeCount(KlibOpCode opCode)
+    {
+        return opcodeCounts[(byte)opCode];
+    }
+
+    public KesVmPerformanceSnapshot CaptureSnapshot()
+    {
+        var capturedOpcodeCounts = new Dictionary<KlibOpCode, long>();
+        for (var index = 0; index < opcodeCounts.Length; index++)
+        {
+            if (opcodeCounts[index] > 0)
+            {
+                capturedOpcodeCounts[(KlibOpCode)(byte)index] = opcodeCounts[index];
+            }
+        }
+
+        return new KesVmPerformanceSnapshot(
+            RunInvocations,
+            SuccessfulRunInvocations,
+            FailedRunInvocations,
+            TotalInstructions,
+            MaximumObservedOperandStackDepth,
+            capturedOpcodeCounts);
+    }
+
+    public void Reset()
+    {
+        Array.Clear(opcodeCounts, 0, opcodeCounts.Length);
+        RunInvocations = 0;
+        SuccessfulRunInvocations = 0;
+        FailedRunInvocations = 0;
+        TotalInstructions = 0;
+        MaximumObservedOperandStackDepth = 0;
+    }
+}
+
+public sealed record KesVmPerformanceSnapshot(
+    long RunInvocations,
+    long SuccessfulRunInvocations,
+    long FailedRunInvocations,
+    long TotalInstructions,
+    int MaximumObservedOperandStackDepth,
+    IReadOnlyDictionary<KlibOpCode, long> OpcodeCounts);
 }

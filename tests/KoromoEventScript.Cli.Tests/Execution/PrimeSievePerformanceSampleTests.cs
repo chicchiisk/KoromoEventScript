@@ -29,7 +29,14 @@ public sealed class PrimeSievePerformanceSampleTests
         var document = loadResult.Document!;
         var resultSlot = FindVariableSlot(document, "is_prime");
         var session = new KesVmSession(document);
-        var executionResult = new KesVmExecutor().Run(session, 20_000_000);
+        var counters = new KesVmPerformanceCounters();
+        var executionResult = new KesVmExecutor(performanceCounters: counters).Run(session, 20_000_000);
+        var performance = counters.CaptureSnapshot();
+        TestContext.Progress.WriteLine(
+            $"Prime sieve VM baseline: {performance.TotalInstructions:N0} instructions, " +
+            $"ARRAY_GET {performance.OpcodeCounts[KlibOpCode.ArrayGet]:N0}, " +
+            $"ARRAY_SET {performance.OpcodeCounts[KlibOpCode.ArraySet]:N0}, " +
+            $"max stack depth {performance.MaximumObservedOperandStackDepth:N0}.");
 
         Assert.Multiple(() =>
         {
@@ -38,6 +45,11 @@ public sealed class PrimeSievePerformanceSampleTests
                 Is.True,
                 string.Join(Environment.NewLine, executionResult.Diagnostics.Select(static diagnostic => diagnostic.Message)));
             Assert.That(session.Variables[resultSlot].BoolValue, Is.True);
+            Assert.That(performance.RunInvocations, Is.EqualTo(1));
+            Assert.That(performance.SuccessfulRunInvocations, Is.EqualTo(1));
+            Assert.That(performance.TotalInstructions, Is.EqualTo(2_843_731));
+            Assert.That(performance.OpcodeCounts[KlibOpCode.ArrayGet], Is.EqualTo(323));
+            Assert.That(performance.OpcodeCounts[KlibOpCode.ArraySet], Is.EqualTo(202_616));
         });
     }
 
