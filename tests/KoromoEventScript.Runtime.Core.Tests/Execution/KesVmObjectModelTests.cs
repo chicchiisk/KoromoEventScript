@@ -54,6 +54,39 @@ public sealed class KesVmObjectModelTests
     }
 
     [Test]
+    public void ObjectStore_SpecializesHomogeneousArraysAndPromotesOnTypeChange()
+    {
+        var store = new RuntimeObjectStore();
+        var numbers = store.CreateArray([RuntimeValue.Number(1), RuntimeValue.Number(2)]);
+        var booleans = store.CreateArray([RuntimeValue.Bool(true)]);
+        var strings = store.CreateArray([RuntimeValue.String("a")]);
+        var mixed = store.CreateArray([RuntimeValue.Number(1), RuntimeValue.Bool(true)]);
+
+        var numberKindFound = store.TryGetArrayStorageKind(numbers, out var numberKind);
+        var boolKindFound = store.TryGetArrayStorageKind(booleans, out var boolKind);
+        var stringKindFound = store.TryGetArrayStorageKind(strings, out var stringKind);
+        var mixedKindFound = store.TryGetArrayStorageKind(mixed, out var mixedKind);
+        var set = store.TrySetArrayValue(numbers, 0, RuntimeValue.String("promoted"), out var error);
+        store.TryGetArrayStorageKind(numbers, out var promotedKind);
+        store.TryGetArrayValue(numbers, 0, out var promotedValue, out _);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(numberKindFound, Is.True);
+            Assert.That(boolKindFound, Is.True);
+            Assert.That(stringKindFound, Is.True);
+            Assert.That(mixedKindFound, Is.True);
+            Assert.That(numberKind, Is.EqualTo(RuntimeArrayStorageKind.Number));
+            Assert.That(boolKind, Is.EqualTo(RuntimeArrayStorageKind.Bool));
+            Assert.That(stringKind, Is.EqualTo(RuntimeArrayStorageKind.String));
+            Assert.That(mixedKind, Is.EqualTo(RuntimeArrayStorageKind.Generic));
+            Assert.That(set, Is.True, error);
+            Assert.That(promotedKind, Is.EqualTo(RuntimeArrayStorageKind.Generic));
+            Assert.That(promotedValue.StringValue, Is.EqualTo("promoted"));
+        });
+    }
+
+    [Test]
     public void Run_WithNewSetFieldAndGetField_CompletesWithStoredValue()
     {
         var document = CreateDocument(

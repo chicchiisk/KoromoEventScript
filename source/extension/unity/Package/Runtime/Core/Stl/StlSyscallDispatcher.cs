@@ -263,13 +263,22 @@ public sealed class StlSyscallDispatcher : IRuntimeSyscallDispatcher
             return failure!;
         }
 
-        var values = new List<RuntimeValue>();
-        for (var current = start; current < end; current += 1)
+        var span = end - start;
+        if (double.IsNaN(span) || double.IsInfinity(span) || span > int.MaxValue)
         {
-            values.Add(RuntimeValue.Number(current));
+            return RuntimeSyscallResult.Failure(
+                RuntimeFailureKind.Runtime,
+                Error("KESR3402", invocation, "Syscall 'core.range' requires a finite range with at most Int32.MaxValue elements."));
         }
 
-        return RuntimeSyscallResult.Success(session.ObjectStore.CreateArray(values));
+        var count = span > 0 ? (int)Math.Ceiling(span) : 0;
+        var values = new double[count];
+        for (var index = 0; index < count; index++)
+        {
+            values[index] = start + index;
+        }
+
+        return RuntimeSyscallResult.Success(session.ObjectStore.CreateNumberArray(values));
     }
 
     private static RuntimeSyscallResult NumberToString(RuntimeSyscallInvocation invocation)

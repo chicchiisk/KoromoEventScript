@@ -2,22 +2,43 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace KoromoEventScript.Runtime.Core.Execution
 {
 
+public enum RuntimeArrayStorageKind
+{
+    Generic = 0,
+    Number = 1,
+    Bool = 2,
+    String = 3,
+}
+
 public sealed class RuntimeObjectStore
 {
-    private readonly List<List<RuntimeValue>?> arrays = new List<List<RuntimeValue>?>();
+    private readonly List<IRuntimeArray?> arrays = new List<IRuntimeArray?>();
     private readonly List<Dictionary<string, RuntimeValue>?> instances = new List<Dictionary<string, RuntimeValue>?>();
     private readonly Dictionary<string, Dictionary<string, RuntimeValue>> externalInstances = new Dictionary<string, Dictionary<string, RuntimeValue>>(StringComparer.Ordinal);
 
     public RuntimeValue CreateArray(IEnumerable<RuntimeValue> values)
     {
-        var handle = arrays.Count;
-        arrays.Add(values.ToList());
-        return RuntimeValue.ObjectReference(RuntimeReferenceKind.Array, handle);
+        if (values == null)
+        {
+            throw new ArgumentNullException(nameof(values));
+        }
+
+        var source = values as IReadOnlyList<RuntimeValue> ?? new List<RuntimeValue>(values);
+        return RegisterArray(CreateBestArrayStorage(source));
+    }
+
+    public RuntimeValue CreateNumberArray(double[] values)
+    {
+        if (values == null)
+        {
+            throw new ArgumentNullException(nameof(values));
+        }
+
+        return RegisterArray(new NumberRuntimeArray(values));
     }
 
     public RuntimeValue CreateInstance(string classId)
@@ -64,7 +85,7 @@ public sealed class RuntimeObjectStore
             return false;
         }
 
-        value = array[index];
+        value = array.Get(index);
         return true;
     }
 
@@ -84,7 +105,13 @@ public sealed class RuntimeObjectStore
             return false;
         }
 
-        array[index] = value;
+        if (!array.TrySet(index, value))
+        {
+            array = new GenericRuntimeArray(array.ToRuntimeValues());
+            arrays[reference.ObjectHandle] = array;
+            array.TrySet(index, value);
+        }
+
         return true;
     }
 
@@ -101,6 +128,18 @@ public sealed class RuntimeObjectStore
 
         length = array.Count;
         return true;
+    }
+
+    public bool TryGetArrayStorageKind(RuntimeValue reference, out RuntimeArrayStorageKind storageKind)
+    {
+        if (TryGetArray(reference, out var array))
+        {
+            storageKind = array.StorageKind;
+            return true;
+        }
+
+        storageKind = RuntimeArrayStorageKind.Generic;
+        return false;
     }
 
     public bool TryGetField(RuntimeValue reference, string fieldId, out RuntimeValue value, out string? error)
@@ -183,13 +222,91 @@ public sealed class RuntimeObjectStore
         return false;
     }
 
-    private bool TryGetArray(RuntimeValue reference, out List<RuntimeValue> array)
+    private RuntimeValue RegisterArray(IRuntimeArray array)
+    {
+        var handle = arrays.Count;
+        arrays.Add(array);
+        return RuntimeValue.ObjectReference(RuntimeReferenceKind.Array, handle);
+    }
+
+    private static IRuntimeArray CreateBestArrayStorage(IReadOnlyList<RuntimeValue> values)
+    {
+        if (values.Count == 0)
+        {
+            return new GenericRuntimeArray(Array.Empty<RuntimeValue>());
+        }
+
+        var kind = values[0].Kind;
+        for (var index = 0; index < values.Count; index++)
+        {
+            if (values[index].Kind != kind)
+            {
+                return new GenericRuntimeArray(CopyValues(values));
+            }
+        }
+
+        switch (kind)
+        {
+            case RuntimeValueKind.Number:
+                var numbers = new double[values.Count];
+                for (var index = 0; index < values.Count; index++)
+                {
+                    if (values[index].NumberValue is not double number)
+                    {
+                        return new GenericRuntimeArray(CopyValues(values));
+                    }
+
+                    numbers[index] = number;
+                }
+
+                return new NumberRuntimeArray(numbers);
+
+            case RuntimeValueKind.Bool:
+                var booleans = new bool[values.Count];
+                for (var index = 0; index < values.Count; index++)
+                {
+                    if (values[index].BoolValue is not bool boolean)
+                    {
+                        return new GenericRuntimeArray(CopyValues(values));
+                    }
+
+                    booleans[index] = boolean;
+                }
+
+                return new BoolRuntimeArray(booleans);
+
+            case RuntimeValueKind.String:
+                var strings = new string?[values.Count];
+                for (var index = 0; index < values.Count; index++)
+                {
+                    strings[index] = values[index].StringValue;
+                }
+
+                return new StringRuntimeArray(strings);
+
+            default:
+                return new GenericRuntimeArray(CopyValues(values));
+        }
+    }
+
+    private static RuntimeValue[] CopyValues(IReadOnlyList<RuntimeValue> values)
+    {
+        var copied = new RuntimeValue[values.Count];
+        for (var index = 0; index < values.Count; index++)
+        {
+            copied[index] = values[index];
+        }
+
+        return copied;
+    }
+
+    private bool TryGetArray(RuntimeValue reference, out IRuntimeArray array)
     {
         if (reference.Kind == RuntimeValueKind.Reference &&
             reference.ReferenceKind == RuntimeReferenceKind.Array &&
             reference.ObjectHandle >= 0 &&
             reference.ObjectHandle < arrays.Count &&
-            arrays[reference.ObjectHandle] is List<RuntimeValue> stored)
+            arrays[reference.ObjectHandle] is IRuntimeArray stored)
         {
             array = stored;
             return true;
@@ -231,6 +348,157 @@ public sealed class RuntimeObjectStore
             ["__class"] = RuntimeValue.String(classId),
             ["isVisible"] = RuntimeValue.Bool(false),
         };
+    }
+
+    private interface IRuntimeArray
+    {
+        int Count { get; }
+
+        RuntimeArrayStorageKind StorageKind { get; }
+
+        RuntimeValue Get(int index);
+
+        bool TrySet(int index, RuntimeValue value);
+
+        RuntimeValue[] ToRuntimeValues();
+    }
+
+    private sealed class GenericRuntimeArray : IRuntimeArray
+    {
+        private readonly RuntimeValue[] values;
+
+        public GenericRuntimeArray(RuntimeValue[] values)
+        {
+            this.values = values;
+        }
+
+        public int Count => values.Length;
+
+        public RuntimeArrayStorageKind StorageKind => RuntimeArrayStorageKind.Generic;
+
+        public RuntimeValue Get(int index) => values[index];
+
+        public bool TrySet(int index, RuntimeValue value)
+        {
+            values[index] = value;
+            return true;
+        }
+
+        public RuntimeValue[] ToRuntimeValues() => (RuntimeValue[])values.Clone();
+    }
+
+    private sealed class NumberRuntimeArray : IRuntimeArray
+    {
+        private readonly double[] values;
+
+        public NumberRuntimeArray(double[] values)
+        {
+            this.values = values;
+        }
+
+        public int Count => values.Length;
+
+        public RuntimeArrayStorageKind StorageKind => RuntimeArrayStorageKind.Number;
+
+        public RuntimeValue Get(int index) => RuntimeValue.Number(values[index]);
+
+        public bool TrySet(int index, RuntimeValue value)
+        {
+            if (value.Kind != RuntimeValueKind.Number || value.NumberValue is not double number)
+            {
+                return false;
+            }
+
+            values[index] = number;
+            return true;
+        }
+
+        public RuntimeValue[] ToRuntimeValues()
+        {
+            var result = new RuntimeValue[values.Length];
+            for (var index = 0; index < values.Length; index++)
+            {
+                result[index] = RuntimeValue.Number(values[index]);
+            }
+
+            return result;
+        }
+    }
+
+    private sealed class BoolRuntimeArray : IRuntimeArray
+    {
+        private readonly bool[] values;
+
+        public BoolRuntimeArray(bool[] values)
+        {
+            this.values = values;
+        }
+
+        public int Count => values.Length;
+
+        public RuntimeArrayStorageKind StorageKind => RuntimeArrayStorageKind.Bool;
+
+        public RuntimeValue Get(int index) => RuntimeValue.Bool(values[index]);
+
+        public bool TrySet(int index, RuntimeValue value)
+        {
+            if (value.Kind != RuntimeValueKind.Bool || value.BoolValue is not bool boolean)
+            {
+                return false;
+            }
+
+            values[index] = boolean;
+            return true;
+        }
+
+        public RuntimeValue[] ToRuntimeValues()
+        {
+            var result = new RuntimeValue[values.Length];
+            for (var index = 0; index < values.Length; index++)
+            {
+                result[index] = RuntimeValue.Bool(values[index]);
+            }
+
+            return result;
+        }
+    }
+
+    private sealed class StringRuntimeArray : IRuntimeArray
+    {
+        private readonly string?[] values;
+
+        public StringRuntimeArray(string?[] values)
+        {
+            this.values = values;
+        }
+
+        public int Count => values.Length;
+
+        public RuntimeArrayStorageKind StorageKind => RuntimeArrayStorageKind.String;
+
+        public RuntimeValue Get(int index) => RuntimeValue.String(values[index] ?? string.Empty);
+
+        public bool TrySet(int index, RuntimeValue value)
+        {
+            if (value.Kind != RuntimeValueKind.String)
+            {
+                return false;
+            }
+
+            values[index] = value.StringValue;
+            return true;
+        }
+
+        public RuntimeValue[] ToRuntimeValues()
+        {
+            var result = new RuntimeValue[values.Length];
+            for (var index = 0; index < values.Length; index++)
+            {
+                result[index] = RuntimeValue.String(values[index] ?? string.Empty);
+            }
+
+            return result;
+        }
     }
 }
 }
