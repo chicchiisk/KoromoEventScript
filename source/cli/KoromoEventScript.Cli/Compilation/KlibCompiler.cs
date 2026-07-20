@@ -512,6 +512,12 @@ public sealed class KlibCompiler
 
         private void CompileFor(ForStatementSyntax forStatement)
         {
+            if (TryGetRangeArguments(forStatement.IterableTokens, out var startTokens, out var endTokens))
+            {
+                CompileRangeFor(forStatement, startTokens, endTokens);
+                return;
+            }
+
             PushBlockScope();
             var iterableSlot = DeclareHiddenVariable("for_iter", KlibVariableType.Array, KlibScopeKind.Block, GetScopeId());
             var indexSlot = DeclareHiddenVariable("for_index", KlibVariableType.Number, KlibScopeKind.Block, GetScopeId());
@@ -555,6 +561,110 @@ public sealed class KlibCompiler
             instructions.Add(InstructionBuilder.Jump(startLabel, forStatement.ForLocation));
             EmitLabel(endLabel, forStatement.ForLocation, publicLabel: false);
             PopBlockScope();
+        }
+
+        private void CompileRangeFor(
+            ForStatementSyntax forStatement,
+            IReadOnlyList<Token> startTokens,
+            IReadOnlyList<Token> endTokens)
+        {
+            PushBlockScope();
+            var currentSlot = DeclareHiddenVariable("for_range_current", KlibVariableType.Number, KlibScopeKind.Block, GetScopeId());
+            var endSlot = DeclareHiddenVariable("for_range_end", KlibVariableType.Number, KlibScopeKind.Block, GetScopeId());
+            var elementSlot = DeclareVariable(
+                forStatement.VariableName,
+                KlibVariableType.Number,
+                KlibScopeKind.Block,
+                GetScopeId(),
+                forStatement.VariableLocation);
+
+            CompileExpression(startTokens, requireValue: true);
+            instructions.Add(new InstructionBuilder(
+                KlibOpCode.DefVar,
+                forStatement.ForLocation,
+                KlibMappingKind.Statement,
+                currentSlot.Index));
+            CompileExpression(endTokens, requireValue: true);
+            instructions.Add(new InstructionBuilder(
+                KlibOpCode.DefVar,
+                forStatement.ForLocation,
+                KlibMappingKind.Statement,
+                endSlot.Index));
+
+            var startLabel = CreateSyntheticLabel("for_range_start");
+            var incrementLabel = CreateSyntheticLabel("for_range_increment");
+            var endLabel = CreateSyntheticLabel("for_range_end");
+            EmitLabel(startLabel, forStatement.ForLocation, publicLabel: false);
+            instructions.Add(new InstructionBuilder(
+                KlibOpCode.LoadVar,
+                forStatement.ForLocation,
+                KlibMappingKind.Expression,
+                currentSlot.Index));
+            instructions.Add(new InstructionBuilder(
+                KlibOpCode.LoadVar,
+                forStatement.ForLocation,
+                KlibMappingKind.Expression,
+                endSlot.Index));
+            instructions.Add(new InstructionBuilder(KlibOpCode.Lt, forStatement.ForLocation, KlibMappingKind.Expression));
+            instructions.Add(InstructionBuilder.JumpFalse(endLabel, forStatement.ForLocation));
+            instructions.Add(new InstructionBuilder(
+                KlibOpCode.LoadVar,
+                forStatement.ForLocation,
+                KlibMappingKind.Expression,
+                currentSlot.Index));
+            instructions.Add(new InstructionBuilder(
+                KlibOpCode.StoreVar,
+                forStatement.ForLocation,
+                KlibMappingKind.Statement,
+                elementSlot.Index));
+
+            loops.Push(new LoopLabels(incrementLabel, endLabel));
+            foreach (var statement in forStatement.Body.Statements)
+            {
+                CompileStatement(statement);
+            }
+            loops.Pop();
+
+            EmitLabel(incrementLabel, forStatement.ForLocation, publicLabel: false);
+            instructions.Add(new InstructionBuilder(
+                KlibOpCode.LoadVar,
+                forStatement.ForLocation,
+                KlibMappingKind.Expression,
+                currentSlot.Index));
+            instructions.Add(new InstructionBuilder(KlibOpCode.PushInt, forStatement.ForLocation, KlibMappingKind.Expression, 1));
+            instructions.Add(new InstructionBuilder(KlibOpCode.Add, forStatement.ForLocation, KlibMappingKind.Expression));
+            instructions.Add(new InstructionBuilder(
+                KlibOpCode.StoreVar,
+                forStatement.ForLocation,
+                KlibMappingKind.Statement,
+                currentSlot.Index));
+            instructions.Add(InstructionBuilder.Jump(startLabel, forStatement.ForLocation));
+            EmitLabel(endLabel, forStatement.ForLocation, publicLabel: false);
+            PopBlockScope();
+        }
+
+        private static bool TryGetRangeArguments(
+            IReadOnlyList<Token> iterableTokens,
+            out IReadOnlyList<Token> startTokens,
+            out IReadOnlyList<Token> endTokens)
+        {
+            startTokens = Array.Empty<Token>();
+            endTokens = Array.Empty<Token>();
+            if (iterableTokens.Count < 3 ||
+                !string.Equals(iterableTokens[0].Lexeme, "range", StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            var arguments = SplitArguments(iterableTokens.Skip(1).ToArray());
+            if (arguments.Count != 2 || arguments[0].Count == 0 || arguments[1].Count == 0)
+            {
+                return false;
+            }
+
+            startTokens = arguments[0];
+            endTokens = arguments[1];
+            return true;
         }
 
         private void CompileCommand(string name, IReadOnlyList<Token> tokens, SourceLocation location, bool requiresValue)

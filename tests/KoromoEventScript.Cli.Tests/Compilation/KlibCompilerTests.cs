@@ -3,6 +3,8 @@ using KoromoEventScript.Cli.Commands;
 using KoromoEventScript.Cli.Commands.Build;
 using KoromoEventScript.Cli.Compilation;
 using KoromoEventScript.Cli.Diagnostics;
+using KoromoEventScript.Runtime.Core.Execution;
+using KoromoEventScript.Runtime.Core.Klib;
 
 namespace KoromoEventScript.Cli.Tests.Compilation;
 
@@ -70,6 +72,43 @@ var selected: number = values[index]
         });
     }
 
+    [Test]
+    public void BuildCommand_LowersForRangeWithoutMaterializingAnArray()
+    {
+        using var fixture = TemporaryProject.Create();
+        fixture.WriteConfig(entry: "events/main.kel");
+        fixture.WriteFile("events/main.kel", """
+entry = intro
+intro = {
+    chapter = "events/main.kc"
+}
+""");
+        fixture.WriteFile("events/main.kc", """
+var sum: number = 0
+for i in range 2 6:
+    sum = sum + i
+""");
+
+        var result = ExecuteBuild(fixture);
+        var textIr = ReadGeneratedTextIr(fixture);
+        var loadResult = new KlibModuleLoader().Load(
+            Path.Combine(fixture.Root, "build", "windows", "events", "main.klib"));
+        var document = loadResult.Document!;
+        var session = new KesVmSession(document);
+        var execution = new KesVmExecutor().Run(session);
+        var sumSlot = FindVariableSlot(document, "sum");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.ExitCode, Is.EqualTo(CliExitCode.Success));
+            Assert.That(loadResult.Succeeded, Is.True);
+            Assert.That(execution.Succeeded, Is.True);
+            Assert.That(session.Variables[sumSlot].NumberValue, Is.EqualTo(14));
+            Assert.That(textIr, Does.Not.Contain("ARRAYGET"));
+            Assert.That(textIr, Does.Not.Contain("array_len"));
+        });
+    }
+
     private static TemporaryProject CreateBroadSurfaceFixture()
     {
         var fixture = TemporaryProject.Create();
@@ -120,6 +159,21 @@ label #end
     private static string ReadGeneratedTextIr(TemporaryProject fixture)
     {
         return File.ReadAllText(Path.Combine(fixture.Root, "build", "windows", "events", "main.klibtxt"));
+    }
+
+    private static int FindVariableSlot(KlibDocument document, string variableName)
+    {
+        for (var index = 0; index < document.Variables.Count; index++)
+        {
+            var nameIndex = document.Variables[index].NameIndex;
+            if (string.Equals(document.Constants[nameIndex].StringValue, variableName, StringComparison.Ordinal))
+            {
+                return index;
+            }
+        }
+
+        Assert.Fail($"Variable '{variableName}' was not found.");
+        return -1;
     }
 
     private static string ReadIrSnapshot(string fileName)
