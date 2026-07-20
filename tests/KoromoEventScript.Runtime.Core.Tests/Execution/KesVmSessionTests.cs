@@ -8,6 +8,25 @@ namespace KoromoEventScript.Runtime.Core.Tests.Execution;
 public sealed class KesVmSessionTests
 {
     [Test]
+    public void Variables_SupportSparseStableIdsThroughArrayBackedView()
+    {
+        var session = new KesVmSession(CreateDocument());
+
+        session.SetVariable(1_024, RuntimeValue.Number(42));
+        session.SetVariable(2, RuntimeValue.String("two"));
+        session.SetVariable(1_024, RuntimeValue.Number(43));
+        var found = session.Variables.TryGetValue(2, out var value);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(session.Variables.Count, Is.EqualTo(2));
+            Assert.That(session.Variables[1_024].NumberValue, Is.EqualTo(43));
+            Assert.That(found, Is.True);
+            Assert.That(value.StringValue, Is.EqualTo("two"));
+            Assert.That(session.Variables.Keys, Is.EqualTo(new[] { 2, 1_024 }));
+        });
+    }
+    [Test]
     public void CaptureSnapshot_IncludesStableScriptIdAndInstructionIndex()
     {
         var document = CreateDocument();

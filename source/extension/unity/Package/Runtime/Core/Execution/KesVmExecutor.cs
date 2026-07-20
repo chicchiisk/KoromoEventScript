@@ -1583,15 +1583,7 @@ public sealed class KesVmExecutor
 
     private static int? FindNextInstructionIndex(KesVmSession session, KlibInstruction instruction)
     {
-        for (var i = 0; i < session.Document.Instructions.Count - 1; i++)
-        {
-            if (session.Document.Instructions[i].Index == instruction.Index)
-            {
-                return session.Document.Instructions[i + 1].Index;
-            }
-        }
-
-        return null;
+        return session.GetNextInstructionIndex(instruction);
     }
 
     private static RuntimeValue ResolveConstant(KlibConstant constant)

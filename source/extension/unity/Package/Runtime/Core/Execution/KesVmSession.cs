@@ -1,8 +1,8 @@
 #nullable enable
 
 using System;
+using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text.Json.Serialization;
 using KoromoEventScript.Runtime.Core.Diagnostics;
 using KoromoEventScript.Runtime.Core.Klib;
@@ -13,12 +13,28 @@ namespace KoromoEventScript.Runtime.Core.Execution
 
 public sealed class KesVmSession
 {
-    private readonly Dictionary<int, RuntimeValue> variables = new Dictionary<int, RuntimeValue>();
+    private readonly Dictionary<int, int> instructionOrdinals;
     private readonly List<RuntimeValue> operandStack = new List<RuntimeValue>();
+    private readonly RuntimeVariableView variableView;
+    private RuntimeValue[] variables;
+    private bool[] initializedVariables;
+    private int initializedVariableCount;
+    private int currentInstructionOrdinal;
 
     public KesVmSession(KlibDocument document)
     {
         Document = document;
+        instructionOrdinals = new Dictionary<int, int>(document.Instructions.Count);
+        for (var ordinal = 0; ordinal < document.Instructions.Count; ordinal++)
+        {
+            instructionOrdinals.Add(document.Instructions[ordinal].Index, ordinal);
+        }
+
+        currentInstructionOrdinal = document.Instructions.Count > 0 ? 0 : -1;
+        var initialVariableCapacity = Math.Max(document.Variables.Count, 8);
+        variables = new RuntimeValue[initialVariableCapacity];
+        initializedVariables = new bool[initialVariableCapacity];
+        variableView = new RuntimeVariableView(this);
         Position = new RuntimeExecutionPosition(
             document.Module.ScriptId,
             document.Instructions.Count > 0 ? document.Instructions[0].Index : 0,
@@ -36,7 +52,7 @@ public sealed class KesVmSession
 
     public IReadOnlyList<RuntimeValue> OperandStack => operandStack;
 
-    public IReadOnlyDictionary<int, RuntimeValue> Variables => variables;
+    public IReadOnlyDictionary<int, RuntimeValue> Variables => variableView;
 
     public void SetInstructionIndex(int instructionIndex)
     {
@@ -45,6 +61,7 @@ public sealed class KesVmSession
             throw new ArgumentOutOfRangeException(nameof(instructionIndex), instructionIndex, "Instruction index does not exist in the current document.");
         }
 
+        currentInstructionOrdinal = instructionOrdinals[instructionIndex];
         Position = Position.WithInstructionIndex(instructionIndex);
     }
 
@@ -81,12 +98,32 @@ public sealed class KesVmSession
 
     public void SetVariable(int stableId, RuntimeValue value)
     {
+        if (stableId < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(stableId), stableId, "Variable stable id must be non-negative.");
+        }
+
+        EnsureVariableCapacity(stableId);
         variables[stableId] = value;
+        if (!initializedVariables[stableId])
+        {
+            initializedVariables[stableId] = true;
+            initializedVariableCount++;
+        }
     }
 
     internal bool TryGetVariable(int stableId, out RuntimeValue value)
     {
-        return variables.TryGetValue(stableId, out value!);
+        if (stableId >= 0 &&
+            stableId < initializedVariables.Length &&
+            initializedVariables[stableId])
+        {
+            value = variables[stableId];
+            return true;
+        }
+
+        value = RuntimeValue.Null;
+        return false;
     }
 
     public RuntimeSaveSnapshot CaptureSnapshot()
@@ -120,10 +157,7 @@ public sealed class KesVmSession
             position,
             continuation,
             operandStack.ToArray(),
-            variables
-                .OrderBy(static pair => pair.Key)
-                .Select(static pair => new RuntimeVariableSnapshot(pair.Key, pair.Value))
-                .ToArray());
+            CaptureVariables());
     }
 
     public RuntimeSessionRestoreResult Restore(RuntimeSaveSnapshot snapshot)
@@ -164,14 +198,16 @@ public sealed class KesVmSession
                     new RuntimeSourceLocation(Document.Module.ScriptId, snapshot.Position.InstructionIndex, null, null, null)));
         }
 
+        currentInstructionOrdinal = instructionOrdinals[snapshot.Position.InstructionIndex];
         Position = snapshot.Position;
         Continuation = snapshot.Continuation;
         operandStack.Clear();
         operandStack.AddRange(snapshot.OperandStack);
-        variables.Clear();
+        Array.Clear(initializedVariables, 0, initializedVariables.Length);
+        initializedVariableCount = 0;
         foreach (var variable in snapshot.Variables)
         {
-            variables[variable.StableId] = variable.Value;
+            SetVariable(variable.StableId, variable.Value);
         }
 
         return RuntimeSessionRestoreResult.Success();
@@ -214,38 +250,156 @@ public sealed class KesVmSession
 
     private bool IsKnownInstructionIndex(int instructionIndex)
     {
-        return Document.Instructions.Any(instruction => instruction.Index == instructionIndex);
+        return instructionOrdinals.ContainsKey(instructionIndex);
     }
 
     internal KlibInstruction? CurrentInstruction()
     {
-        return Document.Instructions.FirstOrDefault(instruction => instruction.Index == Position.InstructionIndex);
+        return currentInstructionOrdinal >= 0 &&
+            currentInstructionOrdinal < Document.Instructions.Count
+            ? Document.Instructions[currentInstructionOrdinal]
+            : null;
     }
 
     internal void AdvanceAfter(KlibInstruction instruction)
     {
-        var instructionIndex = -1;
-        for (var i = 0; i < Document.Instructions.Count; i++)
-        {
-            if (Document.Instructions[i].Index == instruction.Index)
-            {
-                instructionIndex = i;
-                break;
-            }
-        }
-
-        if (instructionIndex < 0 || instructionIndex + 1 >= Document.Instructions.Count)
+        if (!instructionOrdinals.TryGetValue(instruction.Index, out var instructionOrdinal) ||
+            instructionOrdinal + 1 >= Document.Instructions.Count)
         {
             Continuation = RuntimeContinuation.Completed;
             return;
         }
 
-        SetInstructionIndex(Document.Instructions[instructionIndex + 1].Index);
+        currentInstructionOrdinal = instructionOrdinal + 1;
+        Position = Position.WithInstructionIndex(Document.Instructions[currentInstructionOrdinal].Index);
+    }
+
+    internal int? GetNextInstructionIndex(KlibInstruction instruction)
+    {
+        return instructionOrdinals.TryGetValue(instruction.Index, out var instructionOrdinal) &&
+            instructionOrdinal + 1 < Document.Instructions.Count
+            ? Document.Instructions[instructionOrdinal + 1].Index
+            : null;
     }
 
     internal void SetContinuation(RuntimeContinuation continuation)
     {
         Continuation = continuation;
+    }
+
+    private void EnsureVariableCapacity(int stableId)
+    {
+        if (stableId < variables.Length)
+        {
+            return;
+        }
+
+        var newLength = variables.Length;
+        while (newLength <= stableId)
+        {
+            newLength = checked(newLength * 2);
+        }
+
+        Array.Resize(ref variables, newLength);
+        Array.Resize(ref initializedVariables, newLength);
+    }
+
+    private RuntimeVariableSnapshot[] CaptureVariables()
+    {
+        var snapshots = new RuntimeVariableSnapshot[initializedVariableCount];
+        var destination = 0;
+        for (var stableId = 0; stableId < initializedVariables.Length; stableId++)
+        {
+            if (initializedVariables[stableId])
+            {
+                snapshots[destination++] = new RuntimeVariableSnapshot(stableId, variables[stableId]);
+            }
+        }
+
+        return snapshots;
+    }
+
+    private sealed class RuntimeVariableView : IReadOnlyDictionary<int, RuntimeValue>
+    {
+        private readonly KesVmSession session;
+
+        public RuntimeVariableView(KesVmSession session)
+        {
+            this.session = session;
+        }
+
+        public int Count => session.initializedVariableCount;
+
+        public IEnumerable<int> Keys
+        {
+            get
+            {
+                for (var stableId = 0; stableId < session.initializedVariables.Length; stableId++)
+                {
+                    if (session.initializedVariables[stableId])
+                    {
+                        yield return stableId;
+                    }
+                }
+            }
+        }
+
+        public IEnumerable<RuntimeValue> Values
+        {
+            get
+            {
+                for (var stableId = 0; stableId < session.initializedVariables.Length; stableId++)
+                {
+                    if (session.initializedVariables[stableId])
+                    {
+                        yield return session.variables[stableId];
+                    }
+                }
+            }
+        }
+
+        public RuntimeValue this[int key]
+        {
+            get
+            {
+                if (TryGetValue(key, out var value))
+                {
+                    return value;
+                }
+
+                throw new KeyNotFoundException($"Variable stable id '{key}' is not initialized.");
+            }
+        }
+
+        public bool ContainsKey(int key)
+        {
+            return key >= 0 &&
+                key < session.initializedVariables.Length &&
+                session.initializedVariables[key];
+        }
+
+        public bool TryGetValue(int key, out RuntimeValue value)
+        {
+            return session.TryGetVariable(key, out value);
+        }
+
+        public IEnumerator<KeyValuePair<int, RuntimeValue>> GetEnumerator()
+        {
+            for (var stableId = 0; stableId < session.initializedVariables.Length; stableId++)
+            {
+                if (session.initializedVariables[stableId])
+                {
+                    yield return new KeyValuePair<int, RuntimeValue>(
+                        stableId,
+                        session.variables[stableId]);
+                }
+            }
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
+        }
     }
 }
 
