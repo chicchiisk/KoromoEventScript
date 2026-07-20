@@ -921,7 +921,7 @@ public sealed class KesVmExecutor
                 return Fault(session, "KESR3404", $"Syscall '{syscallId}' did not return a value.");
             }
 
-            session.PushOperand(result.ReturnValue);
+            session.PushOperand(result.ReturnValue.Value);
         }
 
         var resumeInstructionIndex = FindNextInstructionIndex(session, instruction);
@@ -974,7 +974,7 @@ public sealed class KesVmExecutor
                 return Fault(session, "KESR3404", $"Syscall '{syscallId}' did not return a value.");
             }
 
-            session.PushOperand(result.ReturnValue);
+            session.PushOperand(result.ReturnValue.Value);
         }
 
         if (result.WaitForAdvance)

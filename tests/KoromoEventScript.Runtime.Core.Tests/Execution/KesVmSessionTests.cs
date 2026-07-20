@@ -2,6 +2,7 @@ using KoromoEventScript.Runtime.Core.Diagnostics;
 using KoromoEventScript.Runtime.Core.Execution;
 using KoromoEventScript.Runtime.Core.Klib;
 using KoromoEventScript.Runtime.Core.Persistence;
+using System.Text.Json;
 
 namespace KoromoEventScript.Runtime.Core.Tests.Execution;
 
@@ -24,6 +25,27 @@ public sealed class KesVmSessionTests
             Assert.That(found, Is.True);
             Assert.That(value.StringValue, Is.EqualTo("two"));
             Assert.That(session.Variables.Keys, Is.EqualTo(new[] { 2, 1_024 }));
+        });
+    }
+
+    [Test]
+    public void RuntimeValue_IsValueTypeWithStableEqualityAndJsonRoundTrip()
+    {
+        var original = RuntimeValue.Reference("actor:alice");
+        var copy = original;
+        var number = RuntimeValue.Number(42);
+        var equalNumber = RuntimeValue.Number(42);
+        var differentNumber = RuntimeValue.Number(43);
+        var json = JsonSerializer.Serialize(original);
+        var restored = JsonSerializer.Deserialize<RuntimeValue>(json);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(typeof(RuntimeValue).IsValueType, Is.True);
+            Assert.That(copy, Is.EqualTo(original));
+            Assert.That(restored, Is.EqualTo(original));
+            Assert.That(number, Is.EqualTo(equalNumber));
+            Assert.That(number, Is.Not.EqualTo(differentNumber));
         });
     }
     [Test]

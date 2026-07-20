@@ -481,14 +481,34 @@ public enum RuntimeValueKind
     Reference = 4,
 }
 
-public sealed record RuntimeValue(
-    RuntimeValueKind Kind,
-    double? NumberValue = null,
-    bool? BoolValue = null,
-    string? StringValue = null,
-    string? ReferenceId = null)
+public readonly struct RuntimeValue : IEquatable<RuntimeValue>
 {
-    public static RuntimeValue Null { get; } = new(RuntimeValueKind.Null);
+    [JsonConstructor]
+    public RuntimeValue(
+        RuntimeValueKind Kind,
+        double? NumberValue = null,
+        bool? BoolValue = null,
+        string? StringValue = null,
+        string? ReferenceId = null)
+    {
+        this.Kind = Kind;
+        this.NumberValue = NumberValue;
+        this.BoolValue = BoolValue;
+        this.StringValue = StringValue;
+        this.ReferenceId = ReferenceId;
+    }
+
+    public RuntimeValueKind Kind { get; }
+
+    public double? NumberValue { get; }
+
+    public bool? BoolValue { get; }
+
+    public string? StringValue { get; }
+
+    public string? ReferenceId { get; }
+
+    public static RuntimeValue Null { get; } = new RuntimeValue(RuntimeValueKind.Null);
 
     public static RuntimeValue Number(double value)
     {
@@ -521,6 +541,43 @@ public sealed record RuntimeValue(
             RuntimeValueKind.Reference => ReferenceId,
             _ => null,
         };
+    }
+
+    public bool Equals(RuntimeValue other)
+    {
+        return Kind == other.Kind &&
+            NumberValue == other.NumberValue &&
+            BoolValue == other.BoolValue &&
+            StringComparer.Ordinal.Equals(StringValue, other.StringValue) &&
+            StringComparer.Ordinal.Equals(ReferenceId, other.ReferenceId);
+    }
+
+    public override bool Equals(object? obj)
+    {
+        return obj is RuntimeValue other && Equals(other);
+    }
+
+    public override int GetHashCode()
+    {
+        unchecked
+        {
+            var hashCode = (int)Kind;
+            hashCode = (hashCode * 397) ^ NumberValue.GetHashCode();
+            hashCode = (hashCode * 397) ^ BoolValue.GetHashCode();
+            hashCode = (hashCode * 397) ^ (StringValue == null ? 0 : StringComparer.Ordinal.GetHashCode(StringValue));
+            hashCode = (hashCode * 397) ^ (ReferenceId == null ? 0 : StringComparer.Ordinal.GetHashCode(ReferenceId));
+            return hashCode;
+        }
+    }
+
+    public static bool operator ==(RuntimeValue left, RuntimeValue right)
+    {
+        return left.Equals(right);
+    }
+
+    public static bool operator !=(RuntimeValue left, RuntimeValue right)
+    {
+        return !left.Equals(right);
     }
 }
 }
