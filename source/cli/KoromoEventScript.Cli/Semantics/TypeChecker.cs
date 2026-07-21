@@ -87,6 +87,7 @@ public sealed class TypeChecker
         private readonly ImportGraph graph;
         private readonly List<Diagnostic> diagnostics;
         private readonly Stack<Dictionary<string, KesType>> locals = new();
+        private readonly Stack<KesType> functionReturnTypes = new();
 
         public DocumentChecker(
             DocumentTypeContext document,
@@ -136,6 +137,10 @@ public sealed class TypeChecker
 
                 case FunctionDeclarationSyntax function:
                     CheckFunction(function);
+                    break;
+
+                case ReturnStatementSyntax returnStatement:
+                    CheckReturn(returnStatement);
                     break;
 
                 case ActorDeclarationSyntax actor:
@@ -279,7 +284,11 @@ public sealed class TypeChecker
 
         private void CheckFunction(FunctionDeclarationSyntax function)
         {
+            var returnType = function.ReturnTypeTokens.Count == 0
+                ? KesType.Void
+                : ParseType(function.ReturnTypeTokens);
             locals.Push(new Dictionary<string, KesType>(StringComparer.Ordinal));
+            functionReturnTypes.Push(returnType);
             foreach (var parameter in function.Parameters)
             {
                 var parameterType = ParseType(parameter.TypeTokens);
@@ -297,7 +306,75 @@ public sealed class TypeChecker
                 CheckStatement(statement);
             }
 
+            if (returnType.Kind != KesTypeKind.Void &&
+                !FunctionAlwaysReturns(function.Body))
+            {
+                diagnostics.Add(Diagnostic(
+                    document.Document.ProjectRelativePath,
+                    function.NameLocation,
+                    $"Function '{function.Name}' must return {returnType} on every path."));
+            }
+
+            functionReturnTypes.Pop();
             locals.Pop();
+        }
+
+        private void CheckReturn(ReturnStatementSyntax returnStatement)
+        {
+            if (functionReturnTypes.Count == 0)
+            {
+                diagnostics.Add(Diagnostic(
+                    document.Document.ProjectRelativePath,
+                    returnStatement.ReturnLocation,
+                    "Return statements are only valid inside functions."));
+                return;
+            }
+
+            var expected = functionReturnTypes.Peek();
+            if (returnStatement.ValueTokens.Count == 0)
+            {
+                if (expected.Kind != KesTypeKind.Void)
+                {
+                    diagnostics.Add(Diagnostic(
+                        document.Document.ProjectRelativePath,
+                        returnStatement.ReturnLocation,
+                        $"Return value of type {expected} is required."));
+                }
+
+                return;
+            }
+
+            var actual = Evaluate(returnStatement.ValueTokens, requireValue: true);
+            if (expected.Kind == KesTypeKind.Void)
+            {
+                diagnostics.Add(Diagnostic(
+                    document.Document.ProjectRelativePath,
+                    returnStatement.ReturnLocation,
+                    "Void functions cannot return a value."));
+                return;
+            }
+
+            RequireAssignable(expected, actual, returnStatement.ReturnLocation, $"Return value expects {expected}, but got {actual}.");
+        }
+
+        private static bool FunctionAlwaysReturns(BlockSyntax block)
+        {
+            if (block.Statements.Count == 0)
+            {
+                return false;
+            }
+
+            var last = block.Statements[^1];
+            if (last is ReturnStatementSyntax)
+            {
+                return true;
+            }
+
+            return last is IfStatementSyntax ifStatement &&
+                ifStatement.ElseBody is not null &&
+                FunctionAlwaysReturns(ifStatement.Body) &&
+                ifStatement.ElseIfClauses.All(static clause => FunctionAlwaysReturns(clause.Body)) &&
+                FunctionAlwaysReturns(ifStatement.ElseBody);
         }
 
         private void CheckLess(LessStatementSyntax less)
@@ -319,13 +396,21 @@ public sealed class TypeChecker
 
         private KesType CheckCall(string name, IReadOnlyList<Token> argumentTokens, SourceLocation location, bool requireValue)
         {
+            return CheckCall(name, SplitArguments(argumentTokens), location, requireValue);
+        }
+
+        private KesType CheckCall(
+            string name,
+            IReadOnlyList<CallArgument> arguments,
+            SourceLocation location,
+            bool requireValue)
+        {
             var signature = ResolveCallable(name);
             if (signature is null)
             {
                 return KesType.Unknown;
             }
 
-            var arguments = SplitArguments(argumentTokens);
             var usedParameters = new HashSet<string>(StringComparer.Ordinal);
             var positionalIndex = 0;
 
@@ -452,6 +537,7 @@ public sealed class TypeChecker
                 VarStatementSyntax varStatement => varStatement.NameLocation,
                 AssignmentStatementSyntax assignment => assignment.TargetLocation,
                 FunctionDeclarationSyntax function => function.NameLocation,
+                ReturnStatementSyntax returnStatement => returnStatement.ReturnLocation,
                 ActorDeclarationSyntax actor => actor.NameLocation,
                 StandbyStatementSyntax standby => standby.KeywordLocation,
                 EnumDeclarationSyntax @enum => @enum.NameLocation,
@@ -823,8 +909,33 @@ public sealed class TypeChecker
             {
                 if (Match(TokenKind.OpenParen))
                 {
-                    Consume(TokenKind.CloseParen);
-                    return checker.CheckCall(token.Lexeme, [], Location(token), requireValue);
+                    var start = position;
+                    var depth = 1;
+                    while (position < tokens.Count && depth > 0)
+                    {
+                        if (tokens[position].Kind == TokenKind.OpenParen)
+                        {
+                            depth++;
+                        }
+                        else if (tokens[position].Kind == TokenKind.CloseParen)
+                        {
+                            depth--;
+                        }
+
+                        position++;
+                    }
+
+                    var arguments = tokens
+                        .Skip(start)
+                        .Take(Math.Max(0, position - start - 1))
+                        .ToArray();
+                    var callArguments = SplitParenthesizedArguments(arguments)
+                        .Select(argument => new CallArgument(
+                            null,
+                            argument,
+                            argument.Count > 0 ? Location(argument[0]) : Location(token)))
+                        .ToArray();
+                    return checker.CheckCall(token.Lexeme, callArguments, Location(token), requireValue);
                 }
 
                 if (!IsAtEnd() && !IsBinaryOrDelimiter(Current.Kind) && checker.ResolveCallable(token.Lexeme) is not null)
@@ -840,6 +951,52 @@ public sealed class TypeChecker
                 }
 
                 return checker.ResolveValue(token.Lexeme);
+            }
+
+            private static IReadOnlyList<IReadOnlyList<Token>> SplitParenthesizedArguments(IReadOnlyList<Token> argumentTokens)
+            {
+                if (argumentTokens.Count == 0)
+                {
+                    return Array.Empty<IReadOnlyList<Token>>();
+                }
+
+                var arguments = new List<IReadOnlyList<Token>>();
+                var start = 0;
+                var parenthesisDepth = 0;
+                var bracketDepth = 0;
+                for (var index = 0; index <= argumentTokens.Count; index++)
+                {
+                    if (index < argumentTokens.Count)
+                    {
+                        var token = argumentTokens[index];
+                        if (token.Kind == TokenKind.OpenParen)
+                        {
+                            parenthesisDepth++;
+                        }
+                        else if (token.Kind == TokenKind.CloseParen)
+                        {
+                            parenthesisDepth--;
+                        }
+                        else if (token.Kind == TokenKind.OpenBracket)
+                        {
+                            bracketDepth++;
+                        }
+                        else if (token.Kind == TokenKind.CloseBracket)
+                        {
+                            bracketDepth--;
+                        }
+
+                        if (token.Kind != TokenKind.Comma || parenthesisDepth != 0 || bracketDepth != 0)
+                        {
+                            continue;
+                        }
+                    }
+
+                    arguments.Add(argumentTokens.Skip(start).Take(index - start).ToArray());
+                    start = index + 1;
+                }
+
+                return arguments;
             }
 
             private bool Match(TokenKind kind)

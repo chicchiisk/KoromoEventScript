@@ -324,6 +324,14 @@ public sealed class NameResolver
 
                 break;
 
+            case ReturnStatementSyntax returnStatement:
+                foreach (var reference in FromExpressionTokens(documentContext, returnStatement.ValueTokens, scopeId))
+                {
+                    yield return reference;
+                }
+
+                break;
+
             case StandbyStatementSyntax standbyStatement:
                 foreach (var entry in standbyStatement.Entries)
                 {

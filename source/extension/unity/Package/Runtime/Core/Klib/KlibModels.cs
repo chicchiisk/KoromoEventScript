@@ -99,6 +99,10 @@ public enum KlibOpCode : byte
     NumberArrayGet = 0x5F,
     NumberArraySet = 0x60,
     ArrayNewFilled = 0x61,
+    CallFunction = 0x62,
+    CallFunctionVoid = 0x63,
+    ReturnValue = 0x64,
+    ReturnVoid = 0x65,
 }
 
 public readonly struct KlibSourceLocation
@@ -175,6 +179,13 @@ public sealed record KlibDebugInfo(
     int? FileDisplayNameIndex,
     IReadOnlyList<KlibSourceMapping> SourceMappings);
 
+public sealed record KlibFunction(
+    int NameIndex,
+    int EntryOffset,
+    IReadOnlyList<int> ParameterSlots,
+    IReadOnlyList<int> LocalSlots,
+    bool ReturnsValue);
+
 public sealed record KlibDocument(
     KlibVersion Version,
     KlibModuleInfo Module,
@@ -183,5 +194,6 @@ public sealed record KlibDocument(
     IReadOnlyList<KlibVariable> Variables,
     IReadOnlyList<KlibInstruction> Instructions,
     IReadOnlyList<KlibLabel> Labels,
-    KlibDebugInfo Debug);
+    KlibDebugInfo Debug,
+    IReadOnlyList<KlibFunction>? Functions = null);
 }

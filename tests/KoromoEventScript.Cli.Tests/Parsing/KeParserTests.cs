@@ -6,6 +6,24 @@ namespace KoromoEventScript.Cli.Tests.Parsing;
 public class KeParserTests
 {
     [Test]
+    public void Parse_FunctionReturn_PreservesReturnExpression()
+    {
+        var syntax = KeParser.Parse("""
+fn double(value: number): number:
+    return value * 2
+""");
+
+        var function = (FunctionDeclarationSyntax)syntax.Statements.Single();
+        var returnStatement = (ReturnStatementSyntax)function.Body.Statements.Single();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(returnStatement.ReturnLocation, Is.EqualTo(new SourceLocation(2, 5)));
+            Assert.That(returnStatement.ValueTokens.Select(static token => token.Lexeme),
+                Is.EqualTo(new[] { "value", "*", "2" }));
+        });
+    }
+    [Test]
     public void Parse_BuildsSyntaxTreeForMinimalSupportedStatements()
     {
         const string source = """

@@ -70,6 +70,10 @@ public sealed class KesVmExecutor
         KlibOpCode.NumberArrayGet,
         KlibOpCode.NumberArraySet,
         KlibOpCode.ArrayNewFilled,
+        KlibOpCode.CallFunction,
+        KlibOpCode.CallFunctionVoid,
+        KlibOpCode.ReturnValue,
+        KlibOpCode.ReturnVoid,
     };
 
     public KesVmExecutor(
@@ -577,6 +581,16 @@ public sealed class KesVmExecutor
             case KlibOpCode.CallVoid:
                 return ExecuteCall(session, instruction);
 
+            case KlibOpCode.CallFunction:
+            case KlibOpCode.CallFunctionVoid:
+                return ExecuteFunctionCall(session, instruction);
+
+            case KlibOpCode.ReturnValue:
+                return ExecuteFunctionReturn(session, instruction, hasReturnValue: true);
+
+            case KlibOpCode.ReturnVoid:
+                return ExecuteFunctionReturn(session, instruction, hasReturnValue: false);
+
             case KlibOpCode.CallMethod:
             case KlibOpCode.CallMethodVoid:
                 return ExecuteMethodCall(session, instruction);
@@ -925,6 +939,112 @@ public sealed class KesVmExecutor
         }
 
         session.AdvanceAfter(instruction);
+        return KesVmExecutionResult.Success();
+    }
+
+    private static KesVmExecutionResult ExecuteFunctionCall(KesVmSession session, KlibInstruction instruction)
+    {
+        if (!TryReadOperand(instruction, 0, out var functionIndex) ||
+            !TryReadOperand(instruction, 1, out var argumentCount) ||
+            functionIndex < 0 ||
+            functionIndex >= (session.Document.Functions?.Count ?? 0) ||
+            argumentCount < 0)
+        {
+            return Fault(session, "KESR3312", "CALL_FUNCTION requires a valid function index and argument count.");
+        }
+
+        var function = session.Document.Functions![functionIndex];
+        if (argumentCount != function.ParameterSlots.Count)
+        {
+            return Fault(
+                session,
+                "KESR3312",
+                $"Function expects {function.ParameterSlots.Count} arguments, but received {argumentCount}.");
+        }
+
+        var arguments = PopArguments(session, argumentCount);
+        if (arguments is null)
+        {
+            return Fault(session, "KESR3101", "Not enough arguments on the stack for function execution.");
+        }
+
+        var savedVariables = new RuntimeSavedVariable[function.LocalSlots.Count];
+        for (var index = 0; index < function.LocalSlots.Count; index++)
+        {
+            var slot = function.LocalSlots[index];
+            var initialized = session.TryGetVariable(slot, out var savedValue);
+            savedVariables[index] = new RuntimeSavedVariable(slot, initialized, savedValue);
+            session.ClearVariable(slot);
+        }
+
+        for (var index = 0; index < function.ParameterSlots.Count; index++)
+        {
+            session.SetVariable(function.ParameterSlots[index], arguments[index]);
+        }
+
+        session.PushCallFrame(new RuntimeCallFrame(
+            functionIndex,
+            session.GetNextInstructionIndex(instruction),
+            instruction.OpCode == KlibOpCode.CallFunction,
+            savedVariables));
+        if (!session.TrySetInstructionOffset(function.EntryOffset))
+        {
+            return Fault(session, "KESR3312", $"Function entry offset '{function.EntryOffset}' does not exist.");
+        }
+
+        return KesVmExecutionResult.Success();
+    }
+
+    private static KesVmExecutionResult ExecuteFunctionReturn(
+        KesVmSession session,
+        KlibInstruction instruction,
+        bool hasReturnValue)
+    {
+        var returnValue = RuntimeValue.Null;
+        if (hasReturnValue && !session.TryPopOperand(out returnValue))
+        {
+            return Fault(session, "KESR3101", "RETURN_VALUE requires a value on the operand stack.");
+        }
+
+        if (!session.TryPopCallFrame(out var frame))
+        {
+            return Fault(session, "KESR3313", "RETURN was executed without an active function call.");
+        }
+
+        var function = session.Document.Functions![frame.FunctionIndex];
+        if (function.ReturnsValue != hasReturnValue)
+        {
+            return Fault(session, "KESR3313", "Function return opcode does not match its declared return type.");
+        }
+
+        foreach (var saved in frame.SavedVariables)
+        {
+            session.ClearVariable(saved.Slot);
+            if (saved.WasInitialized)
+            {
+                session.SetVariable(saved.Slot, saved.Value);
+            }
+        }
+
+        if (frame.ExpectsReturnValue)
+        {
+            if (!hasReturnValue)
+            {
+                return Fault(session, "KESR3313", "Value-returning call completed without a return value.");
+            }
+
+            session.PushOperand(returnValue);
+        }
+
+        if (frame.ReturnInstructionIndex is int returnInstructionIndex)
+        {
+            session.SetInstructionIndex(returnInstructionIndex);
+        }
+        else
+        {
+            session.SetContinuation(RuntimeContinuation.Completed);
+        }
+
         return KesVmExecutionResult.Success();
     }
 

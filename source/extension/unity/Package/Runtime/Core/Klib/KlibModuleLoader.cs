@@ -26,6 +26,7 @@ public sealed class KlibModuleLoader : IKlibModuleLoader
     private const int InstructionSectionType = 0x0005;
     private const int LabelSectionType = 0x0006;
     private const int DebugSectionType = 0x0007;
+    private const int FunctionSectionType = 0x0008;
 
     public KlibModuleLoadResult Load(string path)
     {
@@ -136,6 +137,9 @@ public sealed class KlibModuleLoader : IKlibModuleLoader
             var labels = ReadSection(stream, labelSection, ReadLabels);
             var debug = ReadSection(stream, debugSection, ReadDebugInfo);
             var instructions = ReadSection(stream, instructionSection, reader => ReadInstructions(reader, constants, debug));
+            var functions = sections.TryGetValue(FunctionSectionType, out var functionSection)
+                ? ReadSection(stream, functionSection, ReadFunctions)
+                : Array.Empty<KlibFunction>();
 
             var document = new KlibDocument(
                 version,
@@ -145,7 +149,8 @@ public sealed class KlibModuleLoader : IKlibModuleLoader
                 variables,
                 instructions,
                 labels,
-                debug);
+                debug,
+                functions);
 
             return KlibModuleLoadResult.Success(document);
         }
@@ -217,6 +222,50 @@ public sealed class KlibModuleLoader : IKlibModuleLoader
         }
 
         return constants;
+    }
+
+    private static IReadOnlyList<KlibFunction> ReadFunctions(BinaryReader reader)
+    {
+        var count = reader.ReadInt32();
+        if (count < 0)
+        {
+            throw new InvalidDataException("Klib function count must not be negative.");
+        }
+
+        var functions = new KlibFunction[count];
+        for (var index = 0; index < count; index++)
+        {
+            var nameIndex = reader.ReadInt32();
+            var entryOffset = reader.ReadInt32();
+            var returnsValue = ReadBool(reader);
+            var parameterCount = reader.ReadInt32();
+            if (parameterCount < 0)
+            {
+                throw new InvalidDataException("Klib function parameter count must not be negative.");
+            }
+
+            var parameterSlots = new int[parameterCount];
+            for (var parameterIndex = 0; parameterIndex < parameterCount; parameterIndex++)
+            {
+                parameterSlots[parameterIndex] = reader.ReadInt32();
+            }
+
+            var localCount = reader.ReadInt32();
+            if (localCount < 0)
+            {
+                throw new InvalidDataException("Klib function local count must not be negative.");
+            }
+
+            var localSlots = new int[localCount];
+            for (var localIndex = 0; localIndex < localCount; localIndex++)
+            {
+                localSlots[localIndex] = reader.ReadInt32();
+            }
+
+            functions[index] = new KlibFunction(nameIndex, entryOffset, parameterSlots, localSlots, returnsValue);
+        }
+
+        return functions;
     }
 
     private static KlibConstant ReadReferenceConstant(BinaryReader reader, KlibConstantKind kind, IReadOnlyList<KlibConstant> constants)
@@ -452,7 +501,9 @@ public sealed class KlibModuleLoader : IKlibModuleLoader
             KlibOpCode.CallMethod or
             KlibOpCode.CallMethodVoid or
             KlibOpCode.AddVar or
-            KlibOpCode.IncrementVar => 2,
+            KlibOpCode.IncrementVar or
+            KlibOpCode.CallFunction or
+            KlibOpCode.CallFunctionVoid => 2,
             KlibOpCode.PushTrue or
             KlibOpCode.PushFalse or
             KlibOpCode.PushNull or
@@ -478,6 +529,8 @@ public sealed class KlibModuleLoader : IKlibModuleLoader
             KlibOpCode.NumberArrayGet or
             KlibOpCode.NumberArraySet or
             KlibOpCode.ArrayNewFilled or
+            KlibOpCode.ReturnValue or
+            KlibOpCode.ReturnVoid or
             KlibOpCode.Dispose => 0,
             _ => throw new InvalidDataException($"Unsupported Klib opcode '{opCode}'."),
         };

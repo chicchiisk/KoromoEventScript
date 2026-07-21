@@ -146,6 +146,52 @@ var selected: bool = flags[4]
         });
     }
 
+    [Test]
+    public void BuildCommand_CompilesFunctionTableAndExecutesRecursiveFunction()
+    {
+        using var fixture = TemporaryProject.Create();
+        fixture.WriteConfig(entry: "events/main.kel");
+        fixture.WriteFile("events/main.kel", """
+entry = intro
+intro = {
+    chapter = "events/main.kc"
+}
+""");
+        fixture.WriteFile("events/main.kc", """
+fn factorial(n: number): number:
+    if n <= 1:
+        return 1
+    return n * factorial(n - 1)
+
+var result: number = factorial(6)
+""");
+
+        var result = ExecuteBuild(fixture);
+        Assert.That(
+            result.ExitCode,
+            Is.EqualTo(CliExitCode.Success),
+            string.Join(Environment.NewLine, result.Diagnostics.Select(static diagnostic => diagnostic.Message)));
+        var textIr = ReadGeneratedTextIr(fixture);
+        var loadResult = new KlibModuleLoader().Load(
+            Path.Combine(fixture.Root, "build", "windows", "events", "main.klib"));
+        var document = loadResult.Document!;
+        var session = new KesVmSession(document);
+        var execution = new KesVmExecutor().Run(session);
+        var resultSlot = FindVariableSlot(document, "result");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.ExitCode, Is.EqualTo(CliExitCode.Success));
+            Assert.That(loadResult.Succeeded, Is.True);
+            Assert.That(document.Functions, Has.Count.EqualTo(1));
+            Assert.That(execution.Succeeded, Is.True);
+            Assert.That(session.Variables[resultSlot].NumberValue, Is.EqualTo(720));
+            Assert.That(textIr, Does.Contain(".functions"));
+            Assert.That(textIr, Does.Contain("CALLFUNCTION"));
+            Assert.That(textIr, Does.Contain("RETURNVALUE"));
+        });
+    }
+
     private static TemporaryProject CreateBroadSurfaceFixture()
     {
         var fixture = TemporaryProject.Create();

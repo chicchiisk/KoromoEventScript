@@ -63,6 +63,11 @@ public sealed class KeParser
             return ParseFunctionDeclaration();
         }
 
+        if (IsKeyword("return"))
+        {
+            return ParseReturnStatement();
+        }
+
         if (IsKeyword("class"))
         {
             return ParseClassDeclaration();
@@ -203,6 +208,14 @@ public sealed class KeParser
             parameters,
             returnTypeTokens,
             body);
+    }
+
+    private ReturnStatementSyntax ParseReturnStatement()
+    {
+        var returnToken = ConsumeKeyword("return");
+        var valueTokens = ReadUntil(TokenKind.Newline);
+        ExpectLineTerminator();
+        return new ReturnStatementSyntax(valueTokens, ToLocation(returnToken));
     }
 
     private IReadOnlyList<ParameterSyntax> ParseParameterList()

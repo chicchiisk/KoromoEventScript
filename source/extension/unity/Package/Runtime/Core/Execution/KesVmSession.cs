@@ -14,7 +14,9 @@ namespace KoromoEventScript.Runtime.Core.Execution
 public sealed class KesVmSession
 {
     private readonly Dictionary<int, int> instructionOrdinals;
+    private readonly Dictionary<int, int> instructionOffsetOrdinals;
     private readonly List<RuntimeValue> operandStack = new List<RuntimeValue>();
+    private readonly Stack<RuntimeCallFrame> callFrames = new Stack<RuntimeCallFrame>();
     private readonly RuntimeVariableView variableView;
     private RuntimeValue[] variables;
     private bool[] initializedVariables;
@@ -25,9 +27,11 @@ public sealed class KesVmSession
     {
         Document = document;
         instructionOrdinals = new Dictionary<int, int>(document.Instructions.Count);
+        instructionOffsetOrdinals = new Dictionary<int, int>(document.Instructions.Count);
         for (var ordinal = 0; ordinal < document.Instructions.Count; ordinal++)
         {
             instructionOrdinals.Add(document.Instructions[ordinal].Index, ordinal);
+            instructionOffsetOrdinals.Add(document.Instructions[ordinal].Offset, ordinal);
         }
 
         currentInstructionOrdinal = document.Instructions.Count > 0 ? 0 : -1;
@@ -63,6 +67,18 @@ public sealed class KesVmSession
 
         currentInstructionOrdinal = instructionOrdinals[instructionIndex];
         Position = Position.WithInstructionIndex(instructionIndex);
+    }
+
+    internal bool TrySetInstructionOffset(int instructionOffset)
+    {
+        if (!instructionOffsetOrdinals.TryGetValue(instructionOffset, out var ordinal))
+        {
+            return false;
+        }
+
+        currentInstructionOrdinal = ordinal;
+        Position = Position.WithInstructionIndex(Document.Instructions[ordinal].Index);
+        return true;
     }
 
     public void PushOperand(RuntimeValue value)
@@ -125,6 +141,44 @@ public sealed class KesVmSession
         value = RuntimeValue.Null;
         return false;
     }
+
+    internal bool IsVariableInitialized(int stableId)
+    {
+        return stableId >= 0 &&
+            stableId < initializedVariables.Length &&
+            initializedVariables[stableId];
+    }
+
+    internal void ClearVariable(int stableId)
+    {
+        if (!IsVariableInitialized(stableId))
+        {
+            return;
+        }
+
+        variables[stableId] = RuntimeValue.Null;
+        initializedVariables[stableId] = false;
+        initializedVariableCount--;
+    }
+
+    internal void PushCallFrame(RuntimeCallFrame frame)
+    {
+        callFrames.Push(frame);
+    }
+
+    internal bool TryPopCallFrame(out RuntimeCallFrame frame)
+    {
+        if (callFrames.Count == 0)
+        {
+            frame = null!;
+            return false;
+        }
+
+        frame = callFrames.Pop();
+        return true;
+    }
+
+    internal int CallFrameDepth => callFrames.Count;
 
     public RuntimeSaveSnapshot CaptureSnapshot()
     {
@@ -402,6 +456,17 @@ public sealed class KesVmSession
         }
     }
 }
+
+internal sealed record RuntimeSavedVariable(
+    int Slot,
+    bool WasInitialized,
+    RuntimeValue Value);
+
+internal sealed record RuntimeCallFrame(
+    int FunctionIndex,
+    int? ReturnInstructionIndex,
+    bool ExpectsReturnValue,
+    IReadOnlyList<RuntimeSavedVariable> SavedVariables);
 
 public sealed record RuntimeSessionRestoreResult(
     bool Succeeded,

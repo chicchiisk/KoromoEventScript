@@ -115,7 +115,7 @@ index[0] = 1
     {
         const string source = """
 fn format(value: number): string:
-    print (number_to_string value)
+    return number_to_string value
 var text = format true
 """;
 

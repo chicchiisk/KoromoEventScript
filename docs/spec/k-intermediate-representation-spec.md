@@ -387,6 +387,10 @@ VM は次の状態を保持する。
 | `NUMBER_ARRAY_GET`  | 0x5F   | -                             | number[] index → number | 型特化された数値配列要素を読み取る |
 | `NUMBER_ARRAY_SET`  | 0x60   | -                             | number[] index number → | 型特化された数値配列要素を書き込む |
 | `ARRAY_NEW_FILLED`  | 0x61   | -                             | count fill → array      | 実行時に決まる長さと初期値で配列を生成する |
+| `CALL_FUNCTION`     | 0x62   | `function_idx:i32` `argc:i32` | args... → result       | Function Tableのユーザー定義関数を呼び出す |
+| `CALL_FUNCTION_VOID`| 0x63   | `function_idx:i32` `argc:i32` | args... →              | 戻り値を利用しないユーザー定義関数呼び出し |
+| `RETURN_VALUE`      | 0x64   | -                             | value →                | 値を呼び出し元へ返す |
+| `RETURN_VOID`       | 0x65   | -                             | -                      | 値を返さず呼び出し元へ戻る |
 
 `ARRAY_NEW` の要素は左から右の順で push し、命令は `count` 個を pop して同じ順序で配列へ格納する。
 `ADD_VAR`、`INCREMENT_VAR`、`NUMBER_ARRAY_GET`、`NUMBER_ARRAY_SET`、`ARRAY_NEW_FILLED` は version 1.1 で追加された。compiler は静的なnumber型を確認できる場合だけ型特化命令を出力し、型条件を満たさないbytecodeをruntime errorとする。
@@ -394,6 +398,24 @@ VM は次の状態を保持する。
 `CALL_METHOD*` は receiver を先に push し、その後に通常の `CALL` と同様に引数を左から右へ push する。opcode は argc 個の引数を pop した後に receiver を pop する。
 `using` 構文は compile-time に `NEW` とスコープ終端での `DISPOSE` に lower する。`__destroy__` は runtime のオブジェクト寿命管理に属し、専用 opcode は持たない。
 クラス内での暗黙のメンバー参照は、compiler が hidden local の receiver 参照と `GET_FIELD` / `SET_FIELD` / `CALL_METHOD*` に lower する。
+
+#### Function Table（0x0008）
+
+ユーザー定義関数を含むmoduleは、次の任意sectionを持つ。
+
+```txt
+count: i32
+functions[count]:
+  name_idx: i32
+  entry_offset: i32
+  returns_value: i32
+  parameter_count: i32
+  parameter_slots[parameter_count]: i32
+  local_count: i32
+  local_slots[local_count]: i32
+```
+
+`entry_offset` は関数先頭命令のbyte offsetである。`parameter_slots` は引数順、`local_slots` は再帰呼び出し時に退避・復元する変数slotを表す。呼び出し元は引数を左から右へpushし、`CALL_FUNCTION*` がcall frameを生成して関数先頭へ移動する。`RETURN_*` はframeのreturn位置とlocal値を復元する。
 
 #### シナリオ構文の lowering
 

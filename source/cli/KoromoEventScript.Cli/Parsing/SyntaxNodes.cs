@@ -61,6 +61,10 @@ public sealed record ActorDeclarationSyntax(
     SourceLocation NameLocation,
     BlockSyntax Body) : StatementSyntax;
 
+public sealed record ReturnStatementSyntax(
+    IReadOnlyList<Token> ValueTokens,
+    SourceLocation ReturnLocation = default) : StatementSyntax;
+
 public sealed record StandbyStatementSyntax(
     IReadOnlyList<StandbyEntrySyntax> Entries,
     SourceLocation KeywordLocation = default) : StatementSyntax;

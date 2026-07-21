@@ -48,6 +48,7 @@ public sealed record HeadlessVmRuntimeValue(
 public sealed class HeadlessVmRuntimeState
 {
     private readonly Stack<HeadlessVmRuntimeValue> operandStack = [];
+    private readonly Stack<HeadlessVmFunctionFrame> functionFrames = [];
 
     public Dictionary<int, HeadlessVmRuntimeValue> VariableValues { get; } = [];
 
@@ -56,6 +57,23 @@ public sealed class HeadlessVmRuntimeState
     public HeadlessVmObjectStore ObjectStore { get; } = new();
 
     public int OperandCount => operandStack.Count;
+
+    internal void PushFunctionFrame(HeadlessVmFunctionFrame frame)
+    {
+        functionFrames.Push(frame);
+    }
+
+    internal bool TryPopFunctionFrame(out HeadlessVmFunctionFrame frame)
+    {
+        if (functionFrames.Count == 0)
+        {
+            frame = null!;
+            return false;
+        }
+
+        frame = functionFrames.Pop();
+        return true;
+    }
 
     public void PushOperand(HeadlessVmRuntimeValue value)
     {
@@ -103,3 +121,14 @@ public sealed class HeadlessVmRuntimeState
         }
     }
 }
+
+internal sealed record HeadlessVmSavedVariable(
+    int Slot,
+    bool WasInitialized,
+    HeadlessVmRuntimeValue? Value);
+
+internal sealed record HeadlessVmFunctionFrame(
+    int FunctionIndex,
+    int ReturnOffset,
+    bool ExpectsReturnValue,
+    IReadOnlyList<HeadlessVmSavedVariable> SavedVariables);

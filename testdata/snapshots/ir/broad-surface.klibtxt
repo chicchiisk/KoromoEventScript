@@ -1,4 +1,4 @@
-.klibtxt 1.0
+.klibtxt 1.1
 .module "module.main"
 .script "events/main"
 .source "events/main.kc"
@@ -60,6 +60,11 @@
   [3] id=cp[20] name=cp[21] type=7:array scope=4:block scopeId=3
   [4] id=cp[22] name=cp[23] type=1:number scope=4:block scopeId=4
   [5] id=cp[24] name=cp[25] type=0:unknown scope=4:block scopeId=5
+}
+
+.functions
+{
+  // none
 }
 
 .instructions

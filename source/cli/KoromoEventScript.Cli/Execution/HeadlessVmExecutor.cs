@@ -552,6 +552,95 @@ public sealed class HeadlessVmExecutor
                         break;
                     }
 
+                case KlibOpCode.CallFunction:
+                case KlibOpCode.CallFunctionVoid:
+                    {
+                        var functionIndex = instruction.Operands[0];
+                        var argumentCount = instruction.Operands[1];
+                        if (functionIndex < 0 ||
+                            functionIndex >= (document.Functions?.Count ?? 0))
+                        {
+                            return Fault(document, instruction.Offset, "CALL_FUNCTION references an invalid function.", currentObservation);
+                        }
+
+                        var function = document.Functions![functionIndex];
+                        if (argumentCount != function.ParameterSlots.Count)
+                        {
+                            return Fault(document, instruction.Offset, "CALL_FUNCTION argument count does not match the function table.", currentObservation);
+                        }
+
+                        var arguments = PopArguments(runtimeState, instruction.Offset, argumentCount, document);
+                        if (arguments is null)
+                        {
+                            return Fault(document, instruction.Offset, "Not enough arguments on the stack for function execution.", currentObservation);
+                        }
+
+                        var savedVariables = new HeadlessVmSavedVariable[function.LocalSlots.Count];
+                        for (var index = 0; index < function.LocalSlots.Count; index++)
+                        {
+                            var slot = function.LocalSlots[index];
+                            var initialized = runtimeState.VariableValues.Remove(slot, out var savedValue);
+                            savedVariables[index] = new HeadlessVmSavedVariable(slot, initialized, savedValue);
+                        }
+
+                        for (var index = 0; index < function.ParameterSlots.Count; index++)
+                        {
+                            runtimeState.VariableValues[function.ParameterSlots[index]] = arguments[index];
+                        }
+
+                        runtimeState.PushFunctionFrame(new HeadlessVmFunctionFrame(
+                            functionIndex,
+                            GetNextOffset(document, instruction),
+                            instruction.OpCode == KlibOpCode.CallFunction,
+                            savedVariables));
+                        offset = function.EntryOffset;
+                        break;
+                    }
+
+                case KlibOpCode.ReturnValue:
+                case KlibOpCode.ReturnVoid:
+                    {
+                        var hasReturnValue = instruction.OpCode == KlibOpCode.ReturnValue;
+                        HeadlessVmRuntimeValue? returnValue = null;
+                        if (hasReturnValue && !runtimeState.TryPopOperand(out returnValue))
+                        {
+                            return Fault(document, instruction.Offset, "RETURN_VALUE requires a value.", currentObservation);
+                        }
+
+                        if (!runtimeState.TryPopFunctionFrame(out var frame))
+                        {
+                            return Fault(document, instruction.Offset, "RETURN was executed without an active function call.", currentObservation);
+                        }
+
+                        var function = document.Functions![frame.FunctionIndex];
+                        if (function.ReturnsValue != hasReturnValue)
+                        {
+                            return Fault(document, instruction.Offset, "Function return opcode does not match its declared return type.", currentObservation);
+                        }
+
+                        foreach (var saved in frame.SavedVariables)
+                        {
+                            runtimeState.VariableValues.Remove(saved.Slot);
+                            if (saved.WasInitialized)
+                            {
+                                runtimeState.VariableValues[saved.Slot] = saved.Value!;
+                            }
+                        }
+
+                        if (frame.ExpectsReturnValue)
+                        {
+                            if (returnValue is null)
+                            {
+                                return Fault(document, instruction.Offset, "Value-returning call completed without a value.", currentObservation);
+                            }
+
+                            runtimeState.PushOperand(returnValue);
+                        }
+
+                        offset = frame.ReturnOffset;
+                        break;
+                    }
+
                 case KlibOpCode.SysCall:
                 case KlibOpCode.SysCallVoid:
                     {

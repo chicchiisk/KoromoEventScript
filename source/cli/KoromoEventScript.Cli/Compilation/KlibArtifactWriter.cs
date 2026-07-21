@@ -21,6 +21,7 @@ public sealed class KlibArtifactWriter
         var instructionSection = BuildInstructionSection(document);
         var labelSection = BuildLabelSection(document);
         var debugSection = BuildDebugSection(document);
+        var functionSection = BuildFunctionSection(document);
 
         var sections = new List<(int Type, byte[] Data)>
         {
@@ -36,6 +37,10 @@ public sealed class KlibArtifactWriter
         sections.Add((0x0005, instructionSection));
         sections.Add((0x0006, labelSection));
         sections.Add((0x0007, debugSection));
+        if ((document.Functions?.Count ?? 0) > 0)
+        {
+            sections.Add((0x0008, functionSection));
+        }
 
         writer.Write(Encoding.ASCII.GetBytes("KLIB"));
         writer.Write(document.Version.Major);
@@ -71,7 +76,7 @@ public sealed class KlibArtifactWriter
     public string RenderText(KlibDocument document)
     {
         var builder = new StringBuilder();
-        builder.AppendLine(".klibtxt 1.0");
+        builder.AppendLine($".klibtxt {document.Version.Major}.{document.Version.Minor}");
         builder.AppendLine($".module \"{document.Module.ModuleId}\"");
         builder.AppendLine($".script \"{document.Module.ScriptId}\"");
         builder.AppendLine($".source \"{document.Module.SourcePath}\"");
@@ -108,6 +113,26 @@ public sealed class KlibArtifactWriter
             var variable = document.Variables[index];
             builder.AppendLine(
                 $"  [{index}] id=cp[{variable.StableIdIndex}] name=cp[{variable.NameIndex}] type={(int)variable.Type}:{variable.Type.ToString().ToLowerInvariant()} scope={(int)variable.ScopeKind}:{variable.ScopeKind.ToString().ToLowerInvariant()} scopeId={variable.ScopeId}");
+        }
+
+        builder.AppendLine("}");
+        builder.AppendLine();
+        builder.AppendLine(".functions");
+        builder.AppendLine("{");
+        if ((document.Functions?.Count ?? 0) == 0)
+        {
+            builder.AppendLine("  // none");
+        }
+        else
+        {
+            for (var index = 0; index < document.Functions!.Count; index++)
+            {
+                var function = document.Functions[index];
+                builder.AppendLine(
+                    $"  [{index}] name=cp[{function.NameIndex}] entry=IL_{function.EntryOffset:X4} " +
+                    $"params=[{string.Join(",", function.ParameterSlots)}] " +
+                    $"locals=[{string.Join(",", function.LocalSlots)}] returns={function.ReturnsValue.ToString().ToLowerInvariant()}");
+            }
         }
 
         builder.AppendLine("}");
@@ -288,6 +313,33 @@ public sealed class KlibArtifactWriter
         using var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true);
         writer.Write((int)bodyStream.Length);
         writer.Write(bodyStream.ToArray());
+        return stream.ToArray();
+    }
+
+    private static byte[] BuildFunctionSection(KlibDocument document)
+    {
+        using var stream = new MemoryStream();
+        using var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true);
+        var functions = document.Functions ?? Array.Empty<KlibFunction>();
+        writer.Write(functions.Count);
+        foreach (var function in functions)
+        {
+            writer.Write(function.NameIndex);
+            writer.Write(function.EntryOffset);
+            writer.Write(function.ReturnsValue ? 1 : 0);
+            writer.Write(function.ParameterSlots.Count);
+            foreach (var slot in function.ParameterSlots)
+            {
+                writer.Write(slot);
+            }
+
+            writer.Write(function.LocalSlots.Count);
+            foreach (var slot in function.LocalSlots)
+            {
+                writer.Write(slot);
+            }
+        }
+
         return stream.ToArray();
     }
 

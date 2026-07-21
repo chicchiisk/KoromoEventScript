@@ -51,7 +51,10 @@ public sealed class KlibCompiler
         private readonly Stack<Dictionary<string, string>> actorInstanceTypeScopes = new();
         private readonly Dictionary<string, string> currentActorInstanceTypes = new(StringComparer.Ordinal);
         private readonly Stack<LoopLabels> loops = new();
+        private readonly Dictionary<string, int> functionIndexes;
+        private readonly FunctionBuilder?[] functionBuilders;
         private readonly bool embedLocalizedText;
+        private FunctionBuilder? currentFunction;
         private int nextScopeId;
         private int nextHiddenVariableId;
         private int nextSyntheticLabelId;
@@ -79,6 +82,11 @@ public sealed class KlibCompiler
                     static actor => (IReadOnlyList<VarStatementSyntax>)actor.Body.Statements.OfType<VarStatementSyntax>().ToArray(),
                     StringComparer.Ordinal);
             importedConstants = BuildImportedConstants();
+            var declaredFunctions = document.Syntax.Statements.OfType<FunctionDeclarationSyntax>().ToArray();
+            functionIndexes = declaredFunctions
+                .Select((function, index) => (function.Name, Index: index))
+                .ToDictionary(static pair => pair.Name, static pair => pair.Index, StringComparer.Ordinal);
+            functionBuilders = new FunctionBuilder?[declaredFunctions.Length];
         }
 
         public IReadOnlyList<Diagnostic> Diagnostics => diagnostics;
@@ -94,9 +102,24 @@ public sealed class KlibCompiler
             localScopes.Push(currentLocals);
             actorInstanceTypeScopes.Push(currentActorInstanceTypes);
 
+            if (functionBuilders.Length > 0)
+            {
+                var topLevelLabel = CreateSyntheticLabel("top_level");
+                instructions.Add(InstructionBuilder.Jump(topLevelLabel, new SourceLocation(1, 1)));
+                foreach (var function in document.Syntax.Statements.OfType<FunctionDeclarationSyntax>())
+                {
+                    CompileFunction(function);
+                }
+
+                EmitLabel(topLevelLabel, new SourceLocation(1, 1), publicLabel: false);
+            }
+
             foreach (var statement in document.Syntax.Statements)
             {
-                CompileStatement(statement);
+                if (statement is not FunctionDeclarationSyntax)
+                {
+                    CompileStatement(statement);
+                }
             }
 
             instructions.Add(new InstructionBuilder(KlibOpCode.End, null, KlibMappingKind.Synthetic));
@@ -134,6 +157,23 @@ public sealed class KlibCompiler
                         0,
                         instruction.MappingKind))
                     .ToArray());
+            var compiledFunctions = functionBuilders
+                .Select(builder =>
+                {
+                    if (builder is null ||
+                        !labelInstructionIndexes.TryGetValue(builder.EntryLabel, out var entryInstructionIndex))
+                    {
+                        throw new InvalidOperationException("Function entry label was not resolved.");
+                    }
+
+                    return new KlibFunction(
+                        builder.NameIndex,
+                        finalizedInstructions[entryInstructionIndex].Offset,
+                        builder.ParameterSlots,
+                        builder.LocalSlots,
+                        builder.ReturnsValue);
+                })
+                .ToArray();
 
             return new KlibDocument(
                 new KlibVersion(1, 1, 0),
@@ -147,7 +187,8 @@ public sealed class KlibCompiler
                 variables.Select(variable => variable.ToKlibVariable()).ToArray(),
                 finalizedInstructions,
                 labels,
-                debug);
+                debug,
+                compiledFunctions);
         }
 
         private IReadOnlyList<KlibImport> BuildImports()
@@ -244,6 +285,10 @@ public sealed class KlibCompiler
                 case ClassDeclarationSyntax:
                     return;
 
+                case ReturnStatementSyntax returnStatement:
+                    CompileReturn(returnStatement);
+                    return;
+
                 case StandbyStatementSyntax standby:
                     CompileStandby(standby);
                     return;
@@ -305,7 +350,12 @@ public sealed class KlibCompiler
         private void CompileVar(VarStatementSyntax varStatement)
         {
             var variableType = InferVariableType(varStatement.TypeTokens, varStatement.ValueTokens);
-            var slot = DeclareVariable(varStatement.Name, variableType, KlibScopeKind.Script, GetScopeId(), varStatement.NameLocation);
+            var slot = DeclareVariable(
+                varStatement.Name,
+                variableType,
+                currentFunction is null ? KlibScopeKind.Script : KlibScopeKind.Local,
+                GetScopeId(),
+                varStatement.NameLocation);
             if (IsDeclaredNumberArray(varStatement.TypeTokens))
             {
                 numberArraySlots.Add(slot.Index);
@@ -722,13 +772,96 @@ public sealed class KlibCompiler
                 CompileExpression(argument, requireValue: true);
             }
 
-            var opCode = requiresValue ? KlibOpCode.Call : KlibOpCode.CallVoid;
+            EmitCall(name, arguments.Count, location, requiresValue);
+        }
+
+        private void EmitCall(string name, int argumentCount, SourceLocation location, bool requiresValue)
+        {
+            if (functionIndexes.TryGetValue(name, out var functionIndex))
+            {
+                instructions.Add(new InstructionBuilder(
+                    requiresValue ? KlibOpCode.CallFunction : KlibOpCode.CallFunctionVoid,
+                    location,
+                    KlibMappingKind.Statement,
+                    functionIndex,
+                    argumentCount));
+                return;
+            }
+
             instructions.Add(new InstructionBuilder(
-                opCode,
+                requiresValue ? KlibOpCode.Call : KlibOpCode.CallVoid,
                 location,
                 KlibMappingKind.Statement,
                 constantPool.GetStringIndex(name),
-                arguments.Count));
+                argumentCount));
+        }
+
+        private void CompileFunction(FunctionDeclarationSyntax function)
+        {
+            var functionIndex = functionIndexes[function.Name];
+            var variableStart = variables.Count;
+            var entryLabel = CreateSyntheticLabel($"function_{NormalizeIdentifier(function.Name)}");
+            var returnsValue = function.ReturnTypeTokens.Count > 0;
+            PushBlockScope();
+            var parameterSlots = new int[function.Parameters.Count];
+            for (var index = 0; index < function.Parameters.Count; index++)
+            {
+                var parameter = function.Parameters[index];
+                var parameterType = InferVariableType(parameter.TypeTokens, Array.Empty<Token>());
+                var slot = DeclareVariable(
+                    parameter.Name,
+                    parameterType,
+                    KlibScopeKind.Local,
+                    GetScopeId(),
+                    parameter.NameLocation);
+                parameterSlots[index] = slot.Index;
+                if (IsDeclaredNumberArray(parameter.TypeTokens))
+                {
+                    numberArraySlots.Add(slot.Index);
+                }
+            }
+
+            var builder = new FunctionBuilder(
+                constantPool.GetStringIndex(function.Name),
+                entryLabel,
+                parameterSlots,
+                Array.Empty<int>(),
+                returnsValue);
+            currentFunction = builder;
+            EmitLabel(entryLabel, function.NameLocation, publicLabel: false);
+            foreach (var statement in function.Body.Statements)
+            {
+                CompileStatement(statement);
+            }
+
+            if (instructions.Count == 0 ||
+                instructions[^1].OpCode is not (KlibOpCode.ReturnValue or KlibOpCode.ReturnVoid))
+            {
+                instructions.Add(new InstructionBuilder(KlibOpCode.ReturnVoid, function.NameLocation, KlibMappingKind.Synthetic));
+            }
+
+            var localSlots = Enumerable.Range(variableStart, variables.Count - variableStart).ToArray();
+            functionBuilders[functionIndex] = builder with { LocalSlots = localSlots };
+            currentFunction = null;
+            PopBlockScope();
+        }
+
+        private void CompileReturn(ReturnStatementSyntax returnStatement)
+        {
+            if (currentFunction is null)
+            {
+                diagnostics.Add(Diagnostic("KES2016", returnStatement.ReturnLocation, "Return statement is outside a function."));
+                return;
+            }
+
+            if (returnStatement.ValueTokens.Count == 0)
+            {
+                instructions.Add(new InstructionBuilder(KlibOpCode.ReturnVoid, returnStatement.ReturnLocation, KlibMappingKind.Statement));
+                return;
+            }
+
+            CompileExpression(returnStatement.ValueTokens, requireValue: true);
+            instructions.Add(new InstructionBuilder(KlibOpCode.ReturnValue, returnStatement.ReturnLocation, KlibMappingKind.Statement));
         }
 
         private void CompileExpression(IReadOnlyList<Token> tokens, bool requireValue)
@@ -1121,6 +1254,7 @@ public sealed class KlibCompiler
                 VarStatementSyntax varStatement => varStatement.NameLocation,
                 AssignmentStatementSyntax assignment => assignment.TargetLocation,
                 FunctionDeclarationSyntax function => function.NameLocation,
+                ReturnStatementSyntax returnStatement => returnStatement.ReturnLocation,
                 ActorDeclarationSyntax actor => actor.NameLocation,
                 EnumDeclarationSyntax @enum => @enum.NameLocation,
                 ClassDeclarationSyntax @class => @class.NameLocation,
@@ -1139,6 +1273,13 @@ public sealed class KlibCompiler
         }
 
         private sealed record LoopLabels(string ContinueLabel, string BreakLabel);
+
+        private sealed record FunctionBuilder(
+            int NameIndex,
+            string EntryLabel,
+            IReadOnlyList<int> ParameterSlots,
+            IReadOnlyList<int> LocalSlots,
+            bool ReturnsValue);
 
         private sealed record ImportedConstant(
             KlibConstantKind Kind,
@@ -1398,12 +1539,7 @@ public sealed class KlibCompiler
                         context.CompileExpression(argument, requireValue: true);
                     }
 
-                    context.instructions.Add(new InstructionBuilder(
-                        KlibOpCode.Call,
-                        ToLocation(token),
-                        KlibMappingKind.Expression,
-                        context.constantPool.GetStringIndex(token.Lexeme),
-                        arguments.Count));
+                    context.EmitCall(token.Lexeme, arguments.Count, ToLocation(token), requiresValue: true);
                     return null;
                 }
 
@@ -1423,12 +1559,7 @@ public sealed class KlibCompiler
                         context.CompileExpression(argument, requireValue: true);
                     }
 
-                    context.instructions.Add(new InstructionBuilder(
-                        KlibOpCode.Call,
-                        ToLocation(token),
-                        KlibMappingKind.Expression,
-                        context.constantPool.GetStringIndex(token.Lexeme),
-                        arguments.Count));
+                    context.EmitCall(token.Lexeme, arguments.Count, ToLocation(token), requiresValue: true);
                     return null;
                 }
 
