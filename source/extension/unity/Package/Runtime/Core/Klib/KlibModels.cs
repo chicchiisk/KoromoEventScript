@@ -98,6 +98,7 @@ public enum KlibOpCode : byte
     IncrementVar = 0x5E,
     NumberArrayGet = 0x5F,
     NumberArraySet = 0x60,
+    ArrayNewFilled = 0x61,
 }
 
 public readonly struct KlibSourceLocation

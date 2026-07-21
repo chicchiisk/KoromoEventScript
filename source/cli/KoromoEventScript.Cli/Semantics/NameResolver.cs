@@ -540,6 +540,13 @@ public sealed class NameResolver
                 continue;
             }
 
+            if (index > 0 &&
+                tokens[index - 1].Kind == TokenKind.Keyword &&
+                string.Equals(tokens[index - 1].Lexeme, "new", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
             if (index > 0 && tokens[index - 1].Kind == TokenKind.Dot)
             {
                 continue;
@@ -565,6 +572,13 @@ public sealed class NameResolver
         {
             var token = tokens[index];
             if (token.Kind != TokenKind.Identifier)
+            {
+                continue;
+            }
+
+            if (index > 0 &&
+                tokens[index - 1].Kind == TokenKind.Keyword &&
+                string.Equals(tokens[index - 1].Lexeme, "new", StringComparison.Ordinal))
             {
                 continue;
             }

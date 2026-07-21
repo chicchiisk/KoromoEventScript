@@ -386,9 +386,10 @@ VM は次の状態を保持する。
 | `INCREMENT_VAR`     | 0x5E   | `var_idx:i32` `delta:i32`     | -                       | number変数へ整数定数を加算する融合命令 |
 | `NUMBER_ARRAY_GET`  | 0x5F   | -                             | number[] index → number | 型特化された数値配列要素を読み取る |
 | `NUMBER_ARRAY_SET`  | 0x60   | -                             | number[] index number → | 型特化された数値配列要素を書き込む |
+| `ARRAY_NEW_FILLED`  | 0x61   | -                             | count fill → array      | 実行時に決まる長さと初期値で配列を生成する |
 
 `ARRAY_NEW` の要素は左から右の順で push し、命令は `count` 個を pop して同じ順序で配列へ格納する。
-`ADD_VAR`、`INCREMENT_VAR`、`NUMBER_ARRAY_GET`、`NUMBER_ARRAY_SET` は version 1.1 で追加された。compiler は静的なnumber型を確認できる場合だけこれらを出力し、型条件を満たさないbytecodeをruntime errorとする。
+`ADD_VAR`、`INCREMENT_VAR`、`NUMBER_ARRAY_GET`、`NUMBER_ARRAY_SET`、`ARRAY_NEW_FILLED` は version 1.1 で追加された。compiler は静的なnumber型を確認できる場合だけ型特化命令を出力し、型条件を満たさないbytecodeをruntime errorとする。
 `NEW` の `class_idx` は classRef の定数プール index、`GET_FIELD` / `SET_FIELD` は fieldRef、`CALL_METHOD*` は methodRef を参照する。
 `CALL_METHOD*` は receiver を先に push し、その後に通常の `CALL` と同様に引数を左から右へ push する。opcode は argc 個の引数を pop した後に receiver を pop する。
 `using` 構文は compile-time に `NEW` とスコープ終端での `DISPOSE` に lower する。`__destroy__` は runtime のオブジェクト寿命管理に属し、専用 opcode は持たない。

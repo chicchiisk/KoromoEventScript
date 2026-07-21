@@ -109,6 +109,43 @@ for i in range 2 6:
         });
     }
 
+    [Test]
+    public void BuildCommand_CompilesAndRunsDynamicallySizedFilledArray()
+    {
+        using var fixture = TemporaryProject.Create();
+        fixture.WriteConfig(entry: "events/main.kel");
+        fixture.WriteFile("events/main.kel", """
+entry = intro
+intro = {
+    chapter = "events/main.kc"
+}
+""");
+        fixture.WriteFile("events/main.kc", """
+var count: number = 5
+var flags: bool[] = new bool[count](true)
+flags[2] = false
+var selected: bool = flags[4]
+""");
+
+        var result = ExecuteBuild(fixture);
+        var textIr = ReadGeneratedTextIr(fixture);
+        var loadResult = new KlibModuleLoader().Load(
+            Path.Combine(fixture.Root, "build", "windows", "events", "main.klib"));
+        var document = loadResult.Document!;
+        var session = new KesVmSession(document);
+        var execution = new KesVmExecutor().Run(session);
+        var selectedSlot = FindVariableSlot(document, "selected");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.ExitCode, Is.EqualTo(CliExitCode.Success));
+            Assert.That(loadResult.Succeeded, Is.True);
+            Assert.That(execution.Succeeded, Is.True);
+            Assert.That(session.Variables[selectedSlot].BoolValue, Is.True);
+            Assert.That(textIr, Does.Contain("ARRAYNEWFILLED"));
+        });
+    }
+
     private static TemporaryProject CreateBroadSurfaceFixture()
     {
         var fixture = TemporaryProject.Create();

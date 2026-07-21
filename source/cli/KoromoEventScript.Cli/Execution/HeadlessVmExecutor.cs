@@ -332,6 +332,30 @@ public sealed class HeadlessVmExecutor
                         break;
                     }
 
+                case KlibOpCode.ArrayNewFilled:
+                    {
+                        if (!runtimeState.TryPopOperand(out var fillValue) ||
+                            !runtimeState.TryPopOperand(out var lengthValue) ||
+                            lengthValue?.Kind != HeadlessVmRuntimeValueKind.Number ||
+                            lengthValue.NumberValue is not double lengthNumber ||
+                            lengthNumber < 0 ||
+                            lengthNumber > int.MaxValue ||
+                            Math.Abs(lengthNumber - (int)lengthNumber) > double.Epsilon)
+                        {
+                            return Fault(document, instruction.Offset, "ARRAY_NEW_FILLED requires a non-negative integer length and a fill value.", currentObservation);
+                        }
+
+                        var values = new HeadlessVmRuntimeValue[(int)lengthNumber];
+                        for (var index = 0; index < values.Length; index++)
+                        {
+                            values[index] = fillValue!;
+                        }
+
+                        runtimeState.PushOperand(runtimeState.ObjectStore.CreateArray(values));
+                        offset = GetNextOffset(document, instruction);
+                        break;
+                    }
+
                 case KlibOpCode.ArrayGet:
                 case KlibOpCode.NumberArrayGet:
                     {

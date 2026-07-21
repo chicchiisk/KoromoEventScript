@@ -720,11 +720,48 @@ public sealed class TypeChecker
                     TokenKind.StringLiteral => KesType.String,
                     TokenKind.Keyword when token.Lexeme is "true" or "false" => KesType.Bool,
                     TokenKind.Keyword when token.Lexeme == "null" => KesType.Null,
+                    TokenKind.Keyword when token.Lexeme == "new" => ParseDynamicArray(token),
                     TokenKind.OpenParen => ParseParenthesizedOrCall(token),
                     TokenKind.OpenBracket => ParseArrayLiteral(token),
                     TokenKind.Identifier or TokenKind.Keyword => ParseIdentifierLike(token),
                     _ => KesType.Unknown,
                 };
+            }
+
+            private KesType ParseDynamicArray(Token newToken)
+            {
+                var typeToken = AdvanceIf(TokenKind.Identifier) ?? AdvanceIf(TokenKind.Keyword);
+                var elementType = typeToken?.Lexeme switch
+                {
+                    "number" => KesType.Number,
+                    "bool" => KesType.Bool,
+                    "string" => KesType.String,
+                    _ => KesType.Unsupported,
+                };
+                if (typeToken is null || elementType.Kind == KesTypeKind.Unsupported || !Match(TokenKind.OpenBracket))
+                {
+                    checker.diagnostics.Add(Diagnostic(
+                        checker.document.Document.ProjectRelativePath,
+                        Location(newToken),
+                        "Dynamic array construction requires 'new number[count]', 'new bool[count]', or 'new string[count]'."));
+                    return KesType.Array(KesType.Unknown);
+                }
+
+                var countType = ParseExpression();
+                Consume(TokenKind.CloseBracket);
+                checker.RequireAssignable(KesType.Number, countType, Location(newToken), "Dynamic array length must be number.");
+                if (Match(TokenKind.OpenParen))
+                {
+                    var fillType = ParseExpression();
+                    Consume(TokenKind.CloseParen);
+                    checker.RequireAssignable(
+                        elementType,
+                        fillType,
+                        Location(newToken),
+                        $"Dynamic array fill value must be {elementType}.");
+                }
+
+                return KesType.Array(elementType);
             }
 
             private KesType ParseParenthesizedOrCall(Token open)

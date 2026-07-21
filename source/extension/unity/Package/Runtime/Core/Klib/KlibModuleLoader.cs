@@ -477,6 +477,7 @@ public sealed class KlibModuleLoader : IKlibModuleLoader
             KlibOpCode.ArraySet or
             KlibOpCode.NumberArrayGet or
             KlibOpCode.NumberArraySet or
+            KlibOpCode.ArrayNewFilled or
             KlibOpCode.Dispose => 0,
             _ => throw new InvalidDataException($"Unsupported Klib opcode '{opCode}'."),
         };

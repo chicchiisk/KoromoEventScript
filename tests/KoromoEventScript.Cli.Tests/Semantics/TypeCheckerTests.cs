@@ -62,6 +62,31 @@ for actor in actors:
     }
 
     [Test]
+    public void CheckTypes_ValidatesDynamicArrayLengthAndFillType()
+    {
+        const string validSource = """
+var count: number = 10
+var flags: bool[] = new bool[count](true)
+var values: number[] = new number[count]
+""";
+        const string invalidSource = """
+var flags: bool[] = new bool["three"](1)
+""";
+
+        var valid = Check(validSource);
+        var invalid = Check(invalidSource);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(valid.Diagnostics, Is.Empty);
+            Assert.That(invalid.Succeeded, Is.False);
+            Assert.That(invalid.Diagnostics.Select(static diagnostic => diagnostic.Message),
+                Has.Some.Contains("length must be number")
+                    .And.Some.Contains("fill value must be bool"));
+        });
+    }
+
+    [Test]
     public void CheckTypes_ValidatesArrayElementAssignment()
     {
         const string source = """

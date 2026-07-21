@@ -69,6 +69,7 @@ public sealed class KesVmExecutor
         KlibOpCode.IncrementVar,
         KlibOpCode.NumberArrayGet,
         KlibOpCode.NumberArraySet,
+        KlibOpCode.ArrayNewFilled,
     };
 
     public KesVmExecutor(
@@ -407,6 +408,22 @@ public sealed class KesVmExecutor
                 }
 
                 session.PushOperand(session.ObjectStore.CreateArray(arrayValues));
+                session.AdvanceAfter(instruction);
+                return KesVmExecutionResult.Success();
+
+            case KlibOpCode.ArrayNewFilled:
+                if (!session.TryPopOperand(out var fillValue) ||
+                    !session.TryPopOperand(out var arrayLengthValue) ||
+                    arrayLengthValue.Kind != RuntimeValueKind.Number ||
+                    arrayLengthValue.NumberValue is not double arrayLengthNumber ||
+                    arrayLengthNumber < 0 ||
+                    arrayLengthNumber > int.MaxValue ||
+                    Math.Abs(arrayLengthNumber - (int)arrayLengthNumber) > double.Epsilon)
+                {
+                    return Fault(session, "KESR3301", "ARRAY_NEW_FILLED requires a non-negative integer length and a fill value.");
+                }
+
+                session.PushOperand(session.ObjectStore.CreateFilledArray((int)arrayLengthNumber, fillValue));
                 session.AdvanceAfter(instruction);
                 return KesVmExecutionResult.Success();
 

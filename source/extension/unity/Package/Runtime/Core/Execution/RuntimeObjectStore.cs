@@ -41,6 +41,56 @@ public sealed class RuntimeObjectStore
         return RegisterArray(new NumberRuntimeArray(values));
     }
 
+    public RuntimeValue CreateFilledArray(int count, RuntimeValue value)
+    {
+        if (count < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(count), "Array length must be non-negative.");
+        }
+
+        switch (value.Kind)
+        {
+            case RuntimeValueKind.Number when value.NumberValue is double number:
+                var numbers = new double[count];
+                for (var index = 0; index < count; index++)
+                {
+                    numbers[index] = number;
+                }
+
+                return RegisterArray(new NumberRuntimeArray(numbers));
+
+            case RuntimeValueKind.Bool when value.BoolValue is bool boolean:
+                var booleans = new bool[count];
+                if (boolean)
+                {
+                    for (var index = 0; index < count; index++)
+                    {
+                        booleans[index] = true;
+                    }
+                }
+
+                return RegisterArray(new BoolRuntimeArray(booleans));
+
+            case RuntimeValueKind.String:
+                var strings = new string?[count];
+                for (var index = 0; index < count; index++)
+                {
+                    strings[index] = value.StringValue;
+                }
+
+                return RegisterArray(new StringRuntimeArray(strings));
+
+            default:
+                var values = new RuntimeValue[count];
+                for (var index = 0; index < count; index++)
+                {
+                    values[index] = value;
+                }
+
+                return RegisterArray(new GenericRuntimeArray(values));
+        }
+    }
+
     public RuntimeValue CreateInstance(string classId)
     {
         if (string.IsNullOrEmpty(classId))

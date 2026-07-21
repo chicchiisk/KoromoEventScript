@@ -594,6 +594,13 @@ names[1] = "Kurumi"
 
 配列の長さは標準関数 `array_len array` で取得する。
 
+実行時に決まる長さの配列は `new T[count]` で生成する。`T` は `number`、`bool`、`string` のいずれかとし、全要素はそれぞれ `0`、`false`、空文字列で初期化する。初期値を明示する場合は `new T[count](value)` と書く。`count` は0以上の整数でなければならず、負数、小数、実行環境の上限を超える値は実行時エラーとする。
+
+```kes
+var flags: bool[] = new bool[candidate + 1](true)
+var scores: number[] = new number[player_count]
+```
+
 ```kes
 var count = array_len names
 ```

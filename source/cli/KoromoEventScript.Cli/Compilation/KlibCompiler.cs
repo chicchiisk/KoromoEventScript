@@ -739,8 +739,112 @@ public sealed class KlibCompiler
                 return;
             }
 
+            if (TryCompileDynamicArray(tokens))
+            {
+                return;
+            }
+
             var parser = new ExpressionCompiler(this, tokens, requireValue);
             parser.ParseExpression();
+        }
+
+        private bool TryCompileDynamicArray(IReadOnlyList<Token> tokens)
+        {
+            if (tokens.Count < 5 ||
+                tokens[0].Kind != TokenKind.Keyword ||
+                !string.Equals(tokens[0].Lexeme, "new", StringComparison.Ordinal) ||
+                tokens[2].Kind != TokenKind.OpenBracket)
+            {
+                return false;
+            }
+
+            var elementType = tokens[1].Lexeme;
+            if (elementType is not ("number" or "bool" or "string"))
+            {
+                return false;
+            }
+
+            var closeBracket = FindMatchingToken(tokens, 2, TokenKind.OpenBracket, TokenKind.CloseBracket);
+            if (closeBracket < 0 || closeBracket == 3)
+            {
+                return false;
+            }
+
+            var countTokens = tokens.Skip(3).Take(closeBracket - 3).ToArray();
+            IReadOnlyList<Token> fillTokens;
+            if (closeBracket + 1 == tokens.Count)
+            {
+                fillTokens = Array.Empty<Token>();
+            }
+            else
+            {
+                if (tokens[closeBracket + 1].Kind != TokenKind.OpenParen ||
+                    FindMatchingToken(tokens, closeBracket + 1, TokenKind.OpenParen, TokenKind.CloseParen) != tokens.Count - 1)
+                {
+                    return false;
+                }
+
+                fillTokens = tokens.Skip(closeBracket + 2).Take(tokens.Count - closeBracket - 3).ToArray();
+                if (fillTokens.Count == 0)
+                {
+                    return false;
+                }
+            }
+
+            CompileExpression(countTokens, requireValue: true);
+            if (fillTokens.Count > 0)
+            {
+                CompileExpression(fillTokens, requireValue: true);
+            }
+            else
+            {
+                switch (elementType)
+                {
+                    case "number":
+                        instructions.Add(new InstructionBuilder(KlibOpCode.PushInt, ToLocation(tokens[1]), KlibMappingKind.Expression, 0));
+                        break;
+                    case "bool":
+                        instructions.Add(new InstructionBuilder(KlibOpCode.PushFalse, ToLocation(tokens[1]), KlibMappingKind.Expression));
+                        break;
+                    default:
+                        instructions.Add(new InstructionBuilder(
+                            KlibOpCode.PushConst,
+                            ToLocation(tokens[1]),
+                            KlibMappingKind.Expression,
+                            constantPool.GetStringConstantIndex(string.Empty)));
+                        break;
+                }
+            }
+
+            instructions.Add(new InstructionBuilder(KlibOpCode.ArrayNewFilled, ToLocation(tokens[0]), KlibMappingKind.Expression));
+            return true;
+        }
+
+        private static int FindMatchingToken(
+            IReadOnlyList<Token> tokens,
+            int openIndex,
+            TokenKind openKind,
+            TokenKind closeKind)
+        {
+            var depth = 0;
+            for (var index = openIndex; index < tokens.Count; index++)
+            {
+                if (tokens[index].Kind == openKind)
+                {
+                    depth++;
+                }
+                else if (tokens[index].Kind == closeKind && --depth == 0)
+                {
+                    return index;
+                }
+            }
+
+            return -1;
+        }
+
+        private static SourceLocation ToLocation(Token token)
+        {
+            return new SourceLocation(token.Line, token.Column);
         }
 
         private void EmitActorReference(string actorName, SourceLocation location)
