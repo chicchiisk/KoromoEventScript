@@ -48,7 +48,6 @@ public sealed record HeadlessVmRuntimeValue(
 public sealed class HeadlessVmRuntimeState
 {
     private readonly Stack<HeadlessVmRuntimeValue> operandStack = [];
-    private readonly Stack<HeadlessVmFunctionFrame> functionFrames = [];
 
     public Dictionary<int, HeadlessVmRuntimeValue> VariableValues { get; } = [];
 
@@ -60,18 +59,43 @@ public sealed class HeadlessVmRuntimeState
 
     internal void PushFunctionFrame(HeadlessVmFunctionFrame frame)
     {
-        functionFrames.Push(frame);
+        CallFrames.Add(new HeadlessVmCallFrameSnapshot(
+            string.Empty,
+            frame.ReturnOffset,
+            frame.FunctionIndex,
+            frame.ExpectsReturnValue,
+            frame.SavedVariables
+                .Select(static saved => new HeadlessVmSavedVariableSnapshot(
+                    saved.Slot,
+                    saved.WasInitialized,
+                    saved.Value is null
+                        ? null
+                        : HeadlessVmObjectSnapshot.ToSnapshotValue(saved.Value)))
+                .ToArray()));
     }
 
     internal bool TryPopFunctionFrame(out HeadlessVmFunctionFrame frame)
     {
-        if (functionFrames.Count == 0)
+        if (CallFrames.Count == 0 || CallFrames[^1].FunctionIndex < 0)
         {
             frame = null!;
             return false;
         }
 
-        frame = functionFrames.Pop();
+        var snapshot = CallFrames[^1];
+        CallFrames.RemoveAt(CallFrames.Count - 1);
+        frame = new HeadlessVmFunctionFrame(
+            snapshot.FunctionIndex,
+            snapshot.ReturnOffset,
+            snapshot.ExpectsReturnValue,
+            (snapshot.SavedVariables ?? [])
+                .Select(static saved => new HeadlessVmSavedVariable(
+                    saved.Slot,
+                    saved.WasInitialized,
+                    saved.Value is null
+                        ? null
+                        : HeadlessVmObjectSnapshot.ToRuntimeValue(saved.Value)))
+                .ToArray());
         return true;
     }
 

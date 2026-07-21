@@ -90,7 +90,17 @@ public sealed record HeadlessVmVariableSnapshot(
     int ScopeId,
     HeadlessVmValueSnapshot Value);
 
-public sealed record HeadlessVmCallFrameSnapshot(string ScriptId, int ReturnOffset);
+public sealed record HeadlessVmSavedVariableSnapshot(
+    int Slot,
+    bool WasInitialized,
+    HeadlessVmValueSnapshot? Value);
+
+public sealed record HeadlessVmCallFrameSnapshot(
+    string ScriptId,
+    int ReturnOffset,
+    int FunctionIndex = -1,
+    bool ExpectsReturnValue = false,
+    IReadOnlyList<HeadlessVmSavedVariableSnapshot>? SavedVariables = null);
 
 public sealed record HeadlessVmChoiceSnapshot(string Text, int TargetOffset);
 

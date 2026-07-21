@@ -48,6 +48,53 @@ public sealed class KesVmSessionTests
             Assert.That(number, Is.Not.EqualTo(differentNumber));
         });
     }
+
+    [Test]
+    public void Snapshot_RestoresActiveFunctionFrameAndLocalVariables()
+    {
+        var instructions = new[]
+        {
+            new KlibInstruction(0, 0, KlibOpCode.PushInt, [6], null, KlibMappingKind.Statement),
+            new KlibInstruction(1, 1, KlibOpCode.CallFunction, [0, 1], null, KlibMappingKind.Statement),
+            new KlibInstruction(2, 2, KlibOpCode.DefVar, [0], null, KlibMappingKind.Statement),
+            new KlibInstruction(3, 3, KlibOpCode.End, [], null, KlibMappingKind.Statement),
+            new KlibInstruction(4, 4, KlibOpCode.Label, [0, 0], null, KlibMappingKind.Statement),
+            new KlibInstruction(5, 5, KlibOpCode.LoadVar, [1], null, KlibMappingKind.Statement),
+            new KlibInstruction(6, 6, KlibOpCode.PushInt, [2], null, KlibMappingKind.Statement),
+            new KlibInstruction(7, 7, KlibOpCode.Mul, [], null, KlibMappingKind.Statement),
+            new KlibInstruction(8, 8, KlibOpCode.ReturnValue, [], null, KlibMappingKind.Statement),
+        };
+        var document = new KlibDocument(
+            new KlibVersion(1, 1, 0),
+            new KlibModuleInfo("function-save", "function-save.module", "events/function-save.kc", null),
+            [],
+            [new KlibConstant(KlibConstantKind.String, StringValue: "double")],
+            [],
+            instructions,
+            [],
+            new KlibDebugInfo(null, null, []),
+            [new KlibFunction(0, 4, [1], [1], ReturnsValue: true)]);
+        var original = new KesVmSession(document);
+        var partial = new KesVmExecutor().Run(original, maxInstructionCount: 2);
+
+        var snapshot = original.CaptureSnapshot();
+        var restored = new KesVmSession(document);
+        var restoreResult = restored.Restore(snapshot);
+        var completed = new KesVmExecutor().Run(restored);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(partial.Succeeded, Is.False);
+            Assert.That(snapshot.SchemaVersion, Is.EqualTo(2));
+            Assert.That(snapshot.CallFrames, Has.Count.EqualTo(1));
+            Assert.That(snapshot.CallFrames![0].FunctionIndex, Is.Zero);
+            Assert.That(snapshot.CallFrames[0].ReturnInstructionIndex, Is.EqualTo(2));
+            Assert.That(restoreResult.Succeeded, Is.True);
+            Assert.That(completed.Succeeded, Is.True);
+            Assert.That(restored.Variables[0].NumberValue, Is.EqualTo(12));
+            Assert.That(restored.Continuation.Kind, Is.EqualTo(RuntimeContinuationKind.Completed));
+        });
+    }
     [Test]
     public void CaptureSnapshot_IncludesStableScriptIdAndInstructionIndex()
     {
@@ -59,7 +106,7 @@ public sealed class KesVmSessionTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(snapshot.SchemaVersion, Is.EqualTo(1));
+            Assert.That(snapshot.SchemaVersion, Is.EqualTo(RuntimeSaveSnapshot.CurrentSchemaVersion));
             Assert.That(snapshot.Position.ScriptId, Is.EqualTo("chapter001"));
             Assert.That(snapshot.Position.InstructionIndex, Is.EqualTo(1));
             Assert.That(snapshot.Position.FilePath, Is.Null);

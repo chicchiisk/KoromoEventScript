@@ -564,6 +564,8 @@ Unity拡張はファイル、PlayerPrefs、クラウド等への保存と読み�
 | `systemVariables` | auto、skip、既読状態などKES実行系の値のmap |
 | `presentation` | 背景、actor、UI、音声の論理表示状態 |
 
+Runtime Core snapshot schema 2では、`scenario.callFrames`に関数index、return命令位置、戻り値要否、呼び出し前local slot状態を外側のframeから順に保持する。schema 1はcall frameを持たない旧形式として読み込み可能とする。関数内で保存したschema 2 snapshotは、復元後に同じ関数位置、引数、local値、return先から継続しなければならない。
+
 `presentation`は少なくとも次を保持する。
 
 - 背景のasset ID、locale、表示中フラグ、KES座標、scale、sorting order。

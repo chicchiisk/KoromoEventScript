@@ -3,6 +3,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json.Serialization;
 using KoromoEventScript.Runtime.Core.Diagnostics;
 using KoromoEventScript.Runtime.Core.Klib;
@@ -207,11 +208,12 @@ public sealed class KesVmSession
         RuntimeContinuation continuation)
     {
         return new RuntimeSaveSnapshot(
-            SchemaVersion: 1,
+            SchemaVersion: RuntimeSaveSnapshot.CurrentSchemaVersion,
             position,
             continuation,
             operandStack.ToArray(),
-            CaptureVariables());
+            CaptureVariables(),
+            CaptureCallFrames());
     }
 
     public RuntimeSessionRestoreResult Restore(RuntimeSaveSnapshot snapshot)
@@ -221,7 +223,7 @@ public sealed class KesVmSession
             throw new ArgumentNullException(nameof(snapshot));
         }
 
-        if (snapshot.SchemaVersion != 1)
+        if (snapshot.SchemaVersion is not (1 or RuntimeSaveSnapshot.CurrentSchemaVersion))
         {
             return RuntimeSessionRestoreResult.Failure(
                 RuntimeFailureKind.Runtime,
@@ -262,6 +264,37 @@ public sealed class KesVmSession
         foreach (var variable in snapshot.Variables)
         {
             SetVariable(variable.StableId, variable.Value);
+        }
+
+        callFrames.Clear();
+        if (snapshot.SchemaVersion >= 2)
+        {
+            foreach (var frame in snapshot.CallFrames ?? Array.Empty<RuntimeCallFrameSnapshot>())
+            {
+                if (frame.FunctionIndex < 0 ||
+                    frame.FunctionIndex >= (Document.Functions?.Count ?? 0) ||
+                    (frame.ReturnInstructionIndex is int returnIndex && !IsKnownInstructionIndex(returnIndex)))
+                {
+                    callFrames.Clear();
+                    return RuntimeSessionRestoreResult.Failure(
+                        RuntimeFailureKind.Runtime,
+                        RuntimeDiagnostic.Error(
+                            "KESR3004",
+                            "Snapshot contains an invalid function call frame.",
+                            RuntimeFailureKind.Runtime));
+                }
+
+                callFrames.Push(new RuntimeCallFrame(
+                    frame.FunctionIndex,
+                    frame.ReturnInstructionIndex,
+                    frame.ExpectsReturnValue,
+                    frame.SavedVariables
+                        .Select(static saved => new RuntimeSavedVariable(
+                            saved.Slot,
+                            saved.WasInitialized,
+                            saved.Value))
+                        .ToArray()));
+            }
         }
 
         return RuntimeSessionRestoreResult.Success();
@@ -371,6 +404,23 @@ public sealed class KesVmSession
         }
 
         return snapshots;
+    }
+
+    private RuntimeCallFrameSnapshot[] CaptureCallFrames()
+    {
+        return callFrames
+            .Reverse()
+            .Select(static frame => new RuntimeCallFrameSnapshot(
+                frame.FunctionIndex,
+                frame.ReturnInstructionIndex,
+                frame.ExpectsReturnValue,
+                frame.SavedVariables
+                    .Select(static saved => new RuntimeSavedVariableSnapshot(
+                        saved.Slot,
+                        saved.WasInitialized,
+                        saved.Value))
+                    .ToArray()))
+            .ToArray();
     }
 
     private sealed class RuntimeVariableView : IReadOnlyDictionary<int, RuntimeValue>
