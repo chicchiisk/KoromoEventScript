@@ -87,6 +87,40 @@ public sealed class KesVmObjectModelTests
     }
 
     [Test]
+    public void Run_WithFusedNumberOpcodes_UpdatesVariablesAndTypedArray()
+    {
+        var document = CreateDocument(
+            [],
+            [
+                Instruction(0, KlibOpCode.PushInt, [10]),
+                Instruction(1, KlibOpCode.DefVar, [0]),
+                Instruction(2, KlibOpCode.PushInt, [3]),
+                Instruction(3, KlibOpCode.DefVar, [1]),
+                Instruction(4, KlibOpCode.AddVar, [0, 1]),
+                Instruction(5, KlibOpCode.IncrementVar, [0, 2]),
+                Instruction(6, KlibOpCode.PushInt, [1]),
+                Instruction(7, KlibOpCode.PushInt, [2]),
+                Instruction(8, KlibOpCode.ArrayNew, [2]),
+                Instruction(9, KlibOpCode.Dup),
+                Instruction(10, KlibOpCode.PushInt, [0]),
+                Instruction(11, KlibOpCode.PushInt, [42]),
+                Instruction(12, KlibOpCode.NumberArraySet),
+                Instruction(13, KlibOpCode.PushInt, [0]),
+                Instruction(14, KlibOpCode.NumberArrayGet),
+            ]);
+        var session = new KesVmSession(document);
+
+        var result = new KesVmExecutor().Run(session);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Succeeded, Is.True);
+            Assert.That(session.Variables[0].NumberValue, Is.EqualTo(15));
+            Assert.That(session.OperandStack.Single().NumberValue, Is.EqualTo(42));
+        });
+    }
+
+    [Test]
     public void Run_WithNewSetFieldAndGetField_CompletesWithStoredValue()
     {
         var document = CreateDocument(

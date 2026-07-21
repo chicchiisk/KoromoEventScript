@@ -382,8 +382,13 @@ VM は次の状態を保持する。
 | `CALL_METHOD`       | 0x5A   | `method_idx:i32` `argc:i32`   | receiver args... → result | methodRef で指定したメソッドを呼び出し、戻り値をプッシュする |
 | `CALL_METHOD_VOID`  | 0x5B   | `method_idx:i32` `argc:i32`   | receiver args... →      | 戻り値を破棄するメソッド呼び出し |
 | `DISPOSE`           | 0x5C   | -                             | receiver →              | `using` ブロック終了時に `dispose` を呼び出すための命令。`dispose` 未定義なら no-op |
+| `ADD_VAR`           | 0x5D   | `target_idx:i32` `source_idx:i32` | -                    | number変数 `target` に number変数 `source` を加算する融合命令 |
+| `INCREMENT_VAR`     | 0x5E   | `var_idx:i32` `delta:i32`     | -                       | number変数へ整数定数を加算する融合命令 |
+| `NUMBER_ARRAY_GET`  | 0x5F   | -                             | number[] index → number | 型特化された数値配列要素を読み取る |
+| `NUMBER_ARRAY_SET`  | 0x60   | -                             | number[] index number → | 型特化された数値配列要素を書き込む |
 
 `ARRAY_NEW` の要素は左から右の順で push し、命令は `count` 個を pop して同じ順序で配列へ格納する。
+`ADD_VAR`、`INCREMENT_VAR`、`NUMBER_ARRAY_GET`、`NUMBER_ARRAY_SET` は version 1.1 で追加された。compiler は静的なnumber型を確認できる場合だけこれらを出力し、型条件を満たさないbytecodeをruntime errorとする。
 `NEW` の `class_idx` は classRef の定数プール index、`GET_FIELD` / `SET_FIELD` は fieldRef、`CALL_METHOD*` は methodRef を参照する。
 `CALL_METHOD*` は receiver を先に push し、その後に通常の `CALL` と同様に引数を左から右へ push する。opcode は argc 個の引数を pop した後に receiver を pop する。
 `using` 構文は compile-time に `NEW` とスコープ終端での `DISPOSE` に lower する。`__destroy__` は runtime のオブジェクト寿命管理に属し、専用 opcode は持たない。

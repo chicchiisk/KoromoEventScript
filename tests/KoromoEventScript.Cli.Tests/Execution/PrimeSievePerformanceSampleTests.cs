@@ -34,8 +34,10 @@ public sealed class PrimeSievePerformanceSampleTests
         var performance = counters.CaptureSnapshot();
         TestContext.Progress.WriteLine(
             $"Prime sieve VM baseline: {performance.TotalInstructions:N0} instructions, " +
-            $"ARRAY_GET {performance.OpcodeCounts[KlibOpCode.ArrayGet]:N0}, " +
-            $"ARRAY_SET {performance.OpcodeCounts[KlibOpCode.ArraySet]:N0}, " +
+            $"NUMBER_ARRAY_GET {GetOpcodeCount(performance, KlibOpCode.NumberArrayGet):N0}, " +
+            $"NUMBER_ARRAY_SET {GetOpcodeCount(performance, KlibOpCode.NumberArraySet):N0}, " +
+            $"ADD_VAR {GetOpcodeCount(performance, KlibOpCode.AddVar):N0}, " +
+            $"INCREMENT_VAR {GetOpcodeCount(performance, KlibOpCode.IncrementVar):N0}, " +
             $"max stack depth {performance.MaximumObservedOperandStackDepth:N0}.");
 
         Assert.Multiple(() =>
@@ -47,10 +49,17 @@ public sealed class PrimeSievePerformanceSampleTests
             Assert.That(session.Variables[resultSlot].BoolValue, Is.True);
             Assert.That(performance.RunInvocations, Is.EqualTo(1));
             Assert.That(performance.SuccessfulRunInvocations, Is.EqualTo(1));
-            Assert.That(performance.TotalInstructions, Is.EqualTo(2_843_731));
-            Assert.That(performance.OpcodeCounts[KlibOpCode.ArrayGet], Is.EqualTo(323));
-            Assert.That(performance.OpcodeCounts[KlibOpCode.ArraySet], Is.EqualTo(202_616));
+            Assert.That(performance.TotalInstructions, Is.EqualTo(2_234_923));
+            Assert.That(GetOpcodeCount(performance, KlibOpCode.NumberArrayGet), Is.EqualTo(323));
+            Assert.That(GetOpcodeCount(performance, KlibOpCode.NumberArraySet), Is.EqualTo(202_616));
+            Assert.That(GetOpcodeCount(performance, KlibOpCode.AddVar), Is.EqualTo(202_614));
+            Assert.That(GetOpcodeCount(performance, KlibOpCode.IncrementVar), Is.EqualTo(322));
         });
+    }
+
+    private static long GetOpcodeCount(KesVmPerformanceSnapshot snapshot, KlibOpCode opCode)
+    {
+        return snapshot.OpcodeCounts.TryGetValue(opCode, out var count) ? count : 0;
     }
 
     private static int FindVariableSlot(KlibDocument document, string variableName)

@@ -65,6 +65,10 @@ public sealed class KesVmExecutor
         KlibOpCode.CallMethod,
         KlibOpCode.CallMethodVoid,
         KlibOpCode.Dispose,
+        KlibOpCode.AddVar,
+        KlibOpCode.IncrementVar,
+        KlibOpCode.NumberArrayGet,
+        KlibOpCode.NumberArraySet,
     };
 
     public KesVmExecutor(
@@ -359,6 +363,37 @@ public sealed class KesVmExecutor
                 session.AdvanceAfter(instruction);
                 return KesVmExecutionResult.Success();
 
+            case KlibOpCode.AddVar:
+                if (!TryReadOperand(instruction, 0, out var addTargetSlot) ||
+                    !TryReadOperand(instruction, 1, out var addSourceSlot) ||
+                    !session.TryGetVariable(addTargetSlot, out var addTargetValue) ||
+                    !session.TryGetVariable(addSourceSlot, out var addSourceValue) ||
+                    addTargetValue.Kind != RuntimeValueKind.Number ||
+                    addSourceValue.Kind != RuntimeValueKind.Number ||
+                    addTargetValue.NumberValue is not double addTargetNumber ||
+                    addSourceValue.NumberValue is not double addSourceNumber)
+                {
+                    return Fault(session, "KESR3105", "ADD_VAR requires two initialized number variables.");
+                }
+
+                session.SetVariable(addTargetSlot, RuntimeValue.Number(addTargetNumber + addSourceNumber));
+                session.AdvanceAfter(instruction);
+                return KesVmExecutionResult.Success();
+
+            case KlibOpCode.IncrementVar:
+                if (!TryReadOperand(instruction, 0, out var incrementSlot) ||
+                    !TryReadOperand(instruction, 1, out var incrementDelta) ||
+                    !session.TryGetVariable(incrementSlot, out var incrementValue) ||
+                    incrementValue.Kind != RuntimeValueKind.Number ||
+                    incrementValue.NumberValue is not double incrementNumber)
+                {
+                    return Fault(session, "KESR3105", "INCREMENT_VAR requires an initialized number variable.");
+                }
+
+                session.SetVariable(incrementSlot, RuntimeValue.Number(incrementNumber + incrementDelta));
+                session.AdvanceAfter(instruction);
+                return KesVmExecutionResult.Success();
+
             case KlibOpCode.ArrayNew:
                 if (!TryReadOperand(instruction, 0, out var arrayCount) || arrayCount < 0)
                 {
@@ -404,6 +439,42 @@ public sealed class KesVmExecutor
                 if (!session.ObjectStore.TrySetArrayValue(setReference, setIndex, assignedValue, out var setError))
                 {
                     return Fault(session, "KESR3302", setError ?? "ARRAY_SET failed.");
+                }
+
+                session.AdvanceAfter(instruction);
+                return KesVmExecutionResult.Success();
+
+            case KlibOpCode.NumberArrayGet:
+                if (!TryPopIndexAndReference(session, "NUMBER_ARRAY_GET", out var numberGetReference, out var numberGetIndex, out var numberGetFault))
+                {
+                    return numberGetFault!;
+                }
+
+                if (!session.ObjectStore.TryGetNumberArrayValue(numberGetReference, numberGetIndex, out var numberArrayValue, out var numberGetError))
+                {
+                    return Fault(session, "KESR3302", numberGetError ?? "NUMBER_ARRAY_GET failed.");
+                }
+
+                session.PushOperand(RuntimeValue.Number(numberArrayValue));
+                session.AdvanceAfter(instruction);
+                return KesVmExecutionResult.Success();
+
+            case KlibOpCode.NumberArraySet:
+                if (!session.TryPopOperand(out var numberAssignedValue) ||
+                    numberAssignedValue.Kind != RuntimeValueKind.Number ||
+                    numberAssignedValue.NumberValue is not double assignedNumber)
+                {
+                    return Fault(session, "KESR3302", "NUMBER_ARRAY_SET requires a number value.");
+                }
+
+                if (!TryPopIndexAndReference(session, "NUMBER_ARRAY_SET", out var numberSetReference, out var numberSetIndex, out var numberSetFault))
+                {
+                    return numberSetFault!;
+                }
+
+                if (!session.ObjectStore.TrySetNumberArrayValue(numberSetReference, numberSetIndex, assignedNumber, out var numberSetError))
+                {
+                    return Fault(session, "KESR3302", numberSetError ?? "NUMBER_ARRAY_SET failed.");
                 }
 
                 session.AdvanceAfter(instruction);

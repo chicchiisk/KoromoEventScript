@@ -77,81 +77,75 @@
   IL_0036: PUSHINT 1 // events/main.kc:6:21
   IL_003B: DEFVAR 2 // events/main.kc:6:5
   IL_0040: PUSHTRUE // events/main.kc:7:4
-  IL_0041: JUMPFALSE 21 // events/main.kc:7:1
-  IL_0046: LOADVAR 2 // events/main.kc:8:13
-  IL_004B: PUSHINT 1 // events/main.kc:8:21
-  IL_0050: ADD // events/main.kc:8:19
-  IL_0051: STOREVAR 2 // events/main.kc:8:5
-  IL_0056: JUMP 25 // events/main.kc:7:1
-  IL_005B: LABEL 16 0 // events/main.kc:7:1
-  IL_0064: LOADVAR 2 // events/main.kc:10:13
-  IL_0069: PUSHINT 1 // events/main.kc:10:21
-  IL_006E: SUB // events/main.kc:10:19
-  IL_006F: STOREVAR 2 // events/main.kc:10:5
-  IL_0074: LABEL 17 0 // events/main.kc:7:1
-  IL_007D: LABEL 18 0 // events/main.kc:11:1
-  IL_0086: LOADVAR 2 // events/main.kc:11:7
-  IL_008B: PUSHINT 3 // events/main.kc:11:15
-  IL_0090: LT // events/main.kc:11:13
-  IL_0091: JUMPFALSE 21 // events/main.kc:11:1
-  IL_0096: LOADVAR 2 // events/main.kc:12:13
-  IL_009B: PUSHINT 1 // events/main.kc:12:21
-  IL_00A0: ADD // events/main.kc:12:19
-  IL_00A1: STOREVAR 2 // events/main.kc:12:5
-  IL_00A6: JUMP -46 // events/main.kc:11:1
-  IL_00AB: LABEL 19 0 // events/main.kc:11:1
-  IL_00B4: LOADVAR 1 // events/main.kc:13:14
-  IL_00B9: DEFVAR 3 // events/main.kc:13:1
-  IL_00BE: PUSHINT 0 // events/main.kc:13:1
-  IL_00C3: DEFVAR 4 // events/main.kc:13:1
-  IL_00C8: LABEL 26 0 // events/main.kc:13:1
-  IL_00D1: LOADVAR 4 // events/main.kc:13:1
-  IL_00D6: LOADVAR 3 // events/main.kc:13:1
-  IL_00DB: CALL 27 1 // events/main.kc:13:1
-  IL_00E4: LT // events/main.kc:13:1
-  IL_00E5: JUMPFALSE 56 // events/main.kc:13:1
-  IL_00EA: LOADVAR 3 // events/main.kc:13:1
-  IL_00EF: LOADVAR 4 // events/main.kc:13:1
-  IL_00F4: ARRAYGET // events/main.kc:13:1
-  IL_00F5: STOREVAR 5 // events/main.kc:13:1
-  IL_00FA: LOADVAR 5 // events/main.kc:14:10
-  IL_00FF: PUSHINT 0 // events/main.kc:14:16
-  IL_0104: CALLVOID 28 2 // events/main.kc:14:5
-  IL_010D: LOADVAR 4 // events/main.kc:13:1
-  IL_0112: PUSHINT 1 // events/main.kc:13:1
-  IL_0117: ADD // events/main.kc:13:1
-  IL_0118: STOREVAR 4 // events/main.kc:13:1
-  IL_011D: JUMP -90 // events/main.kc:13:1
-  IL_0122: LABEL 29 0 // events/main.kc:13:1
-  IL_012B: LABEL 30 1 // events/main.kc:15:7
-  IL_0134: LABEL 31 1 // events/main.kc:16:10
-  IL_013D: LOADVAR 0 // events/main.kc:16:5
-  IL_0142: PUSHCONST 32 // events/main.kc:16:5
-  IL_0147: SYSCALLVOID 3 2 // events/main.kc:16:5
-  IL_0150: LABEL 33 1 // events/main.kc:18:5
-  IL_0159: PUSHCONST 34 // events/main.kc:18:5
-  IL_015E: SYSCALLVOID 4 1 // events/main.kc:18:5
-  IL_0167: PUSHNULL // events/main.kc:1:1
-  IL_0168: SELECT 2 [cp[35] => 0, cp[36] => 14] // events/main.kc:1:1
-  IL_017D: LABEL 37 1 // events/main.kc:23:7
-  IL_0186: JUMP 0 // events/main.kc:24:6
-  IL_018B: LABEL 38 1 // events/main.kc:25:7
-  IL_0194: END
+  IL_0041: JUMPFALSE 14 // events/main.kc:7:1
+  IL_0046: INCREMENTVAR 2 1 // events/main.kc:8:5
+  IL_004F: JUMP 25 // events/main.kc:7:1
+  IL_0054: LABEL 16 0 // events/main.kc:7:1
+  IL_005D: LOADVAR 2 // events/main.kc:10:13
+  IL_0062: PUSHINT 1 // events/main.kc:10:21
+  IL_0067: SUB // events/main.kc:10:19
+  IL_0068: STOREVAR 2 // events/main.kc:10:5
+  IL_006D: LABEL 17 0 // events/main.kc:7:1
+  IL_0076: LABEL 18 0 // events/main.kc:11:1
+  IL_007F: LOADVAR 2 // events/main.kc:11:7
+  IL_0084: PUSHINT 3 // events/main.kc:11:15
+  IL_0089: LT // events/main.kc:11:13
+  IL_008A: JUMPFALSE 14 // events/main.kc:11:1
+  IL_008F: INCREMENTVAR 2 1 // events/main.kc:12:5
+  IL_0098: JUMP -39 // events/main.kc:11:1
+  IL_009D: LABEL 19 0 // events/main.kc:11:1
+  IL_00A6: LOADVAR 1 // events/main.kc:13:14
+  IL_00AB: DEFVAR 3 // events/main.kc:13:1
+  IL_00B0: PUSHINT 0 // events/main.kc:13:1
+  IL_00B5: DEFVAR 4 // events/main.kc:13:1
+  IL_00BA: LABEL 26 0 // events/main.kc:13:1
+  IL_00C3: LOADVAR 4 // events/main.kc:13:1
+  IL_00C8: LOADVAR 3 // events/main.kc:13:1
+  IL_00CD: CALL 27 1 // events/main.kc:13:1
+  IL_00D6: LT // events/main.kc:13:1
+  IL_00D7: JUMPFALSE 56 // events/main.kc:13:1
+  IL_00DC: LOADVAR 3 // events/main.kc:13:1
+  IL_00E1: LOADVAR 4 // events/main.kc:13:1
+  IL_00E6: ARRAYGET // events/main.kc:13:1
+  IL_00E7: STOREVAR 5 // events/main.kc:13:1
+  IL_00EC: LOADVAR 5 // events/main.kc:14:10
+  IL_00F1: PUSHINT 0 // events/main.kc:14:16
+  IL_00F6: CALLVOID 28 2 // events/main.kc:14:5
+  IL_00FF: LOADVAR 4 // events/main.kc:13:1
+  IL_0104: PUSHINT 1 // events/main.kc:13:1
+  IL_0109: ADD // events/main.kc:13:1
+  IL_010A: STOREVAR 4 // events/main.kc:13:1
+  IL_010F: JUMP -90 // events/main.kc:13:1
+  IL_0114: LABEL 29 0 // events/main.kc:13:1
+  IL_011D: LABEL 30 1 // events/main.kc:15:7
+  IL_0126: LABEL 31 1 // events/main.kc:16:10
+  IL_012F: LOADVAR 0 // events/main.kc:16:5
+  IL_0134: PUSHCONST 32 // events/main.kc:16:5
+  IL_0139: SYSCALLVOID 3 2 // events/main.kc:16:5
+  IL_0142: LABEL 33 1 // events/main.kc:18:5
+  IL_014B: PUSHCONST 34 // events/main.kc:18:5
+  IL_0150: SYSCALLVOID 4 1 // events/main.kc:18:5
+  IL_0159: PUSHNULL // events/main.kc:1:1
+  IL_015A: SELECT 2 [cp[35] => 0, cp[36] => 14] // events/main.kc:1:1
+  IL_016F: LABEL 37 1 // events/main.kc:23:7
+  IL_0178: JUMP 0 // events/main.kc:24:6
+  IL_017D: LABEL 38 1 // events/main.kc:25:7
+  IL_0186: END
 }
 
 .labels
 {
-  cp[16] => 91 flags=0
-  cp[17] => 116 flags=0
-  cp[18] => 125 flags=0
-  cp[19] => 171 flags=0
-  cp[26] => 200 flags=0
-  cp[29] => 290 flags=0
-  cp[30] => 299 flags=1
-  cp[31] => 308 flags=1
-  cp[33] => 336 flags=1
-  cp[37] => 381 flags=1
-  cp[38] => 395 flags=1
+  cp[16] => 84 flags=0
+  cp[17] => 109 flags=0
+  cp[18] => 118 flags=0
+  cp[19] => 157 flags=0
+  cp[26] => 186 flags=0
+  cp[29] => 276 flags=0
+  cp[30] => 285 flags=1
+  cp[31] => 294 flags=1
+  cp[33] => 322 flags=1
+  cp[37] => 367 flags=1
+  cp[38] => 381 flags=1
 }
 
 .debug
@@ -172,63 +166,57 @@
     IL_003B -> "events/main.kc":6:5
     IL_0040 -> "events/main.kc":7:4
     IL_0041 -> "events/main.kc":7:1
-    IL_0046 -> "events/main.kc":8:13
-    IL_004B -> "events/main.kc":8:21
-    IL_0050 -> "events/main.kc":8:19
-    IL_0051 -> "events/main.kc":8:5
-    IL_0056 -> "events/main.kc":7:1
-    IL_005B -> "events/main.kc":7:1
-    IL_0064 -> "events/main.kc":10:13
-    IL_0069 -> "events/main.kc":10:21
-    IL_006E -> "events/main.kc":10:19
-    IL_006F -> "events/main.kc":10:5
-    IL_0074 -> "events/main.kc":7:1
-    IL_007D -> "events/main.kc":11:1
-    IL_0086 -> "events/main.kc":11:7
-    IL_008B -> "events/main.kc":11:15
-    IL_0090 -> "events/main.kc":11:13
-    IL_0091 -> "events/main.kc":11:1
-    IL_0096 -> "events/main.kc":12:13
-    IL_009B -> "events/main.kc":12:21
-    IL_00A0 -> "events/main.kc":12:19
-    IL_00A1 -> "events/main.kc":12:5
-    IL_00A6 -> "events/main.kc":11:1
-    IL_00AB -> "events/main.kc":11:1
-    IL_00B4 -> "events/main.kc":13:14
-    IL_00B9 -> "events/main.kc":13:1
-    IL_00BE -> "events/main.kc":13:1
+    IL_0046 -> "events/main.kc":8:5
+    IL_004F -> "events/main.kc":7:1
+    IL_0054 -> "events/main.kc":7:1
+    IL_005D -> "events/main.kc":10:13
+    IL_0062 -> "events/main.kc":10:21
+    IL_0067 -> "events/main.kc":10:19
+    IL_0068 -> "events/main.kc":10:5
+    IL_006D -> "events/main.kc":7:1
+    IL_0076 -> "events/main.kc":11:1
+    IL_007F -> "events/main.kc":11:7
+    IL_0084 -> "events/main.kc":11:15
+    IL_0089 -> "events/main.kc":11:13
+    IL_008A -> "events/main.kc":11:1
+    IL_008F -> "events/main.kc":12:5
+    IL_0098 -> "events/main.kc":11:1
+    IL_009D -> "events/main.kc":11:1
+    IL_00A6 -> "events/main.kc":13:14
+    IL_00AB -> "events/main.kc":13:1
+    IL_00B0 -> "events/main.kc":13:1
+    IL_00B5 -> "events/main.kc":13:1
+    IL_00BA -> "events/main.kc":13:1
     IL_00C3 -> "events/main.kc":13:1
     IL_00C8 -> "events/main.kc":13:1
-    IL_00D1 -> "events/main.kc":13:1
+    IL_00CD -> "events/main.kc":13:1
     IL_00D6 -> "events/main.kc":13:1
-    IL_00DB -> "events/main.kc":13:1
-    IL_00E4 -> "events/main.kc":13:1
-    IL_00E5 -> "events/main.kc":13:1
-    IL_00EA -> "events/main.kc":13:1
-    IL_00EF -> "events/main.kc":13:1
-    IL_00F4 -> "events/main.kc":13:1
-    IL_00F5 -> "events/main.kc":13:1
-    IL_00FA -> "events/main.kc":14:10
-    IL_00FF -> "events/main.kc":14:16
-    IL_0104 -> "events/main.kc":14:5
-    IL_010D -> "events/main.kc":13:1
-    IL_0112 -> "events/main.kc":13:1
-    IL_0117 -> "events/main.kc":13:1
-    IL_0118 -> "events/main.kc":13:1
-    IL_011D -> "events/main.kc":13:1
-    IL_0122 -> "events/main.kc":13:1
-    IL_012B -> "events/main.kc":15:7
-    IL_0134 -> "events/main.kc":16:10
-    IL_013D -> "events/main.kc":16:5
-    IL_0142 -> "events/main.kc":16:5
-    IL_0147 -> "events/main.kc":16:5
+    IL_00D7 -> "events/main.kc":13:1
+    IL_00DC -> "events/main.kc":13:1
+    IL_00E1 -> "events/main.kc":13:1
+    IL_00E6 -> "events/main.kc":13:1
+    IL_00E7 -> "events/main.kc":13:1
+    IL_00EC -> "events/main.kc":14:10
+    IL_00F1 -> "events/main.kc":14:16
+    IL_00F6 -> "events/main.kc":14:5
+    IL_00FF -> "events/main.kc":13:1
+    IL_0104 -> "events/main.kc":13:1
+    IL_0109 -> "events/main.kc":13:1
+    IL_010A -> "events/main.kc":13:1
+    IL_010F -> "events/main.kc":13:1
+    IL_0114 -> "events/main.kc":13:1
+    IL_011D -> "events/main.kc":15:7
+    IL_0126 -> "events/main.kc":16:10
+    IL_012F -> "events/main.kc":16:5
+    IL_0134 -> "events/main.kc":16:5
+    IL_0139 -> "events/main.kc":16:5
+    IL_0142 -> "events/main.kc":18:5
+    IL_014B -> "events/main.kc":18:5
     IL_0150 -> "events/main.kc":18:5
-    IL_0159 -> "events/main.kc":18:5
-    IL_015E -> "events/main.kc":18:5
-    IL_0167 -> "events/main.kc":1:1
-    IL_0168 -> "events/main.kc":1:1
-    IL_017D -> "events/main.kc":23:7
-    IL_0186 -> "events/main.kc":24:6
-    IL_018B -> "events/main.kc":25:7
+    IL_0159 -> "events/main.kc":1:1
+    IL_015A -> "events/main.kc":1:1
+    IL_016F -> "events/main.kc":23:7
+    IL_0178 -> "events/main.kc":24:6
+    IL_017D -> "events/main.kc":25:7
   }
 }

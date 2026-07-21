@@ -142,6 +142,45 @@ public sealed class RuntimeObjectStore
         return false;
     }
 
+    public bool TryGetNumberArrayValue(RuntimeValue reference, int index, out double value, out string? error)
+    {
+        value = 0;
+        error = null;
+        if (!TryGetArray(reference, out var array) || array is not NumberRuntimeArray numbers)
+        {
+            error = $"Array handle '{reference.ObjectHandle}' is not a number array.";
+            return false;
+        }
+
+        if (index < 0 || index >= numbers.Count)
+        {
+            error = $"Array index '{index}' is out of range.";
+            return false;
+        }
+
+        value = numbers.GetNumber(index);
+        return true;
+    }
+
+    public bool TrySetNumberArrayValue(RuntimeValue reference, int index, double value, out string? error)
+    {
+        error = null;
+        if (!TryGetArray(reference, out var array) || array is not NumberRuntimeArray numbers)
+        {
+            error = $"Array handle '{reference.ObjectHandle}' is not a number array.";
+            return false;
+        }
+
+        if (index < 0 || index >= numbers.Count)
+        {
+            error = $"Array index '{index}' is out of range.";
+            return false;
+        }
+
+        numbers.SetNumber(index, value);
+        return true;
+    }
+
     public bool TryGetField(RuntimeValue reference, string fieldId, out RuntimeValue value, out string? error)
     {
         value = RuntimeValue.Null;
@@ -401,6 +440,10 @@ public sealed class RuntimeObjectStore
         public RuntimeArrayStorageKind StorageKind => RuntimeArrayStorageKind.Number;
 
         public RuntimeValue Get(int index) => RuntimeValue.Number(values[index]);
+
+        public double GetNumber(int index) => values[index];
+
+        public void SetNumber(int index, double value) => values[index] = value;
 
         public bool TrySet(int index, RuntimeValue value)
         {

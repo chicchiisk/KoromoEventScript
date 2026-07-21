@@ -450,7 +450,9 @@ public sealed class KlibModuleLoader : IKlibModuleLoader
             KlibOpCode.SysCallVoid or
             KlibOpCode.New or
             KlibOpCode.CallMethod or
-            KlibOpCode.CallMethodVoid => 2,
+            KlibOpCode.CallMethodVoid or
+            KlibOpCode.AddVar or
+            KlibOpCode.IncrementVar => 2,
             KlibOpCode.PushTrue or
             KlibOpCode.PushFalse or
             KlibOpCode.PushNull or
@@ -473,6 +475,8 @@ public sealed class KlibModuleLoader : IKlibModuleLoader
             KlibOpCode.End or
             KlibOpCode.ArrayGet or
             KlibOpCode.ArraySet or
+            KlibOpCode.NumberArrayGet or
+            KlibOpCode.NumberArraySet or
             KlibOpCode.Dispose => 0,
             _ => throw new InvalidDataException($"Unsupported Klib opcode '{opCode}'."),
         };

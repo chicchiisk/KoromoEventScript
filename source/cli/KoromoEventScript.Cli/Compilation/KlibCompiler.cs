@@ -46,6 +46,7 @@ public sealed class KlibCompiler
         private readonly Dictionary<string, ImportedConstant> importedConstants;
         private readonly Dictionary<string, int> labelInstructionIndexes = new(StringComparer.Ordinal);
         private readonly Dictionary<string, int> currentLocals = new(StringComparer.Ordinal);
+        private readonly HashSet<int> numberArraySlots = [];
         private readonly Stack<Dictionary<string, int>> localScopes = new();
         private readonly Stack<Dictionary<string, string>> actorInstanceTypeScopes = new();
         private readonly Dictionary<string, string> currentActorInstanceTypes = new(StringComparer.Ordinal);
@@ -135,7 +136,7 @@ public sealed class KlibCompiler
                     .ToArray());
 
             return new KlibDocument(
-                new KlibVersion(1, 0, 0),
+                new KlibVersion(1, 1, 0),
                 new KlibModuleInfo(
                     BuildScriptId(document.ProjectRelativePath),
                     $"module.{NormalizeIdentifier(document.ModuleName)}",
@@ -305,6 +306,10 @@ public sealed class KlibCompiler
         {
             var variableType = InferVariableType(varStatement.TypeTokens, varStatement.ValueTokens);
             var slot = DeclareVariable(varStatement.Name, variableType, KlibScopeKind.Script, GetScopeId(), varStatement.NameLocation);
+            if (IsDeclaredNumberArray(varStatement.TypeTokens))
+            {
+                numberArraySlots.Add(slot.Index);
+            }
             if (varStatement.ValueTokens.Count > 0)
             {
                 CompileExpression(varStatement.ValueTokens, requireValue: true);
@@ -375,7 +380,15 @@ public sealed class KlibCompiler
                 instructions.Add(new InstructionBuilder(KlibOpCode.LoadVar, assignment.TargetLocation, KlibMappingKind.Expression, targetIndex));
                 CompileExpression(assignment.IndexTokens, requireValue: true);
                 CompileExpression(assignment.ValueTokens, requireValue: true);
-                instructions.Add(new InstructionBuilder(KlibOpCode.ArraySet, assignment.TargetLocation, KlibMappingKind.Statement));
+                instructions.Add(new InstructionBuilder(
+                    numberArraySlots.Contains(targetIndex) ? KlibOpCode.NumberArraySet : KlibOpCode.ArraySet,
+                    assignment.TargetLocation,
+                    KlibMappingKind.Statement));
+                return;
+            }
+
+            if (TryCompileFusedNumericAssignment(assignment, targetIndex))
+            {
                 return;
             }
 
@@ -627,17 +640,11 @@ public sealed class KlibCompiler
 
             EmitLabel(incrementLabel, forStatement.ForLocation, publicLabel: false);
             instructions.Add(new InstructionBuilder(
-                KlibOpCode.LoadVar,
-                forStatement.ForLocation,
-                KlibMappingKind.Expression,
-                currentSlot.Index));
-            instructions.Add(new InstructionBuilder(KlibOpCode.PushInt, forStatement.ForLocation, KlibMappingKind.Expression, 1));
-            instructions.Add(new InstructionBuilder(KlibOpCode.Add, forStatement.ForLocation, KlibMappingKind.Expression));
-            instructions.Add(new InstructionBuilder(
-                KlibOpCode.StoreVar,
+                KlibOpCode.IncrementVar,
                 forStatement.ForLocation,
                 KlibMappingKind.Statement,
-                currentSlot.Index));
+                currentSlot.Index,
+                1));
             instructions.Add(InstructionBuilder.Jump(startLabel, forStatement.ForLocation));
             EmitLabel(endLabel, forStatement.ForLocation, publicLabel: false);
             PopBlockScope();
@@ -665,6 +672,46 @@ public sealed class KlibCompiler
             startTokens = arguments[0];
             endTokens = arguments[1];
             return true;
+        }
+
+        private bool TryCompileFusedNumericAssignment(AssignmentStatementSyntax assignment, int targetIndex)
+        {
+            if (variables[targetIndex].Type != KlibVariableType.Number ||
+                assignment.ValueTokens.Count != 3 ||
+                assignment.ValueTokens[0].Kind != TokenKind.Identifier ||
+                !string.Equals(assignment.ValueTokens[0].Lexeme, assignment.TargetName, StringComparison.Ordinal) ||
+                assignment.ValueTokens[1].Kind != TokenKind.Plus)
+            {
+                return false;
+            }
+
+            var addend = assignment.ValueTokens[2];
+            if (addend.Kind == TokenKind.NumberLiteral &&
+                int.TryParse(addend.Lexeme, NumberStyles.Integer, CultureInfo.InvariantCulture, out var delta))
+            {
+                instructions.Add(new InstructionBuilder(
+                    KlibOpCode.IncrementVar,
+                    assignment.TargetLocation,
+                    KlibMappingKind.Statement,
+                    targetIndex,
+                    delta));
+                return true;
+            }
+
+            if (addend.Kind == TokenKind.Identifier &&
+                TryResolveVariable(addend.Lexeme, out var addendIndex) &&
+                variables[addendIndex].Type == KlibVariableType.Number)
+            {
+                instructions.Add(new InstructionBuilder(
+                    KlibOpCode.AddVar,
+                    assignment.TargetLocation,
+                    KlibMappingKind.Statement,
+                    targetIndex,
+                    addendIndex));
+                return true;
+            }
+
+            return false;
         }
 
         private void CompileCommand(string name, IReadOnlyList<Token> tokens, SourceLocation location, bool requiresValue)
@@ -949,6 +996,15 @@ public sealed class KlibCompiler
             };
         }
 
+        private static bool IsDeclaredNumberArray(IReadOnlyList<Token> typeTokens)
+        {
+            return typeTokens.Count > 0 &&
+                string.Equals(
+                    string.Concat(typeTokens.Select(static token => token.Lexeme)),
+                    "number[]",
+                    StringComparison.Ordinal);
+        }
+
         private Diagnostic Diagnostic(string code, SourceLocation location, string message)
         {
             return new Diagnostic(DiagnosticLevel.Error, code, document.ProjectRelativePath, location.Line, location.Column, message);
@@ -1133,7 +1189,7 @@ public sealed class KlibCompiler
 
             private void ParsePostfix()
             {
-                ParsePrimary();
+                var rootName = ParsePrimary();
                 while (true)
                 {
                     if (Match(TokenKind.Dot))
@@ -1151,6 +1207,7 @@ public sealed class KlibCompiler
                             ToLocation(memberToken),
                             KlibMappingKind.Expression,
                             context.constantPool.GetStringIndex(memberToken.Lexeme)));
+                        rootName = null;
                         continue;
                     }
 
@@ -1159,7 +1216,13 @@ public sealed class KlibCompiler
                         var token = Previous;
                         ParseExpression();
                         Consume(TokenKind.CloseBracket);
-                        context.instructions.Add(new InstructionBuilder(KlibOpCode.ArrayGet, ToLocation(token), KlibMappingKind.Expression));
+                        var opCode = rootName is not null &&
+                            context.TryResolveVariable(rootName, out var arraySlot) &&
+                            context.numberArraySlots.Contains(arraySlot)
+                            ? KlibOpCode.NumberArrayGet
+                            : KlibOpCode.ArrayGet;
+                        context.instructions.Add(new InstructionBuilder(opCode, ToLocation(token), KlibMappingKind.Expression));
+                        rootName = null;
                         continue;
                     }
 

@@ -94,6 +94,10 @@ public enum KlibOpCode : byte
     CallMethod = 0x5A,
     CallMethodVoid = 0x5B,
     Dispose = 0x5C,
+    AddVar = 0x5D,
+    IncrementVar = 0x5E,
+    NumberArrayGet = 0x5F,
+    NumberArraySet = 0x60,
 }
 
 public readonly struct KlibSourceLocation

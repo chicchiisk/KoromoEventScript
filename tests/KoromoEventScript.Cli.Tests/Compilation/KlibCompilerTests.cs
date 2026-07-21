@@ -67,8 +67,8 @@ var selected: number = values[index]
         Assert.Multiple(() =>
         {
             Assert.That(result.ExitCode, Is.EqualTo(CliExitCode.Success));
-            Assert.That(textIr, Does.Contain("ARRAYSET"));
-            Assert.That(textIr, Does.Contain("ARRAYGET"));
+            Assert.That(textIr, Does.Contain("NUMBERARRAYSET"));
+            Assert.That(textIr, Does.Contain("NUMBERARRAYGET"));
         });
     }
 

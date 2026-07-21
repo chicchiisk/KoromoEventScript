@@ -124,6 +124,37 @@ public sealed class HeadlessVmExecutor
                     offset = GetNextOffset(document, instruction);
                     break;
 
+                case KlibOpCode.AddVar:
+                    if (!runtimeState.VariableValues.TryGetValue(instruction.Operands[0], out var addTarget) ||
+                        !runtimeState.VariableValues.TryGetValue(instruction.Operands[1], out var addSource) ||
+                        addTarget.Kind != HeadlessVmRuntimeValueKind.Number ||
+                        addSource.Kind != HeadlessVmRuntimeValueKind.Number ||
+                        addTarget.NumberValue is not double addTargetNumber ||
+                        addSource.NumberValue is not double addSourceNumber)
+                    {
+                        return Fault(document, instruction.Offset, "ADD_VAR requires two initialized number variables.", currentObservation);
+                    }
+
+                    runtimeState.VariableValues[instruction.Operands[0]] = new HeadlessVmRuntimeValue(
+                        HeadlessVmRuntimeValueKind.Number,
+                        NumberValue: addTargetNumber + addSourceNumber);
+                    offset = GetNextOffset(document, instruction);
+                    break;
+
+                case KlibOpCode.IncrementVar:
+                    if (!runtimeState.VariableValues.TryGetValue(instruction.Operands[0], out var incrementTarget) ||
+                        incrementTarget.Kind != HeadlessVmRuntimeValueKind.Number ||
+                        incrementTarget.NumberValue is not double incrementNumber)
+                    {
+                        return Fault(document, instruction.Offset, "INCREMENT_VAR requires an initialized number variable.", currentObservation);
+                    }
+
+                    runtimeState.VariableValues[instruction.Operands[0]] = new HeadlessVmRuntimeValue(
+                        HeadlessVmRuntimeValueKind.Number,
+                        NumberValue: incrementNumber + instruction.Operands[1]);
+                    offset = GetNextOffset(document, instruction);
+                    break;
+
                 case KlibOpCode.Add:
                     {
                         var addResult = ApplyNumericBinaryOperation(runtimeState, instruction.Offset, document, currentObservation, static (left, right) => left + right);
@@ -302,6 +333,7 @@ public sealed class HeadlessVmExecutor
                     }
 
                 case KlibOpCode.ArrayGet:
+                case KlibOpCode.NumberArrayGet:
                     {
                         var arrayAccess = PopIndexAndReference(runtimeState, instruction.Offset, document, currentObservation, "ARRAY_GET");
                         if (arrayAccess.Fault is not null)
@@ -320,6 +352,7 @@ public sealed class HeadlessVmExecutor
                     }
 
                 case KlibOpCode.ArraySet:
+                case KlibOpCode.NumberArraySet:
                     {
                         if (!runtimeState.TryPopOperand(out var assignedValue))
                         {
