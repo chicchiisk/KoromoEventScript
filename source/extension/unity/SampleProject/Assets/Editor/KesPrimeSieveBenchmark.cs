@@ -118,28 +118,24 @@ internal static class KesPrimeSieveBenchmark
             return false;
         }
 
-        var sieve = new double[candidate + 1];
-        for (var index = 0; index <= candidate; index++)
-        {
-            sieve[index] = index;
-        }
-
-        sieve[0] = 0;
-        sieve[1] = 0;
+        var sieve = new bool[candidate + 1];
+        Array.Fill(sieve, true);
+        sieve[0] = false;
+        sieve[1] = false;
         for (var factor = 2; factor * factor <= candidate; factor++)
         {
-            if (sieve[factor] == 0)
+            if (!sieve[factor])
             {
                 continue;
             }
 
             for (var multiple = factor * factor; multiple <= candidate; multiple += factor)
             {
-                sieve[multiple] = 0;
+                sieve[multiple] = false;
             }
         }
 
-        return sieve[candidate] != 0;
+        return sieve[candidate];
     }
 
     private static bool RunKes(KlibDocument document, KesVmExecutor executor, int resultSlot)

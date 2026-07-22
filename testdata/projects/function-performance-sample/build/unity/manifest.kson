@@ -21,7 +21,7 @@
       "scriptId": "events/prime_sieve",
       "locale": "ja-JP",
       "isEntry": true,
-      "startLabel": "__while_start_0",
+      "startLabel": "__top_level_0",
       "sourcePath": "events/prime_sieve.kc",
       "klibPath": "events/prime_sieve.klib",
       "klibTextPath": "events/prime_sieve.klibtxt"

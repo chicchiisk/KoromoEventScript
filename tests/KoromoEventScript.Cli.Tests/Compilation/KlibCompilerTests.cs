@@ -184,11 +184,51 @@ var result: number = factorial(6)
             Assert.That(result.ExitCode, Is.EqualTo(CliExitCode.Success));
             Assert.That(loadResult.Succeeded, Is.True);
             Assert.That(document.Functions, Has.Count.EqualTo(1));
+            Assert.That(document.Module.EntryLabel, Does.StartWith("__top_level_"));
             Assert.That(execution.Succeeded, Is.True);
             Assert.That(session.Variables[resultSlot].NumberValue, Is.EqualTo(720));
             Assert.That(textIr, Does.Contain(".functions"));
             Assert.That(textIr, Does.Contain("CALLFUNCTION"));
             Assert.That(textIr, Does.Contain("RETURNVALUE"));
+        });
+    }
+
+    [Test]
+    public void BuildCommand_InlinesPureSingleExpressionFunctionCalls()
+    {
+        using var fixture = TemporaryProject.Create();
+        fixture.WriteConfig(entry: "events/main.kel");
+        fixture.WriteFile("events/main.kel", """
+entry = intro
+intro = {
+    chapter = "events/main.kc"
+}
+""");
+        fixture.WriteFile("events/main.kc", """
+fn square(value: number): number:
+    return value * value
+
+var result: number = square(7)
+""");
+
+        var result = ExecuteBuild(fixture);
+        var textIr = ReadGeneratedTextIr(fixture);
+        var loadResult = new KlibModuleLoader().Load(
+            Path.Combine(fixture.Root, "build", "windows", "events", "main.klib"));
+        var document = loadResult.Document!;
+        var session = new KesVmSession(document);
+        var execution = new KesVmExecutor().Run(session);
+        var resultSlot = FindVariableSlot(document, "result");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.ExitCode, Is.EqualTo(CliExitCode.Success));
+            Assert.That(loadResult.Succeeded, Is.True);
+            Assert.That(execution.Succeeded, Is.True);
+            Assert.That(session.Variables[resultSlot].NumberValue, Is.EqualTo(49));
+            Assert.That(textIr, Does.Contain(".functions"));
+            Assert.That(textIr, Does.Contain("RETURNVALUE"));
+            Assert.That(textIr, Does.Not.Contain("CALLFUNCTION"));
         });
     }
 

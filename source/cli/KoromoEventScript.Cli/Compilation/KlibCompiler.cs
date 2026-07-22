@@ -52,9 +52,11 @@ public sealed class KlibCompiler
         private readonly Dictionary<string, string> currentActorInstanceTypes = new(StringComparer.Ordinal);
         private readonly Stack<LoopLabels> loops = new();
         private readonly Dictionary<string, int> functionIndexes;
+        private readonly Dictionary<string, FunctionDeclarationSyntax> inlineFunctions;
         private readonly FunctionBuilder?[] functionBuilders;
         private readonly bool embedLocalizedText;
         private FunctionBuilder? currentFunction;
+        private string? moduleEntryLabel;
         private int nextScopeId;
         private int nextHiddenVariableId;
         private int nextSyntheticLabelId;
@@ -86,6 +88,9 @@ public sealed class KlibCompiler
             functionIndexes = declaredFunctions
                 .Select((function, index) => (function.Name, Index: index))
                 .ToDictionary(static pair => pair.Name, static pair => pair.Index, StringComparer.Ordinal);
+            inlineFunctions = declaredFunctions
+                .Where(IsInlineCandidate)
+                .ToDictionary(static function => function.Name, StringComparer.Ordinal);
             functionBuilders = new FunctionBuilder?[declaredFunctions.Length];
         }
 
@@ -105,6 +110,7 @@ public sealed class KlibCompiler
             if (functionBuilders.Length > 0)
             {
                 var topLevelLabel = CreateSyntheticLabel("top_level");
+                moduleEntryLabel = topLevelLabel;
                 instructions.Add(InstructionBuilder.Jump(topLevelLabel, new SourceLocation(1, 1)));
                 foreach (var function in document.Syntax.Statements.OfType<FunctionDeclarationSyntax>())
                 {
@@ -181,7 +187,7 @@ public sealed class KlibCompiler
                     BuildScriptId(document.ProjectRelativePath),
                     $"module.{NormalizeIdentifier(document.ModuleName)}",
                     document.ProjectRelativePath,
-                    labelInstructionIndexes.Keys.FirstOrDefault()),
+                    moduleEntryLabel ?? labelInstructionIndexes.Keys.FirstOrDefault()),
                 BuildImports(),
                 constants,
                 variables.Select(variable => variable.ToKlibVariable()).ToArray(),
@@ -794,6 +800,87 @@ public sealed class KlibCompiler
                 KlibMappingKind.Statement,
                 constantPool.GetStringIndex(name),
                 argumentCount));
+        }
+
+        private bool TryInlineFunction(
+            string name,
+            IReadOnlyList<IReadOnlyList<Token>> arguments,
+            SourceLocation callLocation)
+        {
+            if (!inlineFunctions.TryGetValue(name, out var function) ||
+                arguments.Count != function.Parameters.Count ||
+                arguments.Any(static argument => !IsSideEffectFreeInlineArgument(argument)) ||
+                function.Body.Statements.SingleOrDefault() is not ReturnStatementSyntax returnStatement)
+            {
+                return false;
+            }
+
+            var argumentsByParameter = new Dictionary<string, IReadOnlyList<Token>>(StringComparer.Ordinal);
+            for (var index = 0; index < function.Parameters.Count; index++)
+            {
+                argumentsByParameter[function.Parameters[index].Name] = arguments[index];
+            }
+
+            var inlinedTokens = new List<Token>();
+            foreach (var token in returnStatement.ValueTokens)
+            {
+                if (token.Kind == TokenKind.Identifier &&
+                    argumentsByParameter.TryGetValue(token.Lexeme, out var argument))
+                {
+                    inlinedTokens.Add(new Token(TokenKind.OpenParen, "(", callLocation.Line, callLocation.Column));
+                    inlinedTokens.AddRange(argument);
+                    inlinedTokens.Add(new Token(TokenKind.CloseParen, ")", callLocation.Line, callLocation.Column));
+                }
+                else
+                {
+                    inlinedTokens.Add(token);
+                }
+            }
+
+            CompileExpression(inlinedTokens, requireValue: true);
+            return true;
+        }
+
+        private static bool IsSideEffectFreeInlineArgument(IReadOnlyList<Token> argument)
+        {
+            // A single literal or variable read cannot hide another call, member/index
+            // access, or a different argument-evaluation order.
+            return argument.Count == 1;
+        }
+
+        private static bool IsInlineCandidate(FunctionDeclarationSyntax function)
+        {
+            if (function.Body.Statements.Count != 1 ||
+                function.Body.Statements[0] is not ReturnStatementSyntax returnStatement ||
+                returnStatement.ValueTokens.Count == 0 ||
+                returnStatement.ValueTokens.Count > 32)
+            {
+                return false;
+            }
+
+            var parameterNames = function.Parameters
+                .Select(static parameter => parameter.Name)
+                .ToHashSet(StringComparer.Ordinal);
+            foreach (var token in returnStatement.ValueTokens)
+            {
+                if (token.Kind == TokenKind.Identifier && !parameterNames.Contains(token.Lexeme))
+                {
+                    return false;
+                }
+
+                if (token.Kind == TokenKind.Keyword &&
+                    token.Lexeme is not ("true" or "false" or "null"))
+                {
+                    return false;
+                }
+
+                if (token.Kind is TokenKind.OpenBracket or TokenKind.CloseBracket or TokenKind.Dot)
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private void CompileFunction(FunctionDeclarationSyntax function)
@@ -1534,6 +1621,11 @@ public sealed class KlibCompiler
                 if (Match(TokenKind.OpenParen))
                 {
                     var arguments = ReadArgumentsUntilCloseParen();
+                    if (context.TryInlineFunction(token.Lexeme, arguments, ToLocation(token)))
+                    {
+                        return null;
+                    }
+
                     foreach (var argument in arguments)
                     {
                         context.CompileExpression(argument, requireValue: true);
@@ -1554,6 +1646,11 @@ public sealed class KlibCompiler
                 {
                     var argumentTokens = ReadCallTail();
                     var arguments = SplitArguments(argumentTokens);
+                    if (context.TryInlineFunction(token.Lexeme, arguments, ToLocation(token)))
+                    {
+                        return null;
+                    }
+
                     foreach (var argument in arguments)
                     {
                         context.CompileExpression(argument, requireValue: true);
