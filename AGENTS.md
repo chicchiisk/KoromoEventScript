@@ -135,13 +135,13 @@ Parallel Research セクションを持つスキルでは、この機能によ�
 - ユーザーの指示を優先しつつ、その範囲内では自律的に必要な情報収集、実装、検証まで完結させる。
 - 質問は、本当に必要な情報が欠けている場合、または指示の曖昧さが致命的な場合に限る。
 
-## Unity MCP 運用ルール
+## Unity CLI 運用ルール
 
-- `source/extension/unity/` の開発で Unity Editor の状態確認、シーン・GameObject・Prefab・Project Settings・Addressables・メニュー操作、Console 確認、Edit Mode / Play Mode テストを行う場合は Unity MCP を使用する。
-- Unity Editor が生成・管理する `.unity`、`.prefab`、`.asset`、`.meta`、`Packages/manifest.json` などを変更する必要がある場合は、原則として Unity MCP 経由の Editor API またはメニュー操作で変更する。テキストを直接編集するのは、Unity MCP では実現できないことを確認した場合に限る。
-- Unity MCP を使用する前に接続中の Unity instance と Editor state を確認し、複数 instance がある場合は対象を明示的に選択する。
-- Unity のスクリプトまたは package を変更した後は、Unity MCP でコンパイル完了を待ち、Console の error と warning を確認してからテストを実行する。
-- Unity 拡張の検証結果には、使用した Unity version、対象 instance、実行した Edit Mode / Play Mode テストと結果を含める。
+- `source/extension/unity/` の開発で Unity Editor の状態確認、シーン・GameObject・Prefab・Project Settings・Addressables・メニュー操作、Console 確認、Edit Mode / Play Mode テストを行う場合は Unity CLI を使用する。
+- Unity Editor が生成・管理する `.unity`、`.prefab`、`.asset`、`.meta`、`Packages/manifest.json` などを変更する必要がある場合は、原則として Unity CLI 経由の Editor API またはメニュー操作で変更する。テキストを直接編集するのは、Unity CLI では実現できないことを確認した場合に限る。
+- Unity CLI を使用する前に接続中の Unity instance と Editor state を確認し、複数 instance がある場合は対象を明示的に選択する。
+- Unity のスクリプトまたは package を変更した後は、Unity CLI でコンパイル完了を待ち、Console の error と warning を確認してからテストを実行する。
+- Unity 拡張の検証結果には、使用した Unity version、対象 instance、実行した Unity CLI コマンド、Edit Mode / Play Mode テストと結果を含める。
 
 ## Steering の読み込み設定
 

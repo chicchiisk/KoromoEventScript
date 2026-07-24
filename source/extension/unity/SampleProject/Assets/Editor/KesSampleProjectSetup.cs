@@ -160,11 +160,11 @@ internal static class KesSampleProjectSetup
             scaler.matchWidthOrHeight = 0.5f;
             canvasRoot.AddComponent<GraphicRaycaster>();
 
-            var messageRoot = UiChild(canvasRoot.transform, "MessageRoot", new Vector2(160f, 60f), new Vector2(1760f, 340f));
+            var messageRoot = UiChild(canvasRoot.transform, "MessageRoot", 160f, 740f, 160f, 60f);
             var panel = messageRoot.AddComponent<Image>();
             panel.color = new Color(0f, 0f, 0f, 0.75f);
-            var speaker = TextChild(messageRoot.transform, "Speaker", new Vector2(40f, 190f), new Vector2(1560f, 260f), 30);
-            var message = TextChild(messageRoot.transform, "Message", new Vector2(40f, 30f), new Vector2(1560f, 190f), 32);
+            var speaker = TextChild(messageRoot.transform, "Speaker", 40f, 13f, 40f, 177f, 30);
+            var message = TextChild(messageRoot.transform, "Message", 40f, 90f, 40f, 30f, 32);
 
             var choiceRoot = CenteredUiChild(canvasRoot.transform, "ChoiceRoot", 1000f, 80f);
             var choicePanel = choiceRoot.AddComponent<Image>();
@@ -184,13 +184,13 @@ internal static class KesSampleProjectSetup
             var choiceItemTemplate = CreateChoiceItemTemplate(choiceRoot.transform);
             choiceRoot.SetActive(false);
 
-            var menuRoot = UiChild(canvasRoot.transform, "MenuRoot", new Vector2(560f, 260f), new Vector2(1360f, 820f));
+            var menuRoot = UiChild(canvasRoot.transform, "MenuRoot", 560f, 260f, 560f, 260f);
             var menuPanel = menuRoot.AddComponent<Image>();
             menuPanel.color = new Color(0f, 0f, 0f, 0.9f);
-            var menuTitle = TextChild(menuRoot.transform, "MenuTitle", new Vector2(40f, 440f), new Vector2(760f, 520f), 36);
+            var menuTitle = TextChild(menuRoot.transform, "MenuTitle", 40f, 40f, 40f, 440f, 36);
             menuTitle.text = "Menu";
             menuTitle.alignment = TextAnchor.MiddleCenter;
-            var menuHelp = TextChild(menuRoot.transform, "MenuHelp", new Vector2(40f, 80f), new Vector2(760f, 420f), 26);
+            var menuHelp = TextChild(menuRoot.transform, "MenuHelp", 40f, 140f, 40f, 80f, 26);
             menuHelp.text = "Right Click / Esc: Close\nTab: Auto\nCtrl: Skip";
             menuHelp.alignment = TextAnchor.MiddleCenter;
             menuRoot.SetActive(false);
@@ -260,15 +260,15 @@ internal static class KesSampleProjectSetup
         return child;
     }
 
-    private static GameObject UiChild(Transform parent, string name, Vector2 min, Vector2 max)
+    private static GameObject UiChild(Transform parent, string name, float left, float top, float right, float bottom)
     {
         var child = new GameObject(name, typeof(RectTransform));
         var rect = (RectTransform)child.transform;
         rect.SetParent(parent, false);
-        rect.anchorMin = new Vector2(min.x / 1920f, min.y / 1080f);
-        rect.anchorMax = new Vector2(max.x / 1920f, max.y / 1080f);
-        rect.offsetMin = Vector2.zero;
-        rect.offsetMax = Vector2.zero;
+        rect.anchorMin = Vector2.zero;
+        rect.anchorMax = Vector2.one;
+        rect.offsetMin = new Vector2(left, bottom);
+        rect.offsetMax = new Vector2(-right, -top);
         return child;
     }
 
@@ -338,11 +338,13 @@ internal static class KesSampleProjectSetup
     private static Text TextChild(
         Transform parent,
         string name,
-        Vector2 min,
-        Vector2 max,
+        float left,
+        float top,
+        float right,
+        float bottom,
         int fontSize)
     {
-        var child = UiChild(parent, name, min, max);
+        var child = UiChild(parent, name, left, top, right, bottom);
         var text = child.AddComponent<Text>();
         text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         text.fontSize = fontSize;
