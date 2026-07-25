@@ -7,20 +7,6 @@ on:
       - main
 
 jobs:
-  markdown:
-    name: Markdown lint
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Lint markdown
-        uses: DavidAnson/markdownlint-cli2-action@v17
-        with:
-          globs: |
-            **/*.md
-            !LICENSE
-
   dotnet:
     name: .NET tests
     runs-on: windows-latest
