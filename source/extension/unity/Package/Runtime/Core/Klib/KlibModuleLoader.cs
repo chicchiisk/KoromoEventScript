@@ -74,6 +74,13 @@ public sealed class KlibModuleLoader : IKlibModuleLoader
             }
 
             var version = new KlibVersion(reader.ReadInt32(), reader.ReadInt32(), reader.ReadInt32());
+            if (version.Major != 1 || version.Minor < 0 || version.Patch < 0)
+            {
+                return InvalidKlib(
+                    sourceName,
+                    $"Klib file uses unsupported format version {version.Major}.{version.Minor}.{version.Patch}.");
+            }
+
             var features = reader.ReadInt32();
             if (features != 0)
             {

@@ -147,6 +147,22 @@ main への merge は、次を満たしてから行う。
 - CI が成功している。
 - 人間レビューで承認されている。
 
+## リリース運用
+
+CLIとUnity packageのリリースは`.github/workflows/release.yml`で自動化する。
+
+1. CLI projectとUnity `package.json`のversionを同じ値へ更新する。
+2. 変更をmainへmergeし、`v<SemVer>`形式のtagを作成してpushする。
+3. Release workflowが.NET testとversion一致検証を実行する。
+4. 成功するとGitHub Releaseを作成し、次のassetを登録する。
+
+- `kes-<version>-win-x64.zip`
+- `kes-unity-<version>.tgz`
+- `SHA256SUMS.txt`
+
+既存tagの成果物を再生成する場合は、Actions画面からRelease workflowを手動実行する。
+手動実行時も、対象tagが既に存在し、tag、CLI、Unity packageのversionが一致している必要がある。
+
 ## ラベル運用
 
 初期ラベルは次を想定する。

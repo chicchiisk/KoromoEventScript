@@ -40,3 +40,11 @@ Git依存関係の取得には、Unityを実行する環境の`PATH`からGitク
 - タグ作成前に`package.json`と`CHANGELOG.md`のバージョンを一致させる。
 - 公開タグは作成後に付け替えない。修正時はpackage versionを上げ、新しいタグを作成する。
 - GitHub URL経由では`?path=`で`Package/`だけをUPM packageとして登録し、`SampleProject/`は利用者のプロジェクトへ導入しない。
+
+リリース候補は、ローカルpackageを空のUnityプロジェクトへ導入し、Basic SetupのimportとWindows Player buildを検証する。
+
+```powershell
+./scripts/unity/Invoke-UnityReleaseValidation.ps1
+```
+
+commitをpushした後は`-PackageReference`へGit URLとcommit hashを渡し、公開経路でも同じ検証を行う。

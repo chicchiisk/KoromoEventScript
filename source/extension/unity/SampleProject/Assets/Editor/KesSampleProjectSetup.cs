@@ -20,6 +20,7 @@ internal static class KesSampleProjectSetup
     private const string ScenePath = "Assets/Scenes/SampleScene.unity";
     private const string ManifestPath = "Assets/Scenario/manifest.kson";
     private const string ChoiceIconPath = "Assets/SampleAssets/ui/choice_selected.png";
+    private const string BasicSetupExportRoot = "Assets/__KesBasicSetupExport";
     private const string AutoConfigureRequestFileName = "KesSampleProjectAutoConfigure.request";
 
     [InitializeOnLoadMethod]
@@ -59,6 +60,71 @@ internal static class KesSampleProjectSetup
         ConfigureSampleScene(prefab);
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+    }
+
+    public static void ExportBasicSetupSample()
+    {
+        Configure();
+
+        var packageSampleRoot = Path.GetFullPath(Path.Combine(
+            Application.dataPath,
+            "../../Package/Samples~/BasicSetup"));
+        var generatedPaths = new[]
+        {
+            "AddressableAssetsData",
+            "Input",
+            "Runtime",
+            "UI",
+            "KesSystem.prefab",
+            "KesSystem.prefab.meta",
+        };
+
+        foreach (var generatedPath in generatedPaths)
+        {
+            FileUtil.DeleteFileOrDirectory(Path.Combine(packageSampleRoot, generatedPath));
+        }
+
+        Directory.CreateDirectory(packageSampleRoot);
+        CopyAssetWithMeta(PrefabPath, Path.Combine(packageSampleRoot, "KesSystem.prefab"));
+        CopyAssetWithMeta(
+            "Assets/Settings/InputSystem_Actions.inputactions",
+            Path.Combine(packageSampleRoot, "Input/InputSystem_Actions.inputactions"));
+        CopyAssetWithMeta(
+            "Assets/SampleRuntime/KesSampleSaveHost.cs",
+            Path.Combine(packageSampleRoot, "Runtime/KesSampleSaveHost.cs"));
+        CopyAssetWithMeta(
+            ChoiceIconPath,
+            Path.Combine(packageSampleRoot, "UI/choice_selected.png"));
+
+        AssetDatabase.DeleteAsset(BasicSetupExportRoot);
+        Directory.CreateDirectory(BasicSetupExportRoot);
+        AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+        AddressableAssetSettings.Create(
+            BasicSetupExportRoot + "/AddressableAssetsData",
+            "AddressableAssetSettings",
+            true,
+            true);
+        AssetDatabase.SaveAssets();
+        AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+
+        FileUtil.CopyFileOrDirectory(
+            Path.GetFullPath(Path.Combine(Application.dataPath, "../" + BasicSetupExportRoot + "/AddressableAssetsData")),
+            Path.Combine(packageSampleRoot, "AddressableAssetsData"));
+        FileUtil.CopyFileOrDirectory(
+            Path.GetFullPath(Path.Combine(Application.dataPath, "../" + BasicSetupExportRoot + "/AddressableAssetsData.meta")),
+            Path.Combine(packageSampleRoot, "AddressableAssetsData.meta"));
+
+        AssetDatabase.DeleteAsset(BasicSetupExportRoot);
+        AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+        Debug.Log("KoromoEventScript Basic Setup sample export completed: " + packageSampleRoot);
+    }
+
+    private static void CopyAssetWithMeta(string sourceAssetPath, string destinationPath)
+    {
+        var sourcePath = Path.GetFullPath(Path.Combine(Application.dataPath, "..", sourceAssetPath));
+        Directory.CreateDirectory(Path.GetDirectoryName(destinationPath));
+        FileUtil.CopyFileOrDirectory(sourcePath, destinationPath);
+        FileUtil.CopyFileOrDirectory(sourcePath + ".meta", destinationPath + ".meta");
     }
 
     private static void ConfigureSprites()

@@ -5,7 +5,7 @@ KoromoEventScript の Unity 組み込み拡張パッケージである。
 ## 対象環境
 
 - Unity 6000.5.3f1 以降
-- Universal Render Pipeline 17.6.0 以降
+- Universal Render Pipeline 17.5.0 以降
 - Addressables 2.7.6 以降
 - Input System 1.19.0 以降
 - uGUI 2.5.0 以降

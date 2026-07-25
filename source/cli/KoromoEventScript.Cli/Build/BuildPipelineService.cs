@@ -202,7 +202,7 @@ public sealed class BuildPipelineService
             ? Array.Empty<BuildManifestLocalizationArtifact>()
             : [new BuildManifestLocalizationArtifact(options.Locale!, artifacts)];
 
-        var cliVersion = typeof(BuildPipelineService).Assembly.GetName().Version?.ToString() ?? "0.0.0";
+        var cliVersion = CliVersionInfo.Current;
 
         return new BuildManifestDocument(
             cliVersion,

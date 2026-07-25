@@ -12,8 +12,6 @@ namespace KoromoEventScript.Cli.Commands;
 
 public sealed class CliApplication
 {
-    private const string CliVersion = "0.1.0";
-
     private readonly BuildCheckOnlyCommand buildCheckOnlyCommand;
     private readonly BuildCommand buildCommand;
     private readonly CleanService cleanService;
@@ -202,7 +200,7 @@ public sealed class CliApplication
 
         if (args.Count == 1 && IsVersionOption(args[0]))
         {
-            return CommandParseResult.Output($"kes {CliVersion}");
+            return CommandParseResult.Output($"kes {CliVersionInfo.Current}");
         }
 
         if (args.Count == 1 && IsHelpOption(args[0]))

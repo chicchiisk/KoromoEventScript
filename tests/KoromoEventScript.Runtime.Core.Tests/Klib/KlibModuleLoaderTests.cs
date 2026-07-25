@@ -33,6 +33,7 @@ public sealed class KlibModuleLoaderTests
         data[1] = (byte)'L';
         data[2] = (byte)'I';
         data[3] = (byte)'B';
+        BitConverter.GetBytes(1).CopyTo(data, 4);
 
         var result = new KlibModuleLoader().Load(data, "header-only.klib");
 

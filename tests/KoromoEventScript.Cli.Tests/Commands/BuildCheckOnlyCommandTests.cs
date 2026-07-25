@@ -727,7 +727,8 @@ intro = {
 
     private static ProcessResult RunCliProcess(string arguments)
     {
-        var cliAssembly = Path.Combine(TestContext.CurrentContext.TestDirectory, "KoromoEventScript.Cli.dll");
+        var cliAssemblyName = typeof(CliApplication).Assembly.GetName().Name + ".dll";
+        var cliAssembly = Path.Combine(TestContext.CurrentContext.TestDirectory, cliAssemblyName);
         var startInfo = new ProcessStartInfo("dotnet", $"\"{cliAssembly}\" {arguments}")
         {
             RedirectStandardOutput = true,

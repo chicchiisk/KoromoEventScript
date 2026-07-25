@@ -1,9 +1,13 @@
+using System;
 using System.IO;
 using System.Text;
 using KoromoEventScript.Runtime.Core.Klib;
 using KoromoEventScript.Runtime.Core.Execution;
 using NUnit.Framework;
 using UnityEditor;
+using UnityEngine;
+using UnityEngine.TestTools;
+using System.Text.RegularExpressions;
 
 namespace KoromoEventScript.Unity.Editor.Tests
 {
@@ -71,6 +75,76 @@ public sealed class KesImporterTests
         var loadResult = new KlibModuleLoader().Load(buildAsset.Scripts[0].Klib.Data, klibPath);
         Assert.That(loadResult.Succeeded, Is.True);
         Assert.That(loadResult.Document.Module.ScriptId, Is.EqualTo("events/chapter001"));
+    }
+
+    [TestCase(false, "KESU1001")]
+    [TestCase(true, "KESU1001")]
+    public void ImportKlib_CorruptOrUnsupportedVersion_DoesNotCreateAsset(
+        bool unsupportedVersion,
+        string diagnosticCode)
+    {
+        var klibPath = TestRoot + "/events/invalid.klib";
+        var data = unsupportedVersion ? BuildMinimalKlib() : Encoding.UTF8.GetBytes("broken");
+        if (unsupportedVersion)
+        {
+            BitConverter.GetBytes(99).CopyTo(data, 4);
+        }
+
+        File.WriteAllBytes(klibPath, data);
+        ExpectImportFailure(diagnosticCode);
+        AssetDatabase.ImportAsset(klibPath, ImportAssetOptions.ForceSynchronousImport);
+
+        Assert.That(AssetDatabase.LoadAssetAtPath<KesKlibAsset>(klibPath), Is.Null);
+    }
+
+    [Test]
+    public void ImportKson_MissingKlib_DoesNotCreateBuildAsset()
+    {
+        var manifestPath = TestRoot + "/missing.kson";
+        File.WriteAllText(manifestPath, BuildManifest("events/chapter001", "events/missing.klib"));
+
+        ExpectImportFailure("KESU1108");
+        AssetDatabase.ImportAsset(manifestPath, ImportAssetOptions.ForceSynchronousImport);
+
+        Assert.That(AssetDatabase.LoadAssetAtPath<KesBuildAsset>(manifestPath), Is.Null);
+    }
+
+    [Test]
+    public void ImportKson_ScriptIdMismatch_DoesNotCreateBuildAsset()
+    {
+        var klibPath = TestRoot + "/events/chapter001.klib";
+        File.WriteAllBytes(klibPath, BuildMinimalKlib("events/actual"));
+        AssetDatabase.ImportAsset(klibPath, ImportAssetOptions.ForceSynchronousImport);
+
+        var manifestPath = TestRoot + "/mismatch.kson";
+        File.WriteAllText(manifestPath, BuildManifest("events/expected", "events/chapter001.klib"));
+
+        ExpectImportFailure("KESU1112");
+        AssetDatabase.ImportAsset(manifestPath, ImportAssetOptions.ForceSynchronousImport);
+
+        Assert.That(AssetDatabase.LoadAssetAtPath<KesBuildAsset>(manifestPath), Is.Null);
+    }
+
+    private static string BuildManifest(string scriptId, string klibPath)
+    {
+        return
+            "{\n" +
+            "  \"schemaVersion\": \"1.0\",\n" +
+            "  \"gameId\": \"import-test\",\n" +
+            "  \"defaultLocale\": \"ja-JP\",\n" +
+            "  \"target\": \"unity\",\n" +
+            "  \"scripts\": [{\"scriptId\":\"" + scriptId + "\",\"locale\":\"ja-JP\",\"klibPath\":\"" + klibPath + "\",\"isEntry\":true,\"startLabel\":\"\"}],\n" +
+            "  \"events\": [],\n" +
+            "  \"localizations\": [],\n" +
+            "  \"build\": {\"buildId\":\"unity-import-test-1\"}\n" +
+            "}";
+    }
+
+    private static void ExpectImportFailure(string diagnosticCode)
+    {
+        var diagnosticPattern = new Regex(diagnosticCode, RegexOptions.Singleline);
+        LogAssert.Expect(LogType.Exception, diagnosticPattern);
+        LogAssert.Expect(LogType.Error, diagnosticPattern);
     }
 
     internal static byte[] BuildMinimalKlib(

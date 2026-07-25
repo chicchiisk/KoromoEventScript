@@ -1,5 +1,8 @@
 # Changelog
 
+- Package Managerから導入できる`Basic Setup`サンプルへ、標準プレハブ、Input Actions、Addressables設定、save host例を追加。
+- Unity 6000.5.3f1の組み込みURPに合わせ、依存下限を17.5.0へ統一。
+- Klib format versionの互換性検証と、破損Klib・参照欠落・script ID不一致のImporterテストを追加。
 - `KesManager`に、命令実行前のevent source位置とbytecode命令をUnity Consoleへ出力する`Log Execution Source`オプションを追加。
 - SampleProjectのGlobal Light 2DがKES背景・actorを含む全sorting layerを照らすように修正。
 
